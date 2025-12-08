@@ -108,7 +108,6 @@ body, input, button {
     flex: 1;
     text-align: center;
 }
-
 .cal-arrow {
     appearance: none;
     border: 0;
@@ -130,11 +129,12 @@ body, input, button {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
+    margin-bottom: 0.5rem;
 }
 
 .cal-day {
     appearance: none;
-    border: 1px solid var(--line);
+    border: 0;
     background: transparent;
     color: var(--accent);
     padding: 8px;
@@ -160,6 +160,15 @@ body, input, button {
     border: 0;
     font-weight: bold;
 }
+
+.cal-today {
+    font-size: 1rem;
+    color: var(--accent);
+    flex: 1;
+    text-align: center;
+    cursor: pointer;
+}
+
 
 .hours {
     display: flex;

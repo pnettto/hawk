@@ -6,11 +6,12 @@ const dateDisplay = document.getElementById('dateDisplay');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const hoursEl = document.getElementById('hours');
-const calendarModal = document.getElementById('calendarModal');
+const calModal = document.getElementById('calendarModal');
 const calMonth = document.getElementById('calMonth');
 const calDays = document.getElementById('calDays');
 const calPrevMonth = document.getElementById('calPrevMonth');
 const calNextMonth = document.getElementById('calNextMonth');
+const calToday = document.getElementById('calToday');
 
 let selectedDate = new Date();
 let calendarViewDate = new Date();
@@ -166,11 +167,11 @@ function buildCalendar() {
 function openCalendar() {
   calendarViewDate = new Date(selectedDate);
   buildCalendar();
-  calendarModal.classList.remove('hidden');
+  calModal.classList.remove('hidden');
 }
 
 function closeCalendar() {
-  calendarModal.classList.add('hidden');
+  calModal.classList.add('hidden');
 }
 
 function goPrev() {
@@ -209,15 +210,21 @@ calNextMonth.addEventListener('click', () => {
   buildCalendar();
 });
 
-calendarModal.addEventListener('click', (e) => {
-  if (e.target === calendarModal) closeCalendar();
+calModal.addEventListener('click', (e) => {
+  if (e.target === calModal) closeCalendar();
+});
+
+calToday.addEventListener('click', () => {
+  setSelected(new Date());
+  closeCalendar();
 });
 
 document.addEventListener('click', (e) => {
-  if (!calendarModal.classList.contains('hidden') && !e.target.closest('.date-container')) {
+  if (!calModal.classList.contains('hidden') && !e.target.closest('.date-container')) {
     closeCalendar();
   }
 });
 
-// init
+
+
 setSelected(new Date());
