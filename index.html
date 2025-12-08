@@ -11,9 +11,18 @@
     <main class="container">
       <header class="header">
         <button id="prevBtn" class="arrow" aria-label="Previous day">◀</button>
-        <div class="date-wrap">
+        <div class="date-container">
           <button id="dateDisplay" class="date-display" aria-haspopup="dialog"></button>
-          <input id="datePicker" type="date" class="date-picker" aria-label="Choose date">
+          <div id="calendarModal" class="calendar-modal hidden">
+            <div class="calendar-content">
+              <div class="calendar-header">
+                <button id="calPrevMonth" class="cal-arrow">◀</button>
+                <div id="calMonth" class="cal-month"></div>
+                <button id="calNextMonth" class="cal-arrow">▶</button>
+              </div>
+              <div id="calDays" class="cal-days"></div>
+            </div>
+          </div>
         </div>
         <button id="nextBtn" class="arrow" aria-label="Next day">▶</button>
       </header>

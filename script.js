@@ -2,12 +2,17 @@ const HOURS_START = 9;
 const HOURS_END = 17; // inclusive -> 7pm
 
 const dateDisplay = document.getElementById('dateDisplay');
-const datePicker = document.getElementById('datePicker');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const hoursEl = document.getElementById('hours');
+const calendarModal = document.getElementById('calendarModal');
+const calMonth = document.getElementById('calMonth');
+const calDays = document.getElementById('calDays');
+const calPrevMonth = document.getElementById('calPrevMonth');
+const calNextMonth = document.getElementById('calNextMonth');
 
 let selected = new Date();
+let calendarViewDate = new Date();
 
 function fmtDate(d){
   const y = d.getFullYear();
@@ -107,8 +112,52 @@ function collectCurrentState(){
 function setSelected(d){
   selected = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   dateDisplay.textContent = prettyDisplay(selected);
-  datePicker.value = fmtDate(selected);
   render(selected);
+}
+
+function buildCalendar(){
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+  calMonth.textContent = calendarViewDate.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+  calDays.innerHTML = '';
+
+  let currentDate = new Date(startDate);
+  for(let i = 0; i < 42; i++){
+    const day = document.createElement('button');
+    day.className = 'cal-day';
+    day.textContent = currentDate.getDate();
+    
+    if(currentDate.getMonth() !== month){
+      day.classList.add('other-month');
+    }
+    
+    if(fmtDate(currentDate) === fmtDate(selected)){
+      day.classList.add('selected');
+    }
+    
+    const clickDate = new Date(currentDate);
+    day.addEventListener('click', ()=>{
+      setSelected(clickDate);
+      closeCalendar();
+    });
+    
+    calDays.appendChild(day);
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+}
+
+function openCalendar(){
+  calendarViewDate = new Date(selected);
+  buildCalendar();
+  calendarModal.classList.remove('hidden');
+}
+
+function closeCalendar(){
+  calendarModal.classList.add('hidden');
 }
 
 prevBtn.addEventListener('click', ()=>{
@@ -118,12 +167,25 @@ nextBtn.addEventListener('click', ()=>{
   const d = new Date(selected); d.setDate(d.getDate()+1); setSelected(d);
 });
 
-dateDisplay.addEventListener('click', ()=> datePicker.focus());
-datePicker.addEventListener('change', ()=>{
-  const parts = datePicker.value.split('-');
-  if(parts.length===3){
-    const d = new Date(+parts[0], +parts[1]-1, +parts[2]);
-    setSelected(d);
+dateDisplay.addEventListener('click', openCalendar);
+
+calPrevMonth.addEventListener('click', ()=>{
+  calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+  buildCalendar();
+});
+
+calNextMonth.addEventListener('click', ()=>{
+  calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+  buildCalendar();
+});
+
+calendarModal.addEventListener('click', (e)=>{
+  if(e.target === calendarModal) closeCalendar();
+});
+
+document.addEventListener('click', (e)=>{
+  if(!calendarModal.classList.contains('hidden') && !e.target.closest('.date-container')){
+    closeCalendar();
   }
 });
 
