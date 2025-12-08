@@ -209,7 +209,7 @@ window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowRight") {
       goNext();
     }
-    if (event.key === "t") {
+    if (event.key === "t" | event.key === " ") {
       setSelected(new Date());
     }
 });

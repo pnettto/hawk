@@ -181,6 +181,7 @@ hr {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    margin-bottom: 2rem;
 }
 
 .row {
@@ -222,7 +223,7 @@ hr {
 }
 
 .notes-input {
-    background: var(--panel);
+    background: transparent;
     border: 0;
     padding: 8px 10px;
     width: 100%;
