@@ -1,6 +1,6 @@
 :root {
     --bg: #0b0f12;
-    --panel: #0f1417;
+    --panel: #11181d;
     --muted: #9aa6ad;
     --accent: #fffab2;
     --line: #1b2226;
@@ -184,15 +184,19 @@ body, input, button {
 .input {
     background: transparent;
     border: 0;
-    /* border-bottom: 1px solid var(--line); */
-    padding: 6px 8px;
+    padding: 8px 10px;
     color: inherit;
     outline: none;
     font-size: 1rem;
+    border-radius: 4px;
+}
+
+.input:hover, .input:focus {
+    background-color: var(--glass);
 }
 
 .input.highlighted {
-    border-color: var(--accent);
+    background-color: var(--panel);
 }
 
 .input::placeholder {
