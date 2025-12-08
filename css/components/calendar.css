@@ -8,7 +8,7 @@
     color: var(--accent);
     padding: 10px 18px;
     border-radius: 10px;
-    font-size: 1.25em;
+    font-size: 1.5em;
     cursor: pointer;
     font-family: 'Cascadia Code', ui-monospace;
     font-weight: normal;
@@ -112,7 +112,7 @@
     cursor: pointer;
 }
 
-.arrow {
+.cal-arrow {
     appearance: none;
     border: 0;
     background: transparent;
@@ -124,7 +124,7 @@
     cursor: pointer;
 }
 
-.arrow:hover {
+.cal-arrow:hover {
     color: var(--accent);
     transform: translateY(-2px)
 }

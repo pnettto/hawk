@@ -106,7 +106,7 @@
 }
 
 @media (max-width:640px) {
-    .row {
+    .hour-row {
         grid-template-columns: 76px 36px 1fr
     }
 }

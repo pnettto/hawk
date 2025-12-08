@@ -4,7 +4,7 @@ export function autoLink(notesInput) {
     let changed = false;
 
     // -------------------------------------
-    // 2. Convert URLs (links + images)
+    // Convert URLs (links + images)
     // -------------------------------------
     
     // Matches http/https and bare domains
@@ -44,6 +44,5 @@ export function autoLink(notesInput) {
     // -------------------------------------
     if (html !== notesInput.innerHTML) {
         notesInput.innerHTML = html;
-        this.debouncedSave();
     }
 }

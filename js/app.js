@@ -5,6 +5,7 @@ import { prettyDisplay } from './utils/date.js';
 const dateDisplay = document.getElementById('dateDisplay');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
+const notesInput = document.getElementById('notesInput');
 
 let selectedDate = new Date();
 
@@ -46,6 +47,11 @@ window.addEventListener("keydown", (event) => {
     if (event.key === "t" || event.key === " ") {
         setSelected(new Date());
         event.preventDefault(); // Prevent scrolling for space
+    }
+    
+    if (event.key === "n") {
+        event.preventDefault();
+        notesInput.focus();
     }
 });
 
