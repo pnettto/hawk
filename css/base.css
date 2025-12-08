@@ -1,0 +1,37 @@
+* {
+    box-sizing: border-box
+}
+
+body {
+    margin: 0;
+    background:  var(--bg);
+    color: #e6f0f3;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body, input, button {
+    font-family: 'Cascadia Code', ui-monospace;
+}
+
+.container {
+    max-width: 820px;
+    margin: 36px auto;
+    padding: 22px;
+}
+
+.header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+@media (max-width:640px) {
+    .container {
+        margin: 12px;
+        padding: 14px
+    }
+}
