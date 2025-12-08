@@ -6,6 +6,9 @@ const dateDisplay = document.getElementById('dateDisplay');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const hoursEl = document.getElementById('hours');
+
+const notesInput = document.getElementById('notesInput');
+
 const calModal = document.getElementById('calendarModal');
 const calMonth = document.getElementById('calMonth');
 const calDays = document.getElementById('calDays');
@@ -86,10 +89,17 @@ function buildRow(hour) {
   return { row, cb, input };
 }
 
+const debouncedSave = debounce(() => {
+  const data = collectCurrentState();
+  const ds = fmtDate(selectedDate);
+  saveForDate(ds, data);
+}, 320);
+
 function render(date) {
   hoursEl.innerHTML = '';
   const dateStr = fmtDate(date);
   const saved = loadForDate(dateStr) || {};
+
   for (let h = HOURS_START; h <= HOURS_END; h++) {
     const { row, cb, input } = buildRow(h);
     const state = saved[h] || { checked: false, text: '' };
@@ -100,17 +110,15 @@ function render(date) {
       const data = collectCurrentState();
       saveForDate(dateStr, data);
     });
-
-    const debouncedSave = debounce(() => {
-      const data = collectCurrentState();
-      saveForDate(dateStr, data);
-    }, 320);
-
     input.addEventListener('input', debouncedSave);
-
+    
     hoursEl.appendChild(row);
   }
+
+  notesInput.value = saved.notes || '';
 }
+
+notesInput.addEventListener('input', debouncedSave);
 
 function collectCurrentState() {
   const map = {};
@@ -120,6 +128,7 @@ function collectCurrentState() {
     const cb = hoursEl.querySelector(`.cb[data-hour=\"${h}\"]`);
     map[h] = { checked: !!cb.checked, text: inp.value };
   });
+  map.notes = notesInput.value;
   return map;
 }
 
@@ -129,6 +138,7 @@ function setSelected(d) {
   render(selectedDate);
 }
 
+// CALENDAR FUNCTIONALITY
 function buildCalendar() {
   const year = calendarViewDate.getFullYear();
   const month = calendarViewDate.getMonth();
@@ -190,11 +200,17 @@ prevBtn.addEventListener('click', goPrev);
 nextBtn.addEventListener('click', goNext);
 // Add keyboard bindings to navigate
 window.addEventListener("keydown", (event) => {
+    const isSomeInputInFocus= document.querySelectorAll('input:focus, textarea:focus').length > 0;
+    if (isSomeInputInFocus) return;
+
     if (event.key === "ArrowLeft") {
         goPrev();
     }
-     if (event.key === "ArrowRight") {
-        goNext();
+    if (event.key === "ArrowRight") {
+      goNext();
+    }
+    if (event.key === "t") {
+      setSelected(new Date());
     }
 });
 
