@@ -4,7 +4,7 @@
     --muted: #9aa6ad;
     --accent: #fffab2;
     --line: #1b2226;
-    --glass: rgba(255, 255, 255, 0.03);
+    --glass: rgba(255, 255, 255, 0.1);
 }
 
 * {
@@ -184,11 +184,15 @@ body, input, button {
 .input {
     background: transparent;
     border: 0;
-    border-bottom: 1px solid var(--line);
+    /* border-bottom: 1px solid var(--line); */
     padding: 6px 8px;
     color: inherit;
     outline: none;
     font-size: 1rem;
+}
+
+.input.highlighted {
+    border-color: var(--accent);
 }
 
 .input::placeholder {
@@ -205,8 +209,7 @@ body, input, button {
     appearance: none;
     width: 22px;
     height: 22px;
-    border-radius: 6px;
-    border: 1px solid var(--line);
+    border-radius: 50%;
     background: var(--glass);
     cursor: pointer;
     position: relative;
@@ -219,7 +222,6 @@ body, input, button {
 }
 
 .cb:checked::after {
-    content: '\2713';
     position: absolute;
     left: 5px;
     top: 1px;
