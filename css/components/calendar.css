@@ -111,3 +111,20 @@
     text-align: center;
     cursor: pointer;
 }
+
+.arrow {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-size: 1.25rem;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: all .18s ease;
+    cursor: pointer;
+}
+
+.arrow:hover {
+    color: var(--accent);
+    transform: translateY(-2px)
+}

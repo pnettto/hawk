@@ -79,7 +79,7 @@ class DailyLog {
 
         return `
             <div class="row">
-                <div class="time">${timeText}</div>
+                <div class="hour-time">${timeText}</div>
                 <div class="hour-checkbox-wrap">
                     <input type="checkbox" class="hour-checkbox" data-hour="${hour}">
                 </div>

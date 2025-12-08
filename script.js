@@ -60,7 +60,7 @@ function buildRow(hour) {
   row.className = 'row';
 
   const time = document.createElement('div'); 
-  time.className = 'time';
+  time.className = 'hour-time';
   const hourDisplay = new Date(); hourDisplay.setHours(hour, 0, 0, 0);
   time.textContent = hourDisplay.toLocaleTimeString([], { hour: 'numeric' });
 
