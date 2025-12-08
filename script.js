@@ -1,5 +1,6 @@
 const HOURS_START = 9;
-const HOURS_END = 17; // inclusive -> 7pm
+const HOURS_END = 17;
+const LOCALSTORAGE_KEY = 'hawk:data';
 
 const dateDisplay = document.getElementById('dateDisplay');
 const prevBtn = document.getElementById('prevBtn');
@@ -25,16 +26,14 @@ function prettyDisplay(d) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-const ROOT_KEY = 'hawk:data';
-
 function loadAll() {
-  const raw = localStorage.getItem(ROOT_KEY);
+  const raw = localStorage.getItem(LOCALSTORAGE_KEY);
   if (!raw) return {};
   try { return JSON.parse(raw) || {} } catch (e) { return {} }
 }
 
 function saveAll(obj) {
-  try { localStorage.setItem(ROOT_KEY, JSON.stringify(obj)) } catch (e) { /* ignore quota errors */ }
+  try { localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(obj)) } catch (e) { /* ignore quota errors */ }
 }
 
 function debounce(fn, wait = 300) {
@@ -174,11 +173,28 @@ function closeCalendar() {
   calendarModal.classList.add('hidden');
 }
 
-prevBtn.addEventListener('click', () => {
-  const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelected(d);
-});
-nextBtn.addEventListener('click', () => {
-  const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelected(d);
+function goPrev() {
+  const d = new Date(selectedDate); 
+  d.setDate(d.getDate() - 1); 
+  setSelected(d);
+}
+
+function goNext() {
+  const d = new Date(selectedDate); 
+  d.setDate(d.getDate() + 1); 
+  setSelected(d);
+}
+
+prevBtn.addEventListener('click', goPrev);
+nextBtn.addEventListener('click', goNext);
+// Add keyboard bindings to navigate
+window.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft") {
+        goPrev();
+    }
+     if (event.key === "ArrowRight") {
+        goNext();
+    }
 });
 
 dateDisplay.addEventListener('click', openCalendar);

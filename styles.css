@@ -13,7 +13,7 @@
 
 body {
     margin: 0;
-    background: linear-gradient(180deg, var(--bg), #061014);
+    background:  var(--bg);
     color: #e6f0f3;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
@@ -172,7 +172,7 @@ body, input, button {
     grid-template-columns: 55px 36px 1fr;
     align-items: center;
     gap: 12px;
-    padding: 10px 12px;
+    padding: 5px 12px;
 }
 
 .time {
@@ -189,6 +189,8 @@ body, input, button {
     outline: none;
     font-size: 1rem;
     border-radius: 4px;
+    transition: background-color 0.3s ease;
+    cursor: pointer;
 }
 
 .input:hover, .input:focus {
