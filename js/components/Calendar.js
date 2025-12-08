@@ -1,4 +1,4 @@
-import { fmtDate } from '../utils/date.js';
+import { formatDate } from '../utils/date.js';
 
 const calModal = document.getElementById('calendarModal');
 const calMonth = document.getElementById('calMonth');
@@ -31,7 +31,7 @@ function buildCalendar() {
       day.classList.add('other-month');
     }
 
-    if (fmtDate(currentDate) === fmtDate(selectedDate)) {
+    if (formatDate(currentDate) === formatDate(selectedDate)) {
       day.classList.add('selected');
     }
 

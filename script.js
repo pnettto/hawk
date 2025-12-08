@@ -19,7 +19,7 @@ const calToday = document.getElementById('calToday');
 let selectedDate = new Date();
 let calendarViewDate = new Date();
 
-function fmtDate(d) {
+function formatDate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -64,13 +64,13 @@ function buildRow(hour) {
   const hourDisplay = new Date(); hourDisplay.setHours(hour, 0, 0, 0);
   time.textContent = hourDisplay.toLocaleTimeString([], { hour: 'numeric' });
 
-  const cbWrap = document.createElement('div'); 
-  cbWrap.className = 'cb-wrap';
-  const cb = document.createElement('input'); 
-  cb.type = 'checkbox'; 
-  cb.className = 'cb'; 
-  cb.dataset.hour = hour;
-  cbWrap.appendChild(cb);
+  const hourCheckboxWrap = document.createElement('div'); 
+  hourCheckboxWrap.className = 'hour-checkbox-wrap';
+  const hourCheckbox = document.createElement('input'); 
+  hourCheckbox.type = 'checkbox'; 
+  hourCheckbox.className = 'hour-checkbox'; 
+  hourCheckbox.dataset.hour = hour;
+  hourCheckboxWrap.appendChild(hourCheckbox);
 
   const input = document.createElement('input'); 
   input.className = 'input'; 
@@ -83,30 +83,30 @@ function buildRow(hour) {
   }
 
   row.appendChild(time);
-  row.appendChild(cbWrap);
+  row.appendChild(hourCheckboxWrap);
   row.appendChild(input);
 
-  return { row, cb, input };
+  return { row, hourCheckbox, input };
 }
 
 const debouncedSave = debounce(() => {
   const data = collectCurrentState();
-  const ds = fmtDate(selectedDate);
+  const ds = formatDate(selectedDate);
   saveForDate(ds, data);
 }, 320);
 
 function render(date) {
   hoursEl.innerHTML = '';
-  const dateStr = fmtDate(date);
+  const dateStr = formatDate(date);
   const saved = loadForDate(dateStr) || {};
 
   for (let h = HOURS_START; h <= HOURS_END; h++) {
-    const { row, cb, input } = buildRow(h);
+    const { row, hourCheckbox, input } = buildRow(h);
     const state = saved[h] || { checked: false, text: '' };
-    cb.checked = !!state.checked;
+    hourCheckbox.checked = !!state.checked;
     input.value = state.text || '';
 
-    cb.addEventListener('change', () => {
+    hourCheckbox.addEventListener('change', () => {
       const data = collectCurrentState();
       saveForDate(dateStr, data);
     });
@@ -125,8 +125,8 @@ function collectCurrentState() {
   const inputs = hoursEl.querySelectorAll('.input');
   inputs.forEach(inp => {
     const h = inp.dataset.hour;
-    const cb = hoursEl.querySelector(`.cb[data-hour=\"${h}\"]`);
-    map[h] = { checked: !!cb.checked, text: inp.value };
+    const hourCheckbox = hoursEl.querySelector(`.hour-checkbox[data-hour=\"${h}\"]`);
+    map[h] = { checked: !!hourCheckbox.checked, text: inp.value };
   });
   map.notes = notesInput.value;
   return map;
@@ -159,7 +159,7 @@ function buildCalendar() {
       day.classList.add('other-month');
     }
 
-    if (fmtDate(currentDate) === fmtDate(selectedDate)) {
+    if (formatDate(currentDate) === formatDate(selectedDate)) {
       day.classList.add('selected');
     }
 

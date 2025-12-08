@@ -1,125 +1,170 @@
 import { HOURS_START, HOURS_END } from '../constants.js';
 import { loadForDate, saveForDate } from '../utils/storage.js';
-import { fmtDate } from '../utils/date.js';
+import { formatDate as formatDate } from '../utils/date.js';
 import { debounce } from '../utils/dom.js';
 
-let hoursEl;
-let notesInput;
-let currentDate = null;
+/**
+ * Manages the daily log UI: hourly rows with checkboxes and text inputs.
+ * Handles rendering, state persistence, and user interactions.
+ */
+class DailyLog {
+    constructor() {
+        this.currentDate = null;
+        this.hoursEl = null;
+        this.notesInput = null;
+        this.listenersInitialized = false;
 
-// Debounced save function
-const debouncedSave = debounce(() => {
-    if (!currentDate) return;
-    saveCurrentState();
-}, 320);
+        // Debounce text input saves to avoid excessive localStorage writes
+        this.debouncedSave = debounce(() => {
+            if (this.currentDate) {
+                this.saveCurrentState();
+            }
+        }, 320);
+    }
 
-function getElements() {
-    if (!hoursEl) hoursEl = document.getElementById('hours');
-    if (!notesInput) {
-        notesInput = document.getElementById('notesInput');
-        // Initialize notes listener once
-        if (notesInput) {
-            notesInput.addEventListener('input', debouncedSave);
+    /**
+     * Lazy-loads and caches DOM elements.
+     * Attaches notes input listener on first access.
+     */
+    getElements() {
+        if (!this.hoursEl) {
+            this.hoursEl = document.getElementById('hours');
+        }
+        if (!this.notesInput) {
+            this.notesInput = document.getElementById('notesInput');
+            if (this.notesInput) {
+                this.notesInput.addEventListener('input', () => this.debouncedSave());
+            }
+        }
+        return { hoursEl: this.hoursEl, notesInput: this.notesInput };
+    }
+
+    /**
+     * Collects all hour data and notes, then persists to localStorage.
+     */
+    saveCurrentState() {
+        const { hoursEl, notesInput } = this.getElements();
+        if (!hoursEl || !this.currentDate) return;
+
+        const data = { notes: notesInput?.value || '' };
+
+        // Gather checkbox and input values for each hour
+        const inputs = hoursEl.querySelectorAll('.input');
+        inputs.forEach(input => {
+            const hour = input.dataset.hour;
+            const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
+            data[hour] = {
+                checked: checkbox?.checked || false,
+                text: input.value
+            };
+        });
+
+        saveForDate(formatDate(this.currentDate), data);
+    }
+
+    /**
+     * Generates HTML for a single hour row.
+     * Highlights the row if it matches the current hour today.
+     */
+    createRowHTML(hour, selectedDate) {
+        const timeDisplay = new Date();
+        timeDisplay.setHours(hour, 0, 0, 0);
+        const timeText = timeDisplay.toLocaleTimeString([], { hour: 'numeric' });
+
+        // Highlight current hour if viewing today
+        const now = new Date();
+        const isSameDay = now.toLocaleDateString() === selectedDate.toLocaleDateString();
+        const isCurrentHour = now.getHours() === hour;
+        const highlightClass = (isSameDay && isCurrentHour) ? 'highlighted' : '';
+
+        return `
+            <div class="row">
+                <div class="time">${timeText}</div>
+                <div class="hour-checkbox-wrap">
+                    <input type="checkbox" class="hour-checkbox" data-hour="${hour}">
+                </div>
+                <input class="input ${highlightClass}" data-hour="${hour}">
+            </div>
+        `;
+    }
+
+    /**
+     * Sets up event delegation on the hours container.
+     * Checkboxes save immediately, text inputs save with debounce.
+     */
+    setupEventListeners() {
+        const { hoursEl } = this.getElements();
+        if (!hoursEl || this.listenersInitialized) return;
+
+        // Checkbox changes save immediately
+        hoursEl.addEventListener('change', (e) => {
+            if (e.target.matches('.hour-checkbox')) {
+                this.saveCurrentState();
+            }
+        });
+
+        // Text input changes save with debounce
+        hoursEl.addEventListener('input', (e) => {
+            if (e.target.matches('.input')) {
+                this.debouncedSave();
+            }
+        });
+
+        this.listenersInitialized = true;
+    }
+
+    /**
+     * Builds HTML for all hour rows between HOURS_START and HOURS_END.
+     */
+    buildRowsHTML(date) {
+        let html = '';
+        for (let hour = HOURS_START; hour <= HOURS_END; hour++) {
+            html += this.createRowHTML(hour, date);
+        }
+        return html;
+    }
+
+    /**
+     * Restores checkboxes and text inputs from saved data.
+     */
+    restoreState(savedData) {
+        const { hoursEl } = this.getElements();
+        if (!hoursEl) return;
+
+        for (let hour = HOURS_START; hour <= HOURS_END; hour++) {
+            const state = savedData[hour] || { checked: false, text: '' };
+
+            const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
+            const input = hoursEl.querySelector(`.input[data-hour="${hour}"]`);
+
+            if (checkbox) checkbox.checked = !!state.checked;
+            if (input) input.value = state.text || '';
         }
     }
-    return { hoursEl, notesInput };
-}
 
-function saveCurrentState() {
-    const { hoursEl, notesInput } = getElements();
-    if (!hoursEl) return;
+    /**
+     * Main render method: builds UI, restores state, and sets up listeners.
+     */
+    render(date) {
+        this.currentDate = date;
+        const savedData = loadForDate(formatDate(date)) || {};
 
-    const map = { notes: notesInput.value };
-    
-    // We can just iterate over the data attributes we know exist
-    // or query the container. Querying is safe and easy.
-    const inputs = hoursEl.querySelectorAll('.input');
-    inputs.forEach(inp => {
-        const h = inp.dataset.hour;
-        const cb = hoursEl.querySelector(`.cb[data-hour="${h}"]`);
-        map[h] = { 
-            checked: cb ? cb.checked : false, 
-            text: inp.value 
-        };
-    });
+        const { hoursEl, notesInput } = this.getElements();
+        if (!hoursEl) return;
 
-    saveForDate(fmtDate(currentDate), map);
-}
+        hoursEl.innerHTML = this.buildRowsHTML(date);
+        this.restoreState(savedData);
+        this.setupEventListeners();
 
-function createRowHTML(h, selectedDate) {
-    const hourDisplay = new Date(); 
-    hourDisplay.setHours(h, 0, 0, 0);
-    const timeText = hourDisplay.toLocaleTimeString([], { hour: 'numeric' });
-    
-    const now = new Date();
-    const isSameDay = now.toLocaleDateString() === selectedDate.toLocaleDateString();
-    const isSameHour = now.getHours() === h;
-    const highlightClass = (isSameDay && isSameHour) ? 'highlighted' : '';
-
-    return `
-        <div class="row">
-            <div class="time">${timeText}</div>
-            <div class="cb-wrap">
-                <input type="checkbox" class="cb" data-hour="${h}">
-            </div>
-            <input class="input ${highlightClass}" data-hour="${h}">
-        </div>
-    `;
-}
-
-function setupDelegatedListeners() {
-    const { hoursEl } = getElements();
-    if (hoursEl.dataset.hasListeners) return;
-
-    hoursEl.addEventListener('change', (e) => {
-        if (e.target.matches('.cb')) {
-            saveCurrentState();
+        if (notesInput) {
+            notesInput.value = savedData.notes || '';
         }
-    });
-
-    hoursEl.addEventListener('input', (e) => {
-        if (e.target.matches('.input')) {
-            debouncedSave();
-        }
-    });
-
-    hoursEl.dataset.hasListeners = 'true';
+    }
 }
+
+const dailyLogInstance = new DailyLog();
 
 export function render(date) {
-    currentDate = date;
-    const dateStr = fmtDate(date);
-    const saved = loadForDate(dateStr) || {};
-    
-    const { hoursEl, notesInput } = getElements();
-    if (!hoursEl) return;
-
-    // 1. Build all HTML first (faster than appending nodes one by one)
-    let rowsHTML = '';
-    for (let h = HOURS_START; h <= HOURS_END; h++) {
-        rowsHTML += createRowHTML(h, date);
-    }
-    hoursEl.innerHTML = rowsHTML;
-
-    // 2. Restore state
-    for (let h = HOURS_START; h <= HOURS_END; h++) {
-        const state = saved[h] || { checked: false, text: '' };
-        
-        // It's slightly faster to select by ID, but we didn't use IDs.
-        // Selecting by data attribute is fine here.
-        const rowCb = hoursEl.querySelector(`.cb[data-hour="${h}"]`);
-        const rowInput = hoursEl.querySelector(`.input[data-hour="${h}"]`);
-        
-        if (rowCb) rowCb.checked = !!state.checked;
-        if (rowInput) rowInput.value = state.text || '';
-    }
-
-    // 3. Setup listeners (idempotent)
-    setupDelegatedListeners();
-
-    // 4. Set notes
-    if (notesInput) {
-        notesInput.value = saved.notes || '';
-    }
+    dailyLogInstance.render(date);
 }
 

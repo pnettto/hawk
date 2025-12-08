@@ -16,12 +16,12 @@
 }
 
 /* Custom checkbox */
-.cb-wrap {
+.hour-checkbox-wrap {
     display: inline-flex;
     align-items: center
 }
 
-.cb {
+.hour-checkbox {
     appearance: none;
     width: 22px;
     height: 22px;
@@ -32,12 +32,12 @@
     transition: all .18s ease
 }
 
-.cb:checked {
+.hour-checkbox:checked {
     background: var(--accent);
     border: 0
 }
 
-.cb:checked::after {
+.hour-checkbox:checked::after {
     position: absolute;
     left: 5px;
     top: 1px;
