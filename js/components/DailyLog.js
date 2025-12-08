@@ -2,6 +2,7 @@ import { HOURS_START, HOURS_END } from '../constants.js';
 import { loadForDate, saveForDate } from '../utils/storage.js';
 import { formatDate as formatDate } from '../utils/date.js';
 import { debounce } from '../utils/dom.js';
+import { autoLink } from '../utils/autoLink.js';
 
 /**
  * Manages the daily log UI: hourly rows with checkboxes and text inputs.
@@ -28,7 +29,7 @@ class DailyLog {
      */
     getElements() {
         if (!this.hoursEl) {
-            this.hoursEl = document.getElementById('hours');
+            this.hoursEl = document.getElementById('hoursContainer');
         }
         if (!this.notesInput) {
             this.notesInput = document.getElementById('notesInput');
@@ -46,16 +47,16 @@ class DailyLog {
         const { hoursEl, notesInput } = this.getElements();
         if (!hoursEl || !this.currentDate) return;
 
-        const data = { notes: notesInput?.value || '' };
+        const data = { notes: notesInput?.innerHTML || '' };
 
         // Gather checkbox and input values for each hour
-        const inputs = hoursEl.querySelectorAll('.input');
-        inputs.forEach(input => {
-            const hour = input.dataset.hour;
+        const hourInputs = hoursEl.querySelectorAll('.hour-input');
+        hourInputs.forEach(hourInput => {
+            const hour = hourInput.dataset.hour;
             const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
             data[hour] = {
                 checked: checkbox?.checked || false,
-                text: input.value
+                text: hourInput.value
             };
         });
 
@@ -78,12 +79,12 @@ class DailyLog {
         const highlightClass = (isSameDay && isCurrentHour) ? 'highlighted' : '';
 
         return `
-            <div class="row">
+            <div class="hour-row">
                 <div class="hour-time">${timeText}</div>
                 <div class="hour-checkbox-wrap">
                     <input type="checkbox" class="hour-checkbox" data-hour="${hour}">
                 </div>
-                <input class="input ${highlightClass}" data-hour="${hour}">
+                <input class="hour-input ${highlightClass}" data-hour="${hour}">
             </div>
         `;
     }
@@ -93,7 +94,7 @@ class DailyLog {
      * Checkboxes save immediately, text inputs save with debounce.
      */
     setupEventListeners() {
-        const { hoursEl } = this.getElements();
+        const { hoursEl, notesInput } = this.getElements();
         if (!hoursEl || this.listenersInitialized) return;
 
         // Checkbox changes save immediately
@@ -105,10 +106,69 @@ class DailyLog {
 
         // Text input changes save with debounce
         hoursEl.addEventListener('input', (e) => {
-            if (e.target.matches('.input')) {
+            if (e.target.matches('.hour-input')) {
                 this.debouncedSave();
             }
         });
+
+        notesInput.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertHTML', false, text.replace(/\n/g, '<br>'));
+            setTimeout(() => {
+                autoLink(notesInput);
+            }, 0);
+        });
+
+        notesInput.addEventListener("copy", (event) => {
+            event.preventDefault();
+
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+
+            const range = selection.getRangeAt(0);
+            const fragment = range.cloneContents();
+
+            // Replace images with their src
+            fragment.querySelectorAll('img').forEach(img => {
+                const markdown = `![image](${img.src})`;
+                const textNode = document.createTextNode(markdown);
+                img.replaceWith(textNode);
+            });
+
+            // Convert fragment to text preserving line breaks
+            function fragmentToText(node) {
+                let text = '';
+                node.childNodes.forEach(child => {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        text += child.nodeValue;
+                    } else if (child.nodeName === 'BR') {
+                        text += '\n';
+                    } else {
+                        text += fragmentToText(child);
+                        if (child.nodeName === 'DIV' || child.nodeName === 'P') {
+                            text += '\n';
+                        }
+                    }
+                });
+                return text;
+            }
+
+            const textToCopy = fragmentToText(fragment);
+            event.clipboardData.setData("text/plain", textToCopy);
+        });
+
+        // Cmd + click to open links
+        notesInput.addEventListener('click', (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+
+            if (e.metaKey || e.ctrlKey) {
+                e.preventDefault();
+                window.open(a.href, "_blank");
+            }
+        });
+
 
         this.listenersInitialized = true;
     }
@@ -135,7 +195,7 @@ class DailyLog {
             const state = savedData[hour] || { checked: false, text: '' };
 
             const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
-            const input = hoursEl.querySelector(`.input[data-hour="${hour}"]`);
+            const input = hoursEl.querySelector(`.hour-input[data-hour="${hour}"]`);
 
             if (checkbox) checkbox.checked = !!state.checked;
             if (input) input.value = state.text || '';
@@ -157,7 +217,7 @@ class DailyLog {
         this.setupEventListeners();
 
         if (notesInput) {
-            notesInput.value = savedData.notes || '';
+            notesInput.innerHTML = savedData.notes || '';
         }
     }
 }

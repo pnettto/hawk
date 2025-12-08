@@ -32,15 +32,17 @@ nextBtn.addEventListener('click', goNext);
 dateDisplay.addEventListener('click', () => Calendar.open(selectedDate));
 
 window.addEventListener("keydown", (event) => {
-    const isSomeInputInFocus = document.querySelectorAll('input:focus, textarea:focus').length > 0;
+    const active = document.activeElement;
+
+    const isSomeInputInFocus =
+        active.classList.contains("hour-input") ||
+        active.closest(".notes-input") !== null;   // covers focus-within
+
     if (isSomeInputInFocus) return;
 
-    if (event.key === "ArrowLeft") {
-        goPrev();
-    }
-    if (event.key === "ArrowRight") {
-        goNext();
-    }
+    if (event.key === "ArrowLeft") goPrev();
+    if (event.key === "ArrowRight") goNext();
+
     if (event.key === "t" || event.key === " ") {
         setSelected(new Date());
         event.preventDefault(); // Prevent scrolling for space

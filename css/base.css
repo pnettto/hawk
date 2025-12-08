@@ -15,6 +15,10 @@ body, input, button {
     font-family: 'Cascadia Code', ui-monospace;
 }
 
+a {
+    color: var(--accent);
+}
+
 .container {
     max-width: 820px;
     margin: 36px auto;
