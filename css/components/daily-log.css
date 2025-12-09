@@ -66,9 +66,12 @@
     background-color: var(--glass);
 }
 
-.hour-input.highlighted {
-    background-color: var(--panel);
+.highlighted .hour-time {
+    color: var(--accent);
 }
+/* .highlighted .hour-input {
+    border-bottom: dashed 1px var(--panel);
+} */
 
 .hour-input::placeholder {
     color: #6b7b80

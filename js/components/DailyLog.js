@@ -76,15 +76,16 @@ class DailyLog {
         const now = new Date();
         const isSameDay = now.toLocaleDateString() === selectedDate.toLocaleDateString();
         const isCurrentHour = now.getHours() === hour;
+        
         const highlightClass = (isSameDay && isCurrentHour) ? 'highlighted' : '';
 
         return `
-            <div class="hour-row">
+            <div class="hour-row ${highlightClass}">
                 <div class="hour-time">${timeText}</div>
                 <div class="hour-checkbox-wrap">
                     <input type="checkbox" class="hour-checkbox" data-hour="${hour}">
                 </div>
-                <input class="hour-input ${highlightClass}" data-hour="${hour}">
+                <input class="hour-input" data-hour="${hour}">
             </div>
         `;
     }
