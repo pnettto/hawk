@@ -66,6 +66,10 @@
     background-color: var(--glass);
 }
 
+.hour-input:focus {
+    cursor: text;
+}
+
 .highlighted .hour-time {
     color: var(--accent);
 }
