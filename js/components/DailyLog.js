@@ -14,6 +14,7 @@ class DailyLog {
         this.hoursEl = null;
         this.notesInput = null;
         this.listenersInitialized = false;
+        this.notesMarkdown = ''; // Store markdown source
 
         // Debounce text input saves to avoid excessive localStorage writes
         this.debouncedSave = debounce(() => {
@@ -35,6 +36,78 @@ class DailyLog {
             this.notesInput = document.getElementById('notesInput');
             if (this.notesInput) {
                 this.notesInput.addEventListener('input', () => this.debouncedSave());
+
+                // Focus: show markdown
+                this.notesInput.addEventListener('focus', () => {
+                    // Convert HTML back to markdown for editing
+                    const markdown = this.notesMarkdown;
+                    this.notesInput.innerHTML = '';
+
+                    // Insert text with preserved line breaks
+                    const lines = markdown.split('\n');
+                    lines.forEach((line, index) => {
+                        this.notesInput.appendChild(document.createTextNode(line));
+                        if (index < lines.length - 1) {
+                            this.notesInput.appendChild(document.createElement('br'));
+                        }
+                    });
+
+                    // Place cursor at end
+                    const range = document.createRange();
+                    const sel = window.getSelection();
+                    range.selectNodeContents(this.notesInput);
+                    range.collapse(false);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                });
+
+                // Blur: parse and show HTML
+                this.notesInput.addEventListener('blur', () => {
+                    // Extract text preserving line breaks
+                    this.notesMarkdown = this.notesInput.innerHTML
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/<\/div>/gi, '\n')
+                        .replace(/<div>/gi, '')
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&amp;/g, '&');
+
+                    this.notesInput.innerHTML = marked.parse(this.notesMarkdown);
+                    this.saveCurrentState();
+                    if (window.Prism) {
+                        Prism.highlightAllUnder(this.notesInput);
+                    }
+                });
+
+                // Paste: convert image URLs to markdown format
+                this.notesInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = e.clipboardData.getData('text/plain');
+
+                    // Check if it's an image URL
+                    const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
+
+                    let textToInsert = text;
+                    if (imageUrlPattern.test(text.trim())) {
+                        // Convert to markdown image
+                        textToInsert = `![](${text.trim()})`;
+                    }
+
+                    // Insert text at cursor position
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        const range = selection.getRangeAt(0);
+                        range.deleteContents();
+                        const textNode = document.createTextNode(textToInsert);
+                        range.insertNode(textNode);
+                        range.setStartAfter(textNode);
+                        range.setEndAfter(textNode);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                });
             }
         }
         return { hoursEl: this.hoursEl, notesInput: this.notesInput };
@@ -47,7 +120,10 @@ class DailyLog {
         const { hoursEl, notesInput } = this.getElements();
         if (!hoursEl || !this.currentDate) return;
 
-        const data = { notes: notesInput?.innerHTML || '' };
+        const data = {
+            notes: notesInput?.innerHTML || '',
+            notesMarkdown: this.notesMarkdown
+        };
 
         // Gather checkbox and input values for each hour
         const hourInputs = hoursEl.querySelectorAll('.hour-input');
@@ -112,54 +188,15 @@ class DailyLog {
             }
         });
 
-        notesInput.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const text = e.clipboardData.getData('text/plain');
-            document.execCommand('insertHTML', false, text.replace(/\n/g, '<br>'));
-            setTimeout(() => {
-                autoLink(notesInput);
-            }, 0);
-        });
+        notesInput.addEventListener('mousedown', (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
 
-        notesInput.addEventListener("copy", (event) => {
-            event.preventDefault();
-
-            const selection = window.getSelection();
-            if (!selection.rangeCount) return;
-
-            const range = selection.getRangeAt(0);
-            const fragment = range.cloneContents();
-
-            // Replace images with their src
-            fragment.querySelectorAll('img').forEach(img => {
-                const markdown = `![image](${img.src})`;
-                const textNode = document.createTextNode(markdown);
-                img.replaceWith(textNode);
-            });
-
-            // Convert fragment to text preserving line breaks
-            function fragmentToText(node) {
-                let text = '';
-                node.childNodes.forEach(child => {
-                    if (child.nodeType === Node.TEXT_NODE) {
-                        text += child.nodeValue;
-                    } else if (child.nodeName === 'BR') {
-                        text += '\n';
-                    } else {
-                        text += fragmentToText(child);
-                        if (child.nodeName === 'DIV' || child.nodeName === 'P') {
-                            text += '\n';
-                        }
-                    }
-                });
-                return text;
+            if (e.metaKey || e.ctrlKey) {
+                e.preventDefault();   // Block focus
             }
-
-            const textToCopy = fragmentToText(fragment);
-            event.clipboardData.setData("text/plain", textToCopy);
         });
 
-        // Cmd + click to open links
         notesInput.addEventListener('click', (e) => {
             const a = e.target.closest('a');
             if (!a) return;
@@ -169,6 +206,7 @@ class DailyLog {
                 window.open(a.href, "_blank");
             }
         });
+
 
 
         this.listenersInitialized = true;
@@ -218,7 +256,9 @@ class DailyLog {
         this.setupEventListeners();
 
         if (notesInput) {
-            notesInput.innerHTML = savedData.notes || '';
+            // Load markdown source and render as HTML
+            this.notesMarkdown = savedData.notesMarkdown || '';
+            notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
         }
     }
 }

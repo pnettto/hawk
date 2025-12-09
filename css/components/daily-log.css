@@ -90,10 +90,15 @@
     border-radius: 4px;
     transition: background-color 0.3s ease;
     resize: none;
+    cursor: pointer;
 }
 
 .notes-input:hover, .notes-input:focus {
     background-color: var(--glass);
+}
+
+.notes-input:focus {
+    cursor: text;
 }
 
 .notes-input.highlighted {
@@ -106,6 +111,10 @@
 
 .notes-input a {
     cursor: pointer;
+}
+
+.notes-input img {
+    width: 100%;
 }
 
 @media (max-width:640px) {

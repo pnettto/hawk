@@ -39,3 +39,7 @@ a {
         padding: 14px
     }
 }
+
+:not(pre)>code[class*=language-], pre[class*=language-] {
+    background-color: var(--glass);
+}
