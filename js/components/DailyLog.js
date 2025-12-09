@@ -2,7 +2,6 @@ import { HOURS_START, HOURS_END } from '../constants.js';
 import { loadForDate, saveForDate } from '../utils/storage.js';
 import { formatDate as formatDate } from '../utils/date.js';
 import { debounce } from '../utils/dom.js';
-import { autoLink } from '../utils/autoLink.js';
 
 /**
  * Manages the daily log UI: hourly rows with checkboxes and text inputs.
