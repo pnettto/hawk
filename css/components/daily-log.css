@@ -114,7 +114,7 @@
 }
 
 .notes-input img {
-    width: 100%;
+    max-width: 100%;
 }
 
 @media (max-width:640px) {
