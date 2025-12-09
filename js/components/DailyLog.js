@@ -33,81 +33,6 @@ class DailyLog {
         }
         if (!this.notesInput) {
             this.notesInput = document.getElementById('notesInput');
-            if (this.notesInput) {
-                this.notesInput.addEventListener('input', () => this.debouncedSave());
-
-                // Focus: show markdown
-                this.notesInput.addEventListener('focus', () => {
-                    // Convert HTML back to markdown for editing
-                    const markdown = this.notesMarkdown;
-                    this.notesInput.innerHTML = '';
-
-                    // Insert text with preserved line breaks
-                    const lines = markdown.split('\n');
-                    lines.forEach((line, index) => {
-                        this.notesInput.appendChild(document.createTextNode(line));
-                        if (index < lines.length - 1) {
-                            this.notesInput.appendChild(document.createElement('br'));
-                        }
-                    });
-
-                    // Place cursor at end
-                    const range = document.createRange();
-                    const sel = window.getSelection();
-                    range.selectNodeContents(this.notesInput);
-                    range.collapse(false);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                });
-
-                // Blur: parse and show HTML
-                this.notesInput.addEventListener('blur', () => {
-                    // Extract text preserving line breaks
-                    this.notesMarkdown = this.notesInput.innerHTML
-                        .replace(/<br\s*\/?>/gi, '\n')
-                        .replace(/<\/div>/gi, '\n')
-                        .replace(/<div>/gi, '')
-                        .replace(/<[^>]*>/g, '')
-                        .replace(/&nbsp;/g, ' ')
-                        .replace(/&lt;/g, '<')
-                        .replace(/&gt;/g, '>')
-                        .replace(/&amp;/g, '&');
-
-                    this.notesInput.innerHTML = marked.parse(this.notesMarkdown);
-                    this.saveCurrentState();
-                    if (window.Prism) {
-                        Prism.highlightAllUnder(this.notesInput);
-                    }
-                });
-
-                // Paste: convert image URLs to markdown format
-                this.notesInput.addEventListener('paste', (e) => {
-                    e.preventDefault();
-                    const text = e.clipboardData.getData('text/plain');
-
-                    // Check if it's an image URL
-                    const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-
-                    let textToInsert = text;
-                    if (imageUrlPattern.test(text.trim())) {
-                        // Convert to markdown image
-                        textToInsert = `![](${text.trim()})`;
-                    }
-
-                    // Insert text at cursor position
-                    const selection = window.getSelection();
-                    if (selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        range.deleteContents();
-                        const textNode = document.createTextNode(textToInsert);
-                        range.insertNode(textNode);
-                        range.setStartAfter(textNode);
-                        range.setEndAfter(textNode);
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                    }
-                });
-            }
         }
         return { hoursEl: this.hoursEl, notesInput: this.notesInput };
     }
@@ -206,7 +131,79 @@ class DailyLog {
             }
         });
 
+        this.notesInput.addEventListener('input', () => this.debouncedSave());
 
+        // Focus: show markdown
+        this.notesInput.addEventListener('focus', () => {
+            // Convert HTML back to markdown for editing
+            const markdown = this.notesMarkdown;
+            this.notesInput.innerHTML = '';
+
+            // Insert text with preserved line breaks
+            const lines = markdown.split('\n');
+            lines.forEach((line, index) => {
+                this.notesInput.appendChild(document.createTextNode(line));
+                if (index < lines.length - 1) {
+                    this.notesInput.appendChild(document.createElement('br'));
+                }
+            });
+
+            // Place cursor at end
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(this.notesInput);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        });
+
+        // Blur: parse and show HTML
+        this.notesInput.addEventListener('blur', () => {
+            // Extract text preserving line breaks
+            this.notesMarkdown = this.notesInput.innerHTML
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<div>/gi, '')
+                .replace(/<[^>]*>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+
+            this.notesInput.innerHTML = marked.parse(this.notesMarkdown);
+            this.saveCurrentState();
+            if (window.Prism) {
+                Prism.highlightAllUnder(this.notesInput);
+            }
+        });
+
+        // Paste: convert image URLs to markdown format
+        this.notesInput.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+
+            // Check if it's an image URL
+            const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
+
+            let textToInsert = text;
+            if (imageUrlPattern.test(text.trim())) {
+                // Convert to markdown image
+                textToInsert = `![](${text.trim()})`;
+            }
+
+            // Insert text at cursor position
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                const textNode = document.createTextNode(textToInsert);
+                range.insertNode(textNode);
+                range.setStartAfter(textNode);
+                range.setEndAfter(textNode);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        });
 
         this.listenersInitialized = true;
     }
