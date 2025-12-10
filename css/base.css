@@ -2,11 +2,14 @@
     box-sizing: border-box
 }
 
+html {
+    font-size: 18px;
+}
+
 body {
     margin: 0;
     background:  var(--bg);
     color: #e6f0f3;
-    font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }

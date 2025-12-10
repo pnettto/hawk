@@ -7,7 +7,7 @@
 
 .hour-row {
     display: grid;
-    grid-template-columns: 55px 36px 1fr;
+    grid-template-columns: 60px 36px 1fr;
     align-items: center;
     gap: 12px;
     padding: 5px 12px;
