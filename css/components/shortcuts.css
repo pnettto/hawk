@@ -1,0 +1,34 @@
+/* Shortcuts modal */
+.shortcuts-modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin-top: 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    box-shadow: 0 8px 40px rgba(2, 6, 8, 0.8);
+    z-index: 1000;
+}
+
+.shortcuts-modal.hidden {
+    display: none;
+}
+
+.modal-overlay {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgb(0, 0, 0, 0.5);
+    z-index: 0;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}

@@ -16,6 +16,7 @@ class DailyLog {
         this.notesInput = null;
         this.listenersInitialized = false;
         this.notesMarkdown = '';
+        this.showingAllHours = false;
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
                 this.saveCurrentState();
@@ -237,20 +238,37 @@ class DailyLog {
 
             if (event.key.toLocaleLowerCase() === "w") this.goUp();
             if (event.key.toLocaleLowerCase() === "s") this.goDown();
+            if (event.key.toLocaleLowerCase() === "a") this.toggleShowAllHours();
         });
 
         this.listenersInitialized = true;
     }
 
     goUp () {
+        if (this.HOURS_START === 1) return;
         this.HOURS_START -= 1;
         this.HOURS_END -= 1;
         this.render(this.currentDate);
     }
     
     goDown () {
+        if (this.HOURS_END === 23) return;
         this.HOURS_START += 1;
         this.HOURS_END += 1;
+        this.render(this.currentDate);
+    }
+
+    toggleShowAllHours () {
+        if (this.showingAllHours) {
+            this.HOURS_START = HOURS_START;
+            this.HOURS_END = HOURS_END;
+            this.showingAllHours = false;
+        } else {
+            this.HOURS_START = 1;
+            this.HOURS_END = 23;
+            this.showingAllHours = true;
+        }
+
         this.render(this.currentDate);
     }
 

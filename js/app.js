@@ -1,5 +1,6 @@
 import * as DailyLog from './components/DailyLog.js';
 import * as Calendar from './components/Calendar.js';
+import * as Shortcuts from './components/Shortcuts.js';
 import { prettyDisplay } from './utils/date.js';
 
 const dateDisplay = document.getElementById('dateDisplay');
@@ -16,14 +17,14 @@ function setSelected(d) {
 }
 
 function goPrev() {
-    const d = new Date(selectedDate); 
-    d.setDate(d.getDate() - 1); 
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
     setSelected(d);
 }
 
 function goNext() {
-    const d = new Date(selectedDate); 
-    d.setDate(d.getDate() + 1); 
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 1);
     setSelected(d);
 }
 
@@ -48,7 +49,7 @@ window.addEventListener("keydown", (event) => {
         setSelected(new Date());
         event.preventDefault();
     }
-    
+
     if (event.key === "n") {
         event.preventDefault();
         notesInput.focus();
@@ -58,3 +59,5 @@ window.addEventListener("keydown", (event) => {
 // Init
 Calendar.init(setSelected);
 setSelected(new Date());
+
+Shortcuts.init()

@@ -22,10 +22,27 @@ a {
     color: var(--accent);
 }
 
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--glass);;
+  text-align: left;
+}
+
+thead th {
+  border-bottom: 1px solid var(--accent);;
+}
+
+
 .container {
     max-width: 820px;
-    margin: 36px auto;
-    padding: 22px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
 }
 
 .header {
@@ -33,13 +50,13 @@ a {
     justify-content: center;
     align-items: center;
     gap: 18px;
-    margin-bottom: 4rem;
+    margin-bottom: 2rem;
 }
 
 @media (max-width:640px) {
     .container {
-        margin: 12px;
-        padding: 14px
+        margin: 0;
+        padding: 1rem
     }
 }
 

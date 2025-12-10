@@ -72,7 +72,6 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
-    margin-bottom: 0.5rem;
 }
 
 .cal-day {
@@ -110,6 +109,7 @@
     flex: 1;
     text-align: center;
     cursor: pointer;
+    margin-bottom: 0.5rem;
 }
 
 .cal-arrow {
