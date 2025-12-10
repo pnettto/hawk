@@ -8,7 +8,6 @@ class Calendar {
     constructor() {
         this.calendarViewDate = new Date();
         this.selectedDate = new Date();
-        this.onSelectCallback = null;
         this.listenersInitialized = false;
         this.isVisible = false;
     }
@@ -76,9 +75,8 @@ class Calendar {
 
         const clickDate = new Date(date);
         day.addEventListener('click', () => {
-            if (this.onSelectCallback) {
-                this.onSelectCallback(clickDate);
-            }
+            const event = new CustomEvent('selectNewDate', { detail: { date: clickDate } });
+            document.dispatchEvent(event);
             this.close();
         });
 
@@ -109,9 +107,8 @@ class Calendar {
 
         // Select today and close
         todayBtn?.addEventListener('click', () => {
-            if (this.onSelectCallback) {
-                this.onSelectCallback(new Date());
-            }
+            const event = new CustomEvent('selectNewDate', { detail: { date: new Date() } });
+            document.dispatchEvent(event);
             this.close();
         });
 
@@ -133,7 +130,7 @@ class Calendar {
             this.close();
         });
 
-        window.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             const active = document.activeElement;
 
             const isSomeInputInFocus =
@@ -152,7 +149,7 @@ class Calendar {
             }
         });
 
-        window.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             if (!this.isVisible) return;
 
             if (event.key.toLocaleLowerCase() === "escape") {
@@ -193,16 +190,16 @@ class Calendar {
      * Initializes the calendar with a date selection callback.
      * Sets up all event listeners.
      */
-    init(onSelect) {
-        this.onSelectCallback = onSelect;
+    init() {
         this.setupEventListeners();
     }
 }
 
 const calendarInstance = new Calendar();
 
-export function init(onSelect) {
-    calendarInstance.init(onSelect);
+export function init() {
+    calendarInstance.init();
+    return this;
 }
 
 export function open(currentSelectedDate) {

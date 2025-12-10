@@ -1,65 +1,18 @@
+import * as DatePicker from './components/DatePicker.js';
 import * as DailyLog from './components/DailyLog.js';
-import * as Calendar from './components/Calendar.js';
+import * as Notes from './components/Notes.js';
 import * as Shortcuts from './components/Shortcuts.js';
-import { prettyDisplay } from './utils/date.js';
 
-const dateDisplay = document.getElementById('dateDisplay');
-const prevBtn = document.getElementById('prevBtn');
-const nextBtn = document.getElementById('nextBtn');
-const notesInput = document.getElementById('notesInput');
+window.selectedDate = new Date();
+document.addEventListener('selectNewDate', (e) => {
+    selectedDate = e.detail.date;
+    const event = new CustomEvent('newDateSelected', { detail: { date: selectedDate } });
+    document.dispatchEvent(event)
+})
 
-let selectedDate = new Date();
-
-function setSelected(d) {
-    selectedDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    dateDisplay.textContent = prettyDisplay(selectedDate);
-    DailyLog.render(selectedDate);
-}
-
-function goPrev() {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelected(d);
-}
-
-function goNext() {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelected(d);
-}
-
-// Event Listeners
-prevBtn.addEventListener('click', goPrev);
-nextBtn.addEventListener('click', goNext);
-dateDisplay.addEventListener('click', () => Calendar.open(selectedDate));
-
-window.addEventListener("keydown", (event) => {
-    const active = document.activeElement;
-
-    const isSomeInputInFocus =
-        active.classList.contains("hour-input") ||
-        active.closest(".notes-input") !== null;
-
-    if (isSomeInputInFocus) return;
-
-    if (event.key === "ArrowLeft") goPrev();
-    if (event.key === "a") goPrev();
-    if (event.key === "ArrowRight") goNext();
-    if (event.key === "d") goNext();
-
-    if (event.key === "t" || event.key === " ") {
-        setSelected(new Date());
-        event.preventDefault();
-    }
-
-    if (event.key === "n") {
-        event.preventDefault();
-        notesInput.focus();
-    }
-});
 
 // Init
-Calendar.init(setSelected);
-setSelected(new Date());
-
-Shortcuts.init()
+DatePicker.init();
+DailyLog.init();
+Notes.init();
+Shortcuts.init();

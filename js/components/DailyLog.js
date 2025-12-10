@@ -12,10 +12,8 @@ class DailyLog {
         this.HOURS_START = HOURS_START;
         this.HOURS_END = HOURS_END;
         this.currentDate = null;
-        this.hoursEl = null;
-        this.notesInput = null;
+        this.hoursContainer = null;
         this.listenersInitialized = false;
-        this.notesMarkdown = '';
         this.showingAllHours = false;
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
@@ -29,13 +27,9 @@ class DailyLog {
      * Attaches notes input listener on first access.
      */
     getElements() {
-        if (!this.hoursEl) {
-            this.hoursEl = document.getElementById('hoursContainer');
-        }
-        if (!this.notesInput) {
-            this.notesInput = document.getElementById('notesInput');
-        }
-        return { hoursEl: this.hoursEl, notesInput: this.notesInput };
+        return { 
+            hoursContainer: document.getElementById('hoursContainer') 
+        };
     }
 
     /**
@@ -43,19 +37,15 @@ class DailyLog {
      */
     saveCurrentState() {
         const savedData = loadForDate(formatDate(this.currentDate));
-        const { hoursEl, notesInput } = this.getElements();
-        if (!hoursEl || !this.currentDate) return;
-
-        const data = {
-            notes: notesInput?.innerHTML || '',
-            notesMarkdown: this.notesMarkdown
-        };
+        const { hoursContainer } = this.getElements();
+        if (!hoursContainer || !this.currentDate) return;
 
         // Gather checkbox and input values for each hour
-        const hourInputs = hoursEl.querySelectorAll('.hour-input');
+        const hourInputs = hoursContainer.querySelectorAll('.hour-input');
+        const data = {};
         hourInputs.forEach(hourInput => {
             const hour = hourInput.dataset.hour;
-            const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
+            const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
             data[hour] = {
                 checked: checkbox?.checked || false,
                 text: hourInput.value
@@ -94,142 +84,29 @@ class DailyLog {
         `;
     }
 
-    updateNotesMarkdow () {
-        // Extract text preserving line breaks
-        this.notesMarkdown = this.notesInput.innerHTML
-            .replace(/<div>/g, "\n")   // opening div becomes newline
-            .replace(/<\/div>/g, "")   // closing div removed
-            .replace(/<br\s*\/?>/g, "\n") // br becomes newline
-            .replace(/<div>/gi, '')
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&')
-            .trim();
-    }
-
     /**
      * Sets up event delegation on the hours container.
      * Checkboxes save immediately, text inputs save with debounce.
      */
     setupEventListeners() {
-        const { hoursEl, notesInput } = this.getElements();
-        if (!hoursEl || this.listenersInitialized) return;
+        const { hoursContainer } = this.getElements();
+        if (!hoursContainer || this.listenersInitialized) return;
 
         // Checkbox changes save immediately
-        hoursEl.addEventListener('change', (e) => {
+        hoursContainer.addEventListener('change', (e) => {
             if (e.target.matches('.hour-checkbox')) {
                 this.saveCurrentState();
             }
         });
 
         // Text input changes save with debounce
-        hoursEl.addEventListener('input', (e) => {
+        hoursContainer.addEventListener('input', (e) => {
             if (e.target.matches('.hour-input')) {
                 this.debouncedSave();
             }
         });
 
-        notesInput.addEventListener('mousedown', (e) => {
-            const a = e.target.closest('a');
-            if (!a) return;
-
-            if (e.metaKey || e.ctrlKey) {
-                e.preventDefault();   // Block focus
-            }
-        });
-
-        notesInput.addEventListener('click', (e) => {
-            const a = e.target.closest('a');
-            if (!a) return;
-
-            if (e.metaKey || e.ctrlKey) {
-                e.preventDefault();
-                window.open(a.href, "_blank");
-            }
-        });
-
-        this.notesInput.addEventListener('input', () => {
-            this.updateNotesMarkdow();
-            this.debouncedSave();
-        });
-
-        // Focus: show markdown
-        this.notesInput.addEventListener('focus', () => {
-            // Convert HTML back to markdown for editing
-            const markdown = this.notesMarkdown;
-            this.notesInput.innerHTML = '';
-
-            // Insert text with preserved line breaks
-            const lines = markdown.split('\n');
-            lines.forEach((line, index) => {
-                this.notesInput.appendChild(document.createTextNode(line));
-                if (index < lines.length - 1) {
-                    this.notesInput.appendChild(document.createElement('br'));
-                }
-            });
-
-            // Place cursor at end
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(this.notesInput);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-        });
-
-        // Blur: parse and show HTML
-        this.notesInput.addEventListener('blur', () => {
-            this.updateNotesMarkdow()
-            this.notesInput.innerHTML = marked.parse(this.notesMarkdown);
-            this.saveCurrentState();
-            if (window.Prism) {
-                Prism.highlightAllUnder(this.notesInput);
-            }
-        });
-
-        // Paste: convert image URLs to markdown format
-        this.notesInput.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const text = e.clipboardData.getData('text/plain');
-
-            // Check if it's an image URL
-            const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-
-            let textToInsert = text;
-            if (imageUrlPattern.test(text.trim())) {
-                // Convert to markdown image
-                textToInsert = `![](${text.trim()})`;
-            }
-
-            // Insert text at cursor position
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                range.deleteContents();
-                const textNode = document.createTextNode(textToInsert);
-                range.insertNode(textNode);
-                range.setStartAfter(textNode);
-                range.setEndAfter(textNode);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            const isEnter = e.key.toLocaleLowerCase() == 'enter';
-            const isCtrl = e.ctrlKey || e.metaKey;
-            const isSKey = e.key.toLowerCase() == 's';
-            const isNotesInputFocused = this.notesInput == document.activeElement;
-            
-            if (isNotesInputFocused && isCtrl && isSKey) {
-                e.preventDefault();
-                this.notesInput.blur();
-            }
-        })
-
-        window.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             const active = document.activeElement;
             const isTyping = active.tagName === "INPUT" ||
                      active.tagName === "TEXTAREA" ||
@@ -241,6 +118,10 @@ class DailyLog {
             if (event.key.toLocaleLowerCase() === "s") this.goDown();
             if (event.key.toLocaleLowerCase() === "arrowdown") this.goDown();
             if (event.key.toLocaleLowerCase() === "f") this.toggleShowAllHours();
+        });
+
+        document.addEventListener('newDateSelected', (e) => {
+            this.render(e.detail.date);
         });
 
         this.listenersInitialized = true;
@@ -289,14 +170,14 @@ class DailyLog {
      * Restores checkboxes and text inputs from saved data.
      */
     restoreState(savedData) {
-        const { hoursEl } = this.getElements();
-        if (!hoursEl) return;
+        const { hoursContainer } = this.getElements();
+        if (!hoursContainer) return;
 
         for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
             const state = savedData[hour] || { checked: false, text: '' };
 
-            const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
-            const input = hoursEl.querySelector(`.hour-input[data-hour="${hour}"]`);
+            const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
+            const input = hoursContainer.querySelector(`.hour-input[data-hour="${hour}"]`);
 
             if (checkbox) checkbox.checked = !!state.checked;
             if (input) input.value = state.text || '';
@@ -310,24 +191,18 @@ class DailyLog {
         this.currentDate = date;
         const savedData = loadForDate(formatDate(date)) || {};
 
-        const { hoursEl, notesInput } = this.getElements();
-        if (!hoursEl) return;
+        const { hoursContainer } = this.getElements();
+        if (!hoursContainer) return;
 
-        hoursEl.innerHTML = this.buildRowsHTML(date);
+        hoursContainer.innerHTML = this.buildRowsHTML(date);
         this.restoreState(savedData);
         this.setupEventListeners();
-
-        if (notesInput) {
-            // Load markdown source and render as HTML
-            this.notesMarkdown = savedData.notesMarkdown || '';
-            notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
-        }
     }
 }
 
 const dailyLogInstance = new DailyLog();
 
-export function render(date) {
-    dailyLogInstance.render(date);
+export function init() {
+    dailyLogInstance.render(window.selectedDate);
 }
 

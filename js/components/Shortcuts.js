@@ -44,7 +44,7 @@ class Shortcuts {
 
         const { shortcutsModal, modalOverlay, shortcutsTrigger } = this.getElements();
 
-        window.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
              const active = document.activeElement;
 
             const isSomeInputInFocus =
@@ -67,7 +67,7 @@ class Shortcuts {
             this.toggleVisibility();
         });
 
-        window.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             if (!this.isVisible) return;
 
             if (event.key.toLocaleLowerCase() === "escape") {
