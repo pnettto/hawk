@@ -43,7 +43,9 @@ window.addEventListener("keydown", (event) => {
     if (isSomeInputInFocus) return;
 
     if (event.key === "ArrowLeft") goPrev();
+    if (event.key === "a") goPrev();
     if (event.key === "ArrowRight") goNext();
+    if (event.key === "d") goNext();
 
     if (event.key === "t" || event.key === " ") {
         setSelected(new Date());

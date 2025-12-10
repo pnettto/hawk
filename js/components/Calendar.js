@@ -143,8 +143,12 @@ class Calendar {
             if (isSomeInputInFocus) return;
 
             if (event.key.toLocaleLowerCase() === "c") {
-                const { dateDisplay } = this.getElements()
-                dateDisplay.click();
+                if (this.isVisible) {
+                    this.close()
+                } else {
+                    const { dateDisplay } = this.getElements()
+                    dateDisplay.click();
+                }
             }
         });
 

@@ -12,11 +12,11 @@ class Shortcuts {
 |------------------|--------------------------------|
 | t                | Show today                     |
 | space            | Show today                     |
-| w                | Move hours up                  |
-| s                | Move hours down                |
-| a                | Show all hours in day          |
-| Arrow Left       | Move to previous day           |
-| Arrow Right      | Move to next day               |
+| w / Arrow up     | Move hours up                  |
+| s / Arrow down   | Move hours down                |
+| a / Arrow left   | Move to previous day           |
+| d / Arrow right  | Move to next day               |
+| f                | Show full day                  |
 | c                | Open calendar                  |
 | Cmd/Ctrl + S     | Save notes (while editing)     |
 | ?                | Show shortcuts                 |

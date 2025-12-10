@@ -237,8 +237,10 @@ class DailyLog {
             if (isTyping) return;
 
             if (event.key.toLocaleLowerCase() === "w") this.goUp();
+            if (event.key.toLocaleLowerCase() === "arrowup") this.goUp();
             if (event.key.toLocaleLowerCase() === "s") this.goDown();
-            if (event.key.toLocaleLowerCase() === "a") this.toggleShowAllHours();
+            if (event.key.toLocaleLowerCase() === "arrowdown") this.goDown();
+            if (event.key.toLocaleLowerCase() === "f") this.toggleShowAllHours();
         });
 
         this.listenersInitialized = true;
