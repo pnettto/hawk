@@ -10,6 +10,11 @@ document.addEventListener('selectNewDate', (e) => {
     document.dispatchEvent(event)
 })
 
+const logo = document.querySelector('.logo img')
+logo.addEventListener('click', () => {
+    const event = new CustomEvent('selectNewDate', { detail: { date: new Date() } });
+    document.dispatchEvent(event);
+})
 
 // Init
 DatePicker.init();
