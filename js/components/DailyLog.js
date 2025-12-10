@@ -14,13 +14,11 @@ class DailyLog {
         this.notesInput = null;
         this.listenersInitialized = false;
         this.notesMarkdown = ''; // Store markdown source
-
-        // Debounce text input saves to avoid excessive localStorage writes
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
                 this.saveCurrentState();
             }
-        }, 320);
+        }, 500);
     }
 
     /**
@@ -90,6 +88,21 @@ class DailyLog {
         `;
     }
 
+    updateNotesMarkdow () {
+        // Extract text preserving line breaks
+        this.notesMarkdown = this.notesInput.innerHTML
+            .replace(/<div>/g, "\n")   // opening div becomes newline
+            .replace(/<\/div>/g, "")   // closing div removed
+            .replace(/<br\s*\/?>/g, "\n") // br becomes newline
+            .replace(/<div>/gi, '')
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .trim();
+    }
+
     /**
      * Sets up event delegation on the hours container.
      * Checkboxes save immediately, text inputs save with debounce.
@@ -131,7 +144,10 @@ class DailyLog {
             }
         });
 
-        this.notesInput.addEventListener('input', () => this.debouncedSave());
+        this.notesInput.addEventListener('input', () => {
+            this.updateNotesMarkdow();
+            this.debouncedSave();
+        });
 
         // Focus: show markdown
         this.notesInput.addEventListener('focus', () => {
@@ -159,17 +175,7 @@ class DailyLog {
 
         // Blur: parse and show HTML
         this.notesInput.addEventListener('blur', () => {
-            // Extract text preserving line breaks
-            this.notesMarkdown = this.notesInput.innerHTML
-                .replace(/<br\s*\/?>/gi, '\n')
-                .replace(/<\/div>/gi, '\n')
-                .replace(/<div>/gi, '')
-                .replace(/<[^>]*>/g, '')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&amp;/g, '&');
-
+            this.updateNotesMarkdow()
             this.notesInput.innerHTML = marked.parse(this.notesMarkdown);
             this.saveCurrentState();
             if (window.Prism) {
@@ -204,6 +210,18 @@ class DailyLog {
                 selection.addRange(range);
             }
         });
+
+        document.addEventListener('keydown', (e) => {
+            const isEnter = e.key.toLocaleLowerCase() == 'enter';
+            const isCtrl = e.ctrlKey || e.metaKey;
+            const isSKey = e.key.toLowerCase() == 's';
+            const isNotesInputFocused = this.notesInput == document.activeElement;
+            
+            if (isNotesInputFocused && isCtrl && isSKey) {
+                e.preventDefault();
+                this.notesInput.blur();
+            }
+        })
 
         this.listenersInitialized = true;
     }
