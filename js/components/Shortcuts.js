@@ -17,20 +17,17 @@ class Shortcuts {
 | a                | Show all hours in day          |
 | Arrow Left       | Move to previous day           |
 | Arrow Right      | Move to next day               |
+| c                | Open calendar                  |
 | Cmd/Ctrl + S     | Save notes (while editing)     |
 | ?                | Show shortcuts                 |
 `
     }
 
     getElements () {
-        this.shortcutsModal = document.getElementById('shortcutsModal');
-        this.modalOverlay = document.getElementById('modalOverlay');
-        this.shortcutsTrigger = document.getElementById('shortcutsTrigger');
-
         return { 
-            shortcutsModal: this.shortcutsModal, 
-            modalOverlay: this.modalOverlay,
-            shortcutsTrigger: this.shortcutsTrigger,
+            shortcutsModal: document.getElementById('shortcutsModal'), 
+            modalOverlay: document.getElementById('shortcutsModalOverlay'),
+            shortcutsTrigger: document.getElementById('shortcutsTrigger'),
         }
     }
 
@@ -61,14 +58,6 @@ class Shortcuts {
             }
         });
         
-        window.addEventListener("keydown", (event) => {
-            if (!this.isVisible) return;
-
-            if (event.key.toLocaleLowerCase() === "escape") {
-                this.toggleVisibility();
-            }
-        });
-
         document.addEventListener("DOMContentLoaded", () => {
             const content = this.getContent();
             shortcutsModal.innerHTML = marked.parse(content);
@@ -76,6 +65,14 @@ class Shortcuts {
 
         modalOverlay.addEventListener('click', () => {
             this.toggleVisibility();
+        });
+
+        window.addEventListener("keydown", (event) => {
+            if (!this.isVisible) return;
+
+            if (event.key.toLocaleLowerCase() === "escape") {
+                this.toggleVisibility();
+            }
         });
 
         shortcutsTrigger.addEventListener('click', () => {

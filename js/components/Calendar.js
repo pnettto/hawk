@@ -10,13 +10,7 @@ class Calendar {
         this.selectedDate = new Date();
         this.onSelectCallback = null;
         this.listenersInitialized = false;
-
-        this.modalEl = null;
-        this.monthEl = null;
-        this.daysEl = null;
-        this.prevMonthBtn = null;
-        this.nextMonthBtn = null;
-        this.todayBtn = null;
+        this.isVisible = false;
     }
 
     /**
@@ -24,21 +18,15 @@ class Calendar {
      * Ensures elements are only queried once.
      */
     getElements() {
-        if (!this.modalEl) {
-            this.modalEl = document.getElementById('calendarModal');
-            this.monthEl = document.getElementById('calMonth');
-            this.daysEl = document.getElementById('calDays');
-            this.prevMonthBtn = document.getElementById('calPrevMonth');
-            this.nextMonthBtn = document.getElementById('calNextMonth');
-            this.todayBtn = document.getElementById('calToday');
-        }
         return {
-            modalEl: this.modalEl,
-            monthEl: this.monthEl,
-            daysEl: this.daysEl,
-            prevMonthBtn: this.prevMonthBtn,
-            nextMonthBtn: this.nextMonthBtn,
-            todayBtn: this.todayBtn
+            modalEl: document.getElementById('calendarModal'),
+            modalOverlay: document.getElementById('calendarModalOverlay'),
+            monthEl: document.getElementById('calMonth'),
+            daysEl: document.getElementById('calDays'),
+            prevMonthBtn: document.getElementById('calPrevMonth'),
+            nextMonthBtn: document.getElementById('calNextMonth'),
+            todayBtn: document.getElementById('calToday'),
+            dateDisplay: document.getElementById('dateDisplay')
         };
     }
 
@@ -104,7 +92,7 @@ class Calendar {
     setupEventListeners() {
         if (this.listenersInitialized) return;
 
-        const { modalEl, prevMonthBtn, nextMonthBtn, todayBtn } = this.getElements();
+        const { modalEl, modalOverlay, prevMonthBtn, nextMonthBtn, todayBtn } = this.getElements();
         if (!modalEl) return;
 
         // Navigate to previous month
@@ -141,6 +129,33 @@ class Calendar {
             }
         });
 
+        modalOverlay.addEventListener('click', () => {
+            this.close();
+        });
+
+        window.addEventListener("keydown", (event) => {
+            const active = document.activeElement;
+
+            const isSomeInputInFocus =
+                active.classList.contains("hour-input") ||
+                active.closest(".notes-input") !== null;
+
+            if (isSomeInputInFocus) return;
+
+            if (event.key.toLocaleLowerCase() === "c") {
+                const { dateDisplay } = this.getElements()
+                dateDisplay.click();
+            }
+        });
+
+        window.addEventListener("keydown", (event) => {
+            if (!this.isVisible) return;
+
+            if (event.key.toLocaleLowerCase() === "escape") {
+                this.close();
+            }
+        });
+
         this.listenersInitialized = true;
     }
 
@@ -148,22 +163,26 @@ class Calendar {
      * Opens the calendar modal with the specified selected date.
      */
     open(currentSelectedDate) {
-        const { modalEl } = this.getElements();
+        const { modalEl, modalOverlay } = this.getElements();
         if (!modalEl) return;
 
         this.selectedDate = currentSelectedDate;
         this.calendarViewDate = new Date(currentSelectedDate);
         this.buildCalendar();
+        this.isVisible = true;
         modalEl.classList.remove('hidden');
+        modalOverlay.classList.remove('hidden');
     }
 
     /**
      * Closes the calendar modal.
      */
     close() {
-        const { modalEl } = this.getElements();
+        const { modalEl, modalOverlay  } = this.getElements();
         if (!modalEl) return;
+        this.isVisible = false;
         modalEl.classList.add('hidden');
+        modalOverlay.classList.add('hidden');
     }
 
     /**

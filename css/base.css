@@ -62,6 +62,21 @@ thead th {
     }
 }
 
+.modal-overlay {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgb(0, 0, 0, 0.5);
+    z-index: 0;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
 :not(pre)>code[class*=language-], pre[class*=language-] {
     background-color: var(--glass);
 }
