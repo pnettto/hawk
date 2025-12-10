@@ -20,6 +20,7 @@ class Shortcuts {
 | c                | Open calendar                  |
 | Cmd/Ctrl + S     | Save notes (while editing)     |
 | z                | Enter Zen Mode                 |
+| m                | Enter Mirror Mode 😍           |
 | ?                | Show shortcuts                 |
 `
     }
