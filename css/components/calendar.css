@@ -1,14 +1,24 @@
+.date-control {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 2rem;
+}
+
 .date-container {
     position: relative;
+    min-width: 9rem;
 }
 
 .date-display {
     background: transparent;
     border: none;
     color: var(--accent);
+    width: 100%;
     padding: 10px 18px;
     border-radius: 10px;
-    font-size: 1.5em;
+    font-size: 1rem;
     cursor: pointer;
     font-family: 'Cascadia Code', ui-monospace;
     font-weight: normal;
@@ -59,13 +69,7 @@
     font-size: 1.25rem;
     padding: 8px 10px;
     border-radius: 8px;
-    transition: all .18s ease;
     cursor: pointer;
-}
-
-.cal-arrow:hover {
-    color: var(--accent);
-    transform: translateY(-2px);
 }
 
 .cal-days {
@@ -83,12 +87,11 @@
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.875rem;
-    transition: all .12s ease;
+    transition: background-color .12s ease;
 }
 
 .cal-day:hover {
-    background: var(--glass);
-    transform: scale(1.05);
+    background-color: var(--glass);
 }
 
 .cal-day.other-month {
@@ -120,11 +123,5 @@
     font-size: 1.25rem;
     padding: 8px 10px;
     border-radius: 8px;
-    transition: all .18s ease;
     cursor: pointer;
-}
-
-.cal-arrow:hover {
-    color: var(--accent);
-    transform: translateY(-2px)
 }

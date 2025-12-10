@@ -32,3 +32,12 @@
 .modal-overlay.hidden {
     display: none;
 }
+
+.shortcuts-trigger {
+    position: fixed;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    padding: 0.5rem;
+    color: var(--accent);
+    cursor: pointer;
+}

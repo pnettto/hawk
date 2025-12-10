@@ -3,6 +3,7 @@ class Shortcuts {
         this.shortcutsModal = undefined;
         this.modalOverlay = undefined;
         this.listenersInitialized = false;
+        this.isVisible = false;
     }
 
     getContent () {
@@ -24,13 +25,19 @@ class Shortcuts {
     getElements () {
         this.shortcutsModal = document.getElementById('shortcutsModal');
         this.modalOverlay = document.getElementById('modalOverlay');
+        this.shortcutsTrigger = document.getElementById('shortcutsTrigger');
 
-        return { shortcutsModal: this.shortcutsModal, modalOverlay: this.modalOverlay }
+        return { 
+            shortcutsModal: this.shortcutsModal, 
+            modalOverlay: this.modalOverlay,
+            shortcutsTrigger: this.shortcutsTrigger,
+        }
     }
 
     toggleVisibility () {
         const { shortcutsModal, modalOverlay } = this.getElements();
 
+        this.isVisible = !this.isVisible;
         shortcutsModal.classList.toggle('hidden')
         modalOverlay.classList.toggle('hidden')
     }
@@ -38,7 +45,7 @@ class Shortcuts {
     setupListeners() {
         if (this.listenersInitialized) return;
 
-        const { shortcutsModal, modalOverlay } = this.getElements();
+        const { shortcutsModal, modalOverlay, shortcutsTrigger } = this.getElements();
 
         window.addEventListener("keydown", (event) => {
              const active = document.activeElement;
@@ -53,7 +60,14 @@ class Shortcuts {
                 this.toggleVisibility();
             }
         });
+        
+        window.addEventListener("keydown", (event) => {
+            if (!this.isVisible) return;
 
+            if (event.key.toLocaleLowerCase() === "escape") {
+                this.toggleVisibility();
+            }
+        });
 
         document.addEventListener("DOMContentLoaded", () => {
             const content = this.getContent();
@@ -61,6 +75,10 @@ class Shortcuts {
         });
 
         modalOverlay.addEventListener('click', () => {
+            this.toggleVisibility();
+        });
+
+        shortcutsTrigger.addEventListener('click', () => {
             this.toggleVisibility();
         });
 
