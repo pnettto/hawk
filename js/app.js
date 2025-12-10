@@ -11,6 +11,25 @@ document.addEventListener('selectNewDate', (e) => {
     document.dispatchEvent(event)
 })
 
+document.addEventListener('keydown', (e) => {
+    const active = document.activeElement;
+    const isTyping = active.tagName === "INPUT" ||
+                active.tagName === "TEXTAREA" ||
+                active.isContentEditable;
+    if (isTyping) return;
+
+    if (e.key.toLowerCase() === 'z') {
+        const zen = document.getElementById('zenMode');
+        if (zen.classList.contains('hidden')) {
+            zen.classList.remove('hidden')
+            document.body.style = 'overflow: hidden;';
+        } else {
+            zen.classList.add('hidden')
+            document.body.style = '';
+        }
+    }
+})
+
 // Init
 DatePicker.init();
 DailyLog.init();

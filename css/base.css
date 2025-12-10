@@ -77,6 +77,17 @@ thead th {
     z-index: 0;
 }
 
+.zen-mode {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg);
+    z-index: 1000;
+}
+
 :not(pre)>code[class*=language-], pre[class*=language-] {
     background-color: var(--glass);
 }

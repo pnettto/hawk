@@ -19,6 +19,7 @@ class Shortcuts {
 | f                | Show full day                  |
 | c                | Open calendar                  |
 | Cmd/Ctrl + S     | Save notes (while editing)     |
+| z                | Enter Zen Mode                 |
 | ?                | Show shortcuts                 |
 `
     }
@@ -45,7 +46,7 @@ class Shortcuts {
         const { shortcutsModal, modalOverlay, shortcutsTrigger } = this.getElements();
 
         document.addEventListener("keydown", (event) => {
-             const active = document.activeElement;
+            const active = document.activeElement;
 
             const isSomeInputInFocus =
                 active.classList.contains("hour-input") ||
