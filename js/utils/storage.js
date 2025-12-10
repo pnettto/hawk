@@ -1,4 +1,4 @@
-import { LOCALSTORAGE_KEY } from '../constants.js';
+import { LOCALSTORAGE_KEY } from '../global.js';
 
 export function loadAll() {
     const raw = localStorage.getItem(LOCALSTORAGE_KEY);

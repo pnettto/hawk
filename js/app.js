@@ -37,7 +37,7 @@ window.addEventListener("keydown", (event) => {
 
     const isSomeInputInFocus =
         active.classList.contains("hour-input") ||
-        active.closest(".notes-input") !== null;   // covers focus-within
+        active.closest(".notes-input") !== null;
 
     if (isSomeInputInFocus) return;
 
@@ -46,7 +46,7 @@ window.addEventListener("keydown", (event) => {
 
     if (event.key === "t" || event.key === " ") {
         setSelected(new Date());
-        event.preventDefault(); // Prevent scrolling for space
+        event.preventDefault();
     }
     
     if (event.key === "n") {

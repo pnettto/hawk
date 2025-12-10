@@ -1,4 +1,4 @@
-import { HOURS_START, HOURS_END } from '../constants.js';
+import { HOURS_START, HOURS_END } from '../global.js';
 import { loadForDate, saveForDate } from '../utils/storage.js';
 import { formatDate as formatDate } from '../utils/date.js';
 import { debounce } from '../utils/dom.js';
@@ -9,11 +9,13 @@ import { debounce } from '../utils/dom.js';
  */
 class DailyLog {
     constructor() {
+        this.HOURS_START = HOURS_START;
+        this.HOURS_END = HOURS_END;
         this.currentDate = null;
         this.hoursEl = null;
         this.notesInput = null;
         this.listenersInitialized = false;
-        this.notesMarkdown = ''; // Store markdown source
+        this.notesMarkdown = '';
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
                 this.saveCurrentState();
@@ -39,6 +41,7 @@ class DailyLog {
      * Collects all hour data and notes, then persists to localStorage.
      */
     saveCurrentState() {
+        const savedData = loadForDate(formatDate(this.currentDate));
         const { hoursEl, notesInput } = this.getElements();
         if (!hoursEl || !this.currentDate) return;
 
@@ -58,7 +61,9 @@ class DailyLog {
             };
         });
 
-        saveForDate(formatDate(this.currentDate), data);
+        const mergedData = {...savedData, ...data}
+
+        saveForDate(formatDate(this.currentDate), mergedData);
     }
 
     /**
@@ -223,7 +228,30 @@ class DailyLog {
             }
         })
 
+        window.addEventListener("keydown", (event) => {
+            const active = document.activeElement;
+            const isTyping = active.tagName === "INPUT" ||
+                     active.tagName === "TEXTAREA" ||
+                     active.isContentEditable;
+            if (isTyping) return;
+
+            if (event.key.toLocaleLowerCase() === "w") this.goUp();
+            if (event.key.toLocaleLowerCase() === "s") this.goDown();
+        });
+
         this.listenersInitialized = true;
+    }
+
+    goUp () {
+        this.HOURS_START -= 1;
+        this.HOURS_END -= 1;
+        this.render(this.currentDate);
+    }
+    
+    goDown () {
+        this.HOURS_START += 1;
+        this.HOURS_END += 1;
+        this.render(this.currentDate);
     }
 
     /**
@@ -231,7 +259,7 @@ class DailyLog {
      */
     buildRowsHTML(date) {
         let html = '';
-        for (let hour = HOURS_START; hour <= HOURS_END; hour++) {
+        for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
             html += this.createRowHTML(hour, date);
         }
         return html;
@@ -244,7 +272,7 @@ class DailyLog {
         const { hoursEl } = this.getElements();
         if (!hoursEl) return;
 
-        for (let hour = HOURS_START; hour <= HOURS_END; hour++) {
+        for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
             const state = savedData[hour] || { checked: false, text: '' };
 
             const checkbox = hoursEl.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
