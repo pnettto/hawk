@@ -10,10 +10,26 @@
   </head>
   <body>
     <main class="container">
-      <header>
-        <div class="logo">
-          <img src="images/favicon.svg" />
-        </div>
+      <header class="app-header">
+        <div id="moodTracker" class="mood-tracker">
+          <span class="selected">
+            <img src="images/favicon.svg" class="logo" />
+          </span>
+          <div class="options hidden">
+            <div class="options-container">
+              <span class="item">🙃</span>
+              <span class="item">😎</span>
+              <span class="item">🤷‍♀️</span>
+              <span class="item">😤</span>
+              <span class="item">🫠</span>
+              <span class="item">😀</span>
+              <span class="item">😢</span>
+              <span class="item">😴</span>
+              <span class="item">😭</span>
+              <span class="item">❌</span>
+            </div>
+          </div>
+        </div> 
 
         <div class="date-control">
           <button id="prevBtn" class="cal-arrow" aria-label="Previous day">◀</button>

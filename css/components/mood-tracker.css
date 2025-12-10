@@ -1,0 +1,19 @@
+.mood-tracker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;  
+  height: 2rem;
+}
+
+.mood-tracker .selected {
+  cursor: pointer;
+}
+
+.mood-tracker .options-container {
+  display:flex;
+}
+
+.mood-tracker .options .item {
+  cursor: pointer;
+}

@@ -14,10 +14,6 @@
     z-index: 1000;
 }
 
-.shortcuts-modal.hidden {
-    display: none;
-}
-
 .shortcuts-trigger {
     position: fixed;
     right: 0.5rem;

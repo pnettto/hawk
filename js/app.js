@@ -1,6 +1,7 @@
 import * as DatePicker from './components/DatePicker.js';
 import * as DailyLog from './components/DailyLog.js';
 import * as Notes from './components/Notes.js';
+import * as MoodTracker from './components/MoodTracker.js';
 import * as Shortcuts from './components/Shortcuts.js';
 
 window.selectedDate = new Date();
@@ -10,14 +11,9 @@ document.addEventListener('selectNewDate', (e) => {
     document.dispatchEvent(event)
 })
 
-const logo = document.querySelector('.logo img')
-logo.addEventListener('click', () => {
-    const event = new CustomEvent('selectNewDate', { detail: { date: new Date() } });
-    document.dispatchEvent(event);
-})
-
 // Init
 DatePicker.init();
 DailyLog.init();
 Notes.init();
+MoodTracker.init();
 Shortcuts.init();
