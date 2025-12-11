@@ -17,7 +17,6 @@ document.addEventListener('selectNewDate', (e) => {
     document.dispatchEvent(event)
 })
 
-// Init
 DatePicker.init();
 DailyLog.init();
 Notes.init();
@@ -26,3 +25,8 @@ Shortcuts.init();
 ZenMode.init();
 Backup.init();
 Mirror.init();
+
+// Only show app by default from 8am to 6pm 🌙
+if (selectedDate.getHours() < 8 || selectedDatate.getHours() > 6) {
+    ZenMode.enter();
+}

@@ -18,11 +18,9 @@ class ZenMode {
 
             if (e.key.toLowerCase() === 'z') {
                 if (zenMode.classList.contains('hidden')) {
-                    zenMode.classList.remove('hidden')
-                    document.body.style = 'overflow: hidden;';
+                    this.enter();
                 } else {
-                    zenMode.classList.add('hidden')
-                    document.body.style = '';
+                    this.leave()
                 }
             }
         });
@@ -30,8 +28,20 @@ class ZenMode {
         this.listenersInitiated = true;
     }
 
+    enter () {
+        const { zenMode } = this.getElements();
+        zenMode.classList.remove('hidden')
+        document.body.style = 'overflow: hidden;';
+    }
 
-    render (date) {
+    leave() {
+        const { zenMode } = this.getElements();
+        zenMode.classList.add('hidden')
+        document.body.style = '';
+    }
+
+
+    render () {
         this.setupListeners();
     }
 }
@@ -40,4 +50,8 @@ const zen = new ZenMode()
 
 export function init() {
     zen.render();
+}
+
+export function enter  () {
+    zen.enter();
 }
