@@ -11,3 +11,17 @@ Install locally in Chrome/Edge:
 
 Note:
 - Data is stored in the extension's page `localStorage`
+
+## Backlog
+- Add search: type a word to go to day (maybe you want to recover notes from that day, for example)
+- Report: mood stats in period, finished tasks in period, etc
+- Tabbed/Vertical switch: two ways of seeing the content
+- Save settings automatically for the next load
+- Migrate to Web Components
+- Save data in cloud storage (multi-device)
+- Auth
+- Auto backup
+- Export function: to markdown, csv?
+- Settings page: customize time window, theme, etc?
+- General notes: simple view to add notes independent of calendar
+
