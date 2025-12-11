@@ -7,9 +7,9 @@ import { formatDate } from '../utils/date.js';
 class Calendar {
     constructor() {
         this.calendarViewDate = new Date();
-        this.selectedDate = new Date();
         this.listenersInitialized = false;
         this.isVisible = false;
+        this.dayBtnHandlers = new Map();
     }
 
     /**
@@ -35,7 +35,6 @@ class Calendar {
      */
     buildCalendar() {
         const { monthEl, daysEl } = this.getElements();
-        if (!monthEl || !daysEl) return;
 
         const year = this.calendarViewDate.getFullYear();
         const month = this.calendarViewDate.getMonth();
@@ -49,6 +48,7 @@ class Calendar {
         });
         daysEl.innerHTML = '';
 
+        this.clearDayBtnHandlers();
         let currentDate = new Date(startDate);
         for (let i = 0; i < 42; i++) {
             const day = this.createDayButton(currentDate, month);
@@ -61,26 +61,36 @@ class Calendar {
      * Creates a single day button element with appropriate styling and click handler.
      */
     createDayButton(date, viewMonth) {
-        const day = document.createElement('button');
-        day.className = 'cal-day';
-        day.textContent = date.getDate();
+        const dayBtn = document.createElement('button');
+        dayBtn.className = 'cal-day';
+        dayBtn.textContent = date.getDate();
 
         if (date.getMonth() !== viewMonth) {
-            day.classList.add('other-month');
+            dayBtn.classList.add('other-month');
         }
 
-        if (formatDate(date) === formatDate(this.selectedDate)) {
-            day.classList.add('selected');
+        if (formatDate(date) === formatDate(this.calendarViewDate)) {
+            dayBtn.classList.add('selected');
         }
 
         const clickDate = new Date(date);
-        day.addEventListener('click', () => {
+        const handler = () => {
             const event = new CustomEvent('selectNewDate', { detail: { date: clickDate } });
             document.dispatchEvent(event);
             this.close();
-        });
+        };
 
-        return day;
+        this.dayBtnHandlers.set(dayBtn, handler);
+        dayBtn.addEventListener('click', handler);
+
+        return dayBtn;
+    }
+
+    clearDayBtnHandlers() {
+        for (const [dayBtn, handler] of this.dayBtnHandlers) {
+            dayBtn.removeEventListener('click', handler);
+        }
+        this.dayBtnHandlers.clear();
     }
 
     /**
@@ -156,6 +166,11 @@ class Calendar {
                 this.close();
             }
         });
+        
+        document.addEventListener("newDateSelected", (e) => {
+            this.calendarViewDate = e.detail.date;
+            this.buildCalendar();
+        });
 
         this.listenersInitialized = true;
     }
@@ -167,7 +182,6 @@ class Calendar {
         const { modalEl, modalOverlay } = this.getElements();
         if (!modalEl) return;
 
-        this.selectedDate = currentSelectedDate;
         this.calendarViewDate = new Date(currentSelectedDate);
         this.buildCalendar();
         this.isVisible = true;
@@ -196,10 +210,10 @@ class Calendar {
 }
 
 const calendarInstance = new Calendar();
+calendarInstance.init();
 
 export function init() {
-    calendarInstance.init();
-    return this;
+    return calendarInstance;
 }
 
 export function open(currentSelectedDate) {
