@@ -13,8 +13,8 @@ class Shortcuts {
 | t                | Show today                     |
 | w                | Move hours up                  |
 | s                | Move hours down                |
-| a                | Move to previous day           |
-| d                | Move to next day               |
+| a / ←            | Move to previous day           |
+| d / →            | Move to next day               |
 | f                | Show full day                  |
 | c                | Open calendar                  |
 | n                | Go to notes                   |

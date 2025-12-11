@@ -59,7 +59,9 @@ class DatePicker {
             if (isSomeInputInFocus) return;
 
             if (event.key === "a") this.goPrev();
+            if (event.key === "ArrowLeft") this.goPrev();
             if (event.key === "d") this.goNext();
+            if (event.key === "ArrowRight") this.goNext();
 
             if (event.key === "t") {
                 const event = new CustomEvent('newDateSelected', { detail: { date: new Date()} })
