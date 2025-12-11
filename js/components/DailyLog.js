@@ -170,8 +170,8 @@ class DailyLog {
             this.HOURS_END = HOURS_END;
             this.showingAllHours = false;
         } else {
-            this.HOURS_START = 1;
-            this.HOURS_END = 23;
+            this.HOURS_START = 6;
+            this.HOURS_END = 22;
             this.showingAllHours = true;
         }
 
