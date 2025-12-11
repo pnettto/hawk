@@ -1,4 +1,5 @@
 import { LOCALSTORAGE_KEY } from '../global.js';
+import { formatDate } from './date.js';
 
 export function loadAll() {
     const raw = localStorage.getItem(LOCALSTORAGE_KEY);
@@ -19,4 +20,15 @@ export function saveForDate(dateStr, data) {
     const all = loadAll();
     all[dateStr] = data;
     saveAll(all);
+}
+
+export function backup() {
+    const obj = loadAll()
+    const dateStr = formatDate(new Date());
+    try { 
+        localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
+        console.log(`Backup ${dateStr} for  saved`)
+    } catch (e) {
+        console.error('Error saving backup', e);
+    }
 }
