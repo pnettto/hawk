@@ -24,4 +24,4 @@ Note:
 - Export function: to markdown, csv?
 - Settings page: customize time window, theme, etc?
 - General notes: simple view to add notes independent of calendar
-
+- Publish on Google Chrome extension directory
