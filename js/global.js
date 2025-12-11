@@ -1,7 +1,16 @@
-const hoursAgo = 2 * 60 * 60 * 1000;
-const hoursFromNow = 2 * 60 * 60 * 1000;
+const hoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+const hoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
-export let HOURS_START = new Date(Date.now() - hoursAgo).getHours();
-export let HOURS_END = new Date(Date.now() + hoursFromNow).getHours();
+const earliest = new Date();
+earliest.setHours(1, 0, 0, 0);
+
+const latest = new Date();
+latest.setHours(23, 0, 0, 0);
+
+const hoursBegin = hoursAgo > earliest ? hoursAgo : earliest;
+const hoursEnd = hoursFromNow < latest ? hoursFromNow : latest;
+
+export let HOURS_START = hoursBegin.getHours();
+export let HOURS_END = hoursEnd.getHours();
 
 export const LOCALSTORAGE_KEY = 'hawk:data';
