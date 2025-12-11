@@ -11,14 +11,14 @@ class Shortcuts {
 | Shortcut         | Action                         |
 |------------------|--------------------------------|
 | t                | Show today                     |
-| space            | Show today                     |
-| w / Arrow up     | Move hours up                  |
-| s / Arrow down   | Move hours down                |
-| a / Arrow left   | Move to previous day           |
-| d / Arrow right  | Move to next day               |
+| w                | Move hours up                  |
+| s                | Move hours down                |
+| a                | Move to previous day           |
+| d                | Move to next day               |
 | f                | Show full day                  |
 | c                | Open calendar                  |
-| Cmd/Ctrl + S     | Save notes (while editing)     |
+| n                | Go to notes                   |
+| Cmd/Ctrl + s     | Save notes (while editing)     |
 | z                | Enter Zen Mode                 |
 | m                | Enter Mirror Mode 😍           |
 | b                | Backup data                    |
