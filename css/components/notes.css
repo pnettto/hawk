@@ -1,0 +1,39 @@
+.notes-input {
+    background: transparent;
+    border: 0;
+    padding: 0.5rem 0.5rem;
+    width: 100%;
+    min-height: 6rem;
+    line-height: 1.5em;
+    color: inherit;
+    outline: none;
+    font-size: 1rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.3s ease;
+    resize: none;
+    cursor: pointer;
+}
+
+.notes-input:hover, .notes-input:focus {
+    background-color: var(--glass);
+}
+
+.notes-input:focus {
+    cursor: text;
+}
+
+.notes-input.highlighted {
+    background-color: var(--panel);
+}
+
+.notes-input::placeholder {
+    color: #6b7b80;
+}
+
+.notes-input a {
+    cursor: pointer;
+}
+
+.notes-input img {
+    max-width: 100%;
+}

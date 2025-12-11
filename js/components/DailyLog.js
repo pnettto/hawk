@@ -42,46 +42,69 @@ class DailyLog {
 
         // Gather checkbox and input values for each hour
         const hourInputs = hoursContainer.querySelectorAll('.hour-input');
-        const data = {};
+        let data = {};
+        const itemsToClear = [];
         hourInputs.forEach(hourInput => {
             const hour = hourInput.dataset.hour;
             const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
+            
+            if (!checkbox.checked && hourInput.value === '') itemsToClear.push(hour);
+
             data[hour] = {
                 checked: checkbox?.checked || false,
                 text: hourInput.value
             };
         });
 
-        const mergedData = {...savedData, ...data}
+        // Clear empty items
+        data = Object.fromEntries(
+            Object.entries(data).filter(([key]) => !itemsToClear.includes(key) )
+        );
 
-        saveForDate(formatDate(this.currentDate), mergedData);
+        saveForDate(formatDate(this.currentDate), data);
     }
 
     /**
      * Generates HTML for a single hour row.
      * Highlights the row if it matches the current hour today.
      */
-    createRowHTML(hour, selectedDate) {
+    createRowHTML(hour, minutes, selectedDate) {
         const timeDisplay = new Date();
-        timeDisplay.setHours(hour, 0, 0, 0);
-        const timeText = timeDisplay.toLocaleTimeString([], { hour: 'numeric' });
+        timeDisplay.setHours(hour, minutes, 0, 0);
+        const timeText = timeDisplay.toLocaleTimeString(
+            [], 
+            { hour: 'numeric', minute: 'numeric'}
+        );
 
         // Highlight current hour if viewing today
         const now = new Date();
         const isSameDay = now.toLocaleDateString() === selectedDate.toLocaleDateString();
         const isCurrentHour = now.getHours() === hour;
+        const isCurrentMinute = minutes === 0 ? now.getMinutes() < 30 : now.getMinutes() >= 30;
         
-        const highlightClass = (isSameDay && isCurrentHour) ? 'highlighted' : '';
+        const highlightClass = (isSameDay && isCurrentHour && isCurrentMinute) ? 'highlighted' : '';
 
         return `
-            <div class="hour-row ${highlightClass}">
-                <div class="hour-time">${timeText}</div>
-                <div class="hour-checkbox-wrap">
-                    <input type="checkbox" class="hour-checkbox" data-hour="${hour}">
-                </div>
-                <input class="hour-input" data-hour="${hour}">
+        <div class="hour-row ${highlightClass}">
+            <div class="hour-time">${timeText}</div>
+            <div class="hour-checkbox-wrap">
+                <input type="checkbox" class="hour-checkbox" data-hour="${hour}${minutes !== 0 ? ('-' + minutes) : ''}">
             </div>
+            <input class="hour-input" data-hour="${hour}${minutes !== 0 ? ('-' + minutes) : ''}">
+        </div>
         `;
+    }
+
+    /**
+     * Builds HTML for all hour rows between HOURS_START and HOURS_END.
+     */
+    buildRowsHTML(date) {
+        let html = '';
+        for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
+            html += this.createRowHTML(hour, 0, date);
+            html += this.createRowHTML(hour, 30, date);
+        }
+        return html;
     }
 
     /**
@@ -156,29 +179,28 @@ class DailyLog {
     }
 
     /**
-     * Builds HTML for all hour rows between HOURS_START and HOURS_END.
-     */
-    buildRowsHTML(date) {
-        let html = '';
-        for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
-            html += this.createRowHTML(hour, date);
-        }
-        return html;
-    }
-
-    /**
      * Restores checkboxes and text inputs from saved data.
      */
     restoreState(savedData) {
         const { hoursContainer } = this.getElements();
         if (!hoursContainer) return;
 
+        // Full hour inputs
         for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
             const state = savedData[hour] || { checked: false, text: '' };
-
             const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
             const input = hoursContainer.querySelector(`.hour-input[data-hour="${hour}"]`);
-
+            
+            if (checkbox) checkbox.checked = !!state.checked;
+            if (input) input.value = state.text || '';
+        }
+        
+        // Mid-hour inputs
+        for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
+            const state = savedData[`${hour}-30`] || { checked: false, text: '' };
+            const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}-30"]`);
+            const input = hoursContainer.querySelector(`.hour-input[data-hour="${hour}-30"]`);
+            
             if (checkbox) checkbox.checked = !!state.checked;
             if (input) input.value = state.text || '';
         }
