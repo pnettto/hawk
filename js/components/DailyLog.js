@@ -81,16 +81,20 @@ class DailyLog {
         const isSameDay = now.toLocaleDateString() === selectedDate.toLocaleDateString();
         const isCurrentHour = now.getHours() === hour;
         const isCurrentMinute = minutes === 0 ? now.getMinutes() < 30 : now.getMinutes() >= 30;
-        
-        const highlightClass = (isSameDay && isCurrentHour && isCurrentMinute) ? 'highlighted' : '';
+        const isHighlightedHour = (isSameDay && isCurrentHour && isCurrentMinute);
+
+        const hourLine =  `
+        <div class="hour-line"></div>
+        `
 
         return `
-        <div class="hour-row ${highlightClass}">
+        <div class="hour-row ${isHighlightedHour ? 'highlighted' : ''}">
             <div class="hour-time">${timeText}</div>
             <div class="hour-checkbox-wrap">
                 <input type="checkbox" class="hour-checkbox" data-hour="${hour}${minutes !== 0 ? ('-' + minutes) : ''}">
             </div>
             <input class="hour-input" data-hour="${hour}${minutes !== 0 ? ('-' + minutes) : ''}">
+            ${isHighlightedHour ? hourLine : ''}
         </div>
         `;
     }
