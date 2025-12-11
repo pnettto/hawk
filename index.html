@@ -9,12 +9,10 @@
     <link rel="icon" type="image/pnsvgg" href="/images/favicon.svg">
   </head>
   <body>
-    <main class="container">
+    <main id="app" class="container">
       <header class="app-header">
         <div id="moodTracker" class="mood-tracker">
-          <span class="selected">
-            <img src="images/favicon.svg" class="logo" />
-          </span>
+          <span class="selected"></span>
           <div class="options hidden">
             <div class="options-container">
               <span class="item">🎉</span>
@@ -33,6 +31,7 @@
 
         <div class="date-control">
           <button id="prevBtn" class="cal-arrow" aria-label="Previous day">◀</button>
+
           <div class="date-container">
             <button id="dateDisplay" class="date-display" aria-haspopup="dialog"></button>
             
@@ -69,7 +68,10 @@
       <video autoplay playsinline></video>
       <div class="looking-good">Looking good! 😍</div>
     </div>
+    
     <div id="zenMode" class="zen-mode hidden"></div>
+    
+    <div id="backupSaved" class="backup-saved hidden">Backup saved!</div>
     
     <script src="js/libs/marked.min.js"></script>
     <script src="js/libs/prism.min.js"></script>
