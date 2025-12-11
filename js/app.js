@@ -10,7 +10,10 @@ import * as Mirror from './components/Mirror.js';
 window.selectedDate = new Date();
 document.addEventListener('selectNewDate', (e) => {
     selectedDate = e.detail.date;
-    const event = new CustomEvent('newDateSelected', { detail: { date: selectedDate } });
+    const event = new CustomEvent(
+        'newDateSelected', 
+        { detail: { date: selectedDate } }
+    );
     document.dispatchEvent(event)
 })
 
