@@ -42,7 +42,7 @@ class DailyLog {
 
         // Gather checkbox and input values for each hour
         const hourInputs = hoursContainer.querySelectorAll('.hour-input');
-        let data = {};
+        const data = {};
         const itemsToClear = [];
         hourInputs.forEach(hourInput => {
             const hour = hourInput.dataset.hour;
@@ -57,11 +57,13 @@ class DailyLog {
         });
 
         // Clear empty items
-        data = Object.fromEntries(
+        const cleanData = Object.fromEntries(
             Object.entries(data).filter(([key]) => !itemsToClear.includes(key) )
         );
 
-        saveForDate(formatDate(this.currentDate), data);
+        const mergedData = {...savedData, ...cleanData}
+
+        saveForDate(formatDate(this.currentDate), mergedData);
     }
 
     /**
