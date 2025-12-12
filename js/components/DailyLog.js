@@ -43,12 +43,9 @@ class DailyLog {
         // Gather checkbox and input values for each hour
         const hourInputs = hoursContainer.querySelectorAll('.hour-input');
         const data = {};
-        const itemsToClear = [];
         hourInputs.forEach(hourInput => {
             const hour = hourInput.dataset.hour;
             const checkbox = hoursContainer.querySelector(`.hour-checkbox[data-hour="${hour}"]`);
-            
-            if (!checkbox.checked && hourInput.value === '') itemsToClear.push(hour);
 
             data[hour] = {
                 checked: checkbox?.checked || false,
@@ -56,14 +53,16 @@ class DailyLog {
             };
         });
 
-        // Clear empty items
-        const cleanData = Object.fromEntries(
-            Object.entries(data).filter(([key]) => !itemsToClear.includes(key) )
-        );
+        const mergedData = {...savedData, ...data}
+        const cleanData = Object.fromEntries(Object.entries(mergedData).filter((item) => {
+            const [key, value] = item;
+            if ( /^\d{1,2}(?:-\d{1,2})?$/.test(key)) {
+                return (value.checked || value.text !== '') ? item : false;
+            }
+            return item;
+        }));
 
-        const mergedData = {...savedData, ...cleanData}
-
-        saveForDate(formatDate(this.currentDate), mergedData);
+        saveForDate(formatDate(this.currentDate), cleanData);
     }
 
     /**

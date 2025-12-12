@@ -27,6 +27,6 @@ Backup.init();
 Mirror.init();
 
 // Only show app by default from 8am to 6pm 🌙
-if (selectedDate.getHours() < 8 || selectedDatate.getHours() > 6) {
+if (selectedDate.getHours() < 8 || selectedDate.getHours() > 18) {
     ZenMode.enter();
 }
