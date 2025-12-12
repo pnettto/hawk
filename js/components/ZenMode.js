@@ -1,4 +1,7 @@
 class ZenMode {
+    constructor () {
+        this.quoteLines = [];
+    }
     getElements () {
         const zenMode = document.getElementById('zenMode');
         return {
@@ -34,22 +37,24 @@ class ZenMode {
     async loadCsv() {
         const res = await fetch('/data/quotes.csv');
         const text = await res.text();
-
-        const lines = text
-            .split(/\r?\n/)
-            .filter(l => l.trim() !== "");    // remove empty lines
-
+        const lines = text.split(/\r?\n/)
         return lines;
     }
 
     async getRandomLine() {
-        const lines = await this.loadCsv();
-        const randomLine = lines[Math.floor(Math.random() * lines.length)];
+        let quoteLines;
+        if (this.quoteLines.length > 0) {
+            quoteLines = this.quoteLines;
+        } else {
+            quoteLines = await this.loadCsv();
+            this.quoteLines = quoteLines;
+        }
+        const randomLine = this.quoteLines[Math.floor(Math.random() * this.quoteLines.length)];
         const lineAtr = randomLine.split('|');
         return lineAtr;
     }
 
-    async showQuote () {
+    async showNewQuote () {
         const { quoteEl, authorEl } = this.getElements();
         const [quote, author] = await this.getRandomLine()
         quoteEl.innerHTML = `"${quote}"`;
@@ -60,7 +65,7 @@ class ZenMode {
         const { zenMode } = this.getElements();
         zenMode.classList.remove('hidden')
         document.body.style = 'overflow: hidden;';
-        this.showQuote();
+        this.showNewQuote();
     }
 
     leave() {
@@ -69,7 +74,7 @@ class ZenMode {
         document.body.style = '';
     }
 
-    render () {
+    async render () {
         this.setupListeners();
     }
 }
