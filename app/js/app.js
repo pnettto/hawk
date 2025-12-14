@@ -6,6 +6,7 @@ import * as Shortcuts from './components/Shortcuts.js';
 import * as ZenMode from './components/ZenMode.js';
 import * as Backup from './components/Backup.js';
 import * as Mirror from './components/Mirror.js';
+import * as Auth from './components/Auth.js';
 
 window.selectedDate = new Date();
 document.addEventListener('selectNewDate', (e) => {
@@ -25,8 +26,16 @@ Shortcuts.init();
 ZenMode.init();
 Backup.init();
 Mirror.init();
+Auth.init();
 
 // Only show app by default from 8am to 6pm 🌙
-if (selectedDate.getHours() < 8 || selectedDate.getHours() > 18) {
-    ZenMode.enter();
+if (selectedDate.getHours() >= 8 || selectedDate.getHours() < 18) {
+    ZenMode.close();
 }
+
+// fetch("/api/backup/recover", {
+//     method: "GET",
+// })
+// .then(res => res.json())
+// .then(data => console.log(data))
+// .catch(err => console.error(err));
