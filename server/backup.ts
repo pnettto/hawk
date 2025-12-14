@@ -59,20 +59,24 @@ function normalizeOrigin(origin: string) {
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
-  const ip = req.headers.get("x-forwarded-for") ?? "cli";
-  let origin = req.headers.get("origin") ?? (ip === "cli" ? "cli" : "");
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  const originHeader = req.headers.get("origin");
+  let origin = originHeader ? normalizeOrigin(originHeader) : "cli";
 
   origin = normalizeOrigin(origin);
 
   // Handle preflight
   if (req.method === "OPTIONS") {
-    const allowed = origin === "cli" ? "null" : ALLOWED_ORIGINS.includes(origin) ? origin : "null";
-
-    if (allowed === "null") console.warn(`Denied preflight from origin: ${origin}`);
+    const isAllowed = origin === "cli" || ALLOWED_ORIGINS.includes(origin);
+    
+    if (!isAllowed) {
+      console.warn(`Denied preflight from origin: ${origin}`);
+      return new Response(null, { status: 403 });
+    }
 
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": allowed,
+        "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "POST, GET",
         "Access-Control-Allow-Headers": "Content-Type",
       },
