@@ -28,7 +28,7 @@ export function backup() {
     try {
         localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
 
-        fetch(`https://hawk.pnettto.deno.net/backup`, {
+        fetch(`/api/backup/create`, {
             method: "POST",
             headers: {
                 "Content-Type": "text/plain",
