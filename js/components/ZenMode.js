@@ -35,7 +35,7 @@ class ZenMode {
     }
 
     async loadCsv() {
-        const res = await fetch('/data/quotes.csv');
+        const res = await fetch(window.location.href + 'data/quotes.csv');
         const text = await res.text();
         const lines = text.split(/\r?\n/)
         return lines;
