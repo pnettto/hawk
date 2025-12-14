@@ -1,20 +1,8 @@
-// Run locally with:
-// deno run \
-//   --env-file=.env \
-//   --allow-net \
-//   --allow-env \
-//   --allow-read \
-//   --unstable-kv \
-//   --watch \
-//   backup.ts
-
 import { readTextWithLimit } from "./utils/payload.ts";
 import { kv } from "./utils/kv.ts";
 
-// Load environment variables
 const BACKUP_KEY = Deno.env.get("BACKUP_KEY");
 
-// Validate required environment variables
 if (!BACKUP_KEY) {
   console.error("ERROR: Environment variables not set.");
   throw new Error("Missing required environment variables");
@@ -37,6 +25,7 @@ export async function handleBackup(req: Request) {
   return new Response("Backup saved", {
     status: 200,
     headers: { 
+      "Content-Type": "text/plain",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Methods": "POST, GET",
@@ -52,11 +41,10 @@ export async function handleRecover(_req: Request) {
   return new Response(result.value, {
     status: 200,
     headers: {
-      "content-type": "text/plain",
+      "Content-Type": "text/plain",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Methods": "POST, GET",
-      "Cache-Control": "no-store",
     },
   });
 }
