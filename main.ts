@@ -4,13 +4,9 @@ import { kv } from "./server/utils/kv.ts";
 
 // Load environment variables
 const API_KEY = Deno.env.get("API_KEY") || '';
-const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
 
 // Validate required environment variables
-if (API_KEY === ''  || ALLOWED_ORIGINS.length === 0 ) {
+if (API_KEY === '') {
   console.error("ERROR: Environment variables not set.");
   throw new Error("Missing required environment variables");
 }
@@ -20,7 +16,6 @@ const RATE_LIMIT = 10; // max requests
 const WINDOW_MS = 60_000; // 1 minute
 
 console.log("Server starting with config:", {
-  allowedOrigins: ALLOWED_ORIGINS,
   rateLimit: RATE_LIMIT,
 });
 
@@ -57,10 +52,6 @@ function getClientIp(req: Request): string {
   );
 }
 
-function normalizeOrigin(origin: string) {
-  return origin.replace(/\/$/, "");
-}
-
 function isAuth(req: Request): boolean {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return false;
@@ -75,11 +66,9 @@ function isAuth(req: Request): boolean {
 export async function handleRequest(req: Request) {
   const url = new URL(req.url);
   const ip = getClientIp(req);
-  const originHeader = req.headers.get("origin");
-  const origin = originHeader ? normalizeOrigin(originHeader) : "";
 
   console.log(
-    `[${req.method}] ${url.pathname} | IP: ${ip} | Origin: ${origin}`,
+    `[${req.method}] ${url.pathname} | IP: ${ip}`,
   );
 
   if (req.method === "OPTIONS") {
@@ -101,7 +90,7 @@ export async function handleRequest(req: Request) {
     if (!isAuth(req)) {
       return new Response("Forbidden", { status: 403 });
     }
-    return handleBackup(req, origin);
+    return handleBackup(req);
   }
 
   if (req.method === "GET" && path === "/api/backup/recover") {
@@ -111,7 +100,7 @@ export async function handleRequest(req: Request) {
     if (!isAuth(req)) {
       return new Response("Forbidden", { status: 403 });
     }
-    return handleRecover(req, origin);
+    return handleRecover(req);
   }
 
   // Static files

@@ -20,7 +20,7 @@ if (!BACKUP_KEY) {
   throw new Error("Missing required environment variables");
 }
 
-export async function handleBackup(req: Request, origin: string) {
+export async function handleBackup(req: Request) {
   let body: string;
   
   try {
@@ -36,11 +36,11 @@ export async function handleBackup(req: Request, origin: string) {
 
   return new Response("Backup saved", {
     status: 200,
-    headers: { "Access-Control-Allow-Origin": origin || '*' },
+    headers: { "Access-Control-Allow-Origin": '*' },
   });
 }
 
-export async function handleRecover(req: Request, origin: string) {
+export async function handleRecover(_req: Request) {
   const result = await kv.get<string>(["backup", BACKUP_KEY]);
   if (!result.value) return new Response("Not found", { status: 404 });
 
@@ -49,7 +49,7 @@ export async function handleRecover(req: Request, origin: string) {
     status: 200,
     headers: {
       "content-type": "text/plain",
-      "Access-Control-Allow-Origin": origin || '*',
+      "Access-Control-Allow-Origin":  '*',
       "Cache-Control": "no-store",
     },
   });
