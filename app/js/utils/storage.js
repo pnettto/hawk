@@ -3,6 +3,14 @@ import { formatDate } from './date.js';
 
 export function loadAll() {
     const raw = localStorage.getItem(LOCALSTORAGE_KEY);
+
+    fetch("/api/backup/recover", {
+        method: "GET",
+    })
+    .then(res => res.json())
+    .then(data => console.log(data))
+    .catch(err => console.error(err));
+
     if (!raw) return {};
     try { return JSON.parse(raw) || {} } catch (e) { return {} }
 }

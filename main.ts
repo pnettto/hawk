@@ -46,6 +46,16 @@ async function rateLimit(ip: string) {
   return true;
 }
 
+function getClientIp(req: Request): string {
+  const h = req.headers;
+  return (
+    h.get("cf-connecting-ip") ||
+    h.get("x-forwarded-for")?.split(",")[0].trim() ||
+    h.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
 function normalizeOrigin(origin: string) {
   return origin.replace(/\/$/, "");
 }
@@ -56,8 +66,7 @@ function isOriginAllowed(origin: string) {
 
 export async function handleRequest(req: Request) {
   const url = new URL(req.url);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    "unknown";
+  const ip = getClientIp(req);
   const originHeader = req.headers.get("origin");
   const origin = originHeader ? normalizeOrigin(originHeader) : "";
 
