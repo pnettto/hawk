@@ -16,7 +16,7 @@ if (API_KEY === '') {
 
 export async function handleRequest(req: Request) {
   const url = new URL(req.url);
-  const ip = getClientIp((req);)
+  const ip = getClientIp(req);
 
   console.log(
     `[${req.method}] ${url.pathname} | IP: ${ip}`,
