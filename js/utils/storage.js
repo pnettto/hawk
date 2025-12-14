@@ -25,8 +25,20 @@ export function saveForDate(dateStr, data) {
 export function backup() {
     const obj = loadAll()
     const dateStr = formatDate(new Date());
-    try { 
+    try {
         localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
+
+        fetch(`https://hawk.pnettto.deno.net/backup`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "text/plain",
+            },
+            body: JSON.stringify({[dateStr]: obj}),
+        })
+        .then(res => res.text())
+        .then(console.log)
+        .catch(console.error);
+
         console.log(`Backup ${dateStr} for  saved`)
     } catch (e) {
         console.error('Error saving backup', e);
