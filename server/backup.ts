@@ -1,4 +1,4 @@
-// Run with:
+// Run locally with:
 // deno run \
 //   --env-file=.env \
 //   --allow-net \
@@ -9,13 +9,15 @@
 //   backup.ts
 
 const kv = await Deno.openKv();
+
+// Read environment variables
 const BACKUP_KEY = Deno.env.get("BACKUP_KEY");
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
 
-
+// Kill app if required env vars are missing
 if (!BACKUP_KEY) {
   console.error("ERROR: BACKUP_KEY environment variable is not set.");
   Deno.exit(1);
@@ -26,6 +28,7 @@ if (ALLOWED_ORIGINS.length === 0) {
   Deno.exit(1);
 }
 
+// Rate limiting settings
 const RATE_LIMIT = 10; // max requests
 const WINDOW_MS = 60_000; // 1 minute
 
@@ -49,18 +52,23 @@ async function rateLimit(ip: string) {
   return true;
 }
 
+// Normalize origin by removing trailing slash
+function normalizeOrigin(origin: string) {
+  return origin.replace(/\/$/, "");
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-  const origin = req.headers.get("origin") ?? "";
+  const ip = req.headers.get("x-forwarded-for") ?? "cli";
+  let origin = req.headers.get("origin") ?? (ip === "cli" ? "cli" : "");
 
-  // Preflight
+  origin = normalizeOrigin(origin);
+
+  // Handle preflight
   if (req.method === "OPTIONS") {
-    const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : "null";
+    const allowed = origin === "cli" ? "null" : ALLOWED_ORIGINS.includes(origin) ? origin : "null";
 
-    if (allowed === "null") {
-      console.warn(`Denied preflight from origin: ${origin}`);
-    }
+    if (allowed === "null") console.warn(`Denied preflight from origin: ${origin}`);
 
     return new Response(null, {
       headers: {
@@ -77,8 +85,8 @@ Deno.serve(async (req) => {
   }
 
   // POST /backup
-  if (req.method === "POST" && url.pathname === "/backup") {
-    if (!ALLOWED_ORIGINS.includes(origin)) {
+  if (req.method === "POST" && url.pathname.replace(/\/$/, "") === "/backup") {
+    if (origin !== "cli" && !ALLOWED_ORIGINS.includes(origin)) {
       console.warn(`Denied POST from origin: ${origin}`);
       return new Response("Forbidden", { status: 403 });
     }
@@ -94,13 +102,16 @@ Deno.serve(async (req) => {
   }
 
   // GET /recover
-  if (req.method === "GET" && url.pathname === "/recover") {
-    if (!ALLOWED_ORIGINS.includes(origin)) {
+  if (req.method === "GET" && url.pathname.replace(/\/$/, "") === "/recover") {
+    if (origin !== "cli" && !ALLOWED_ORIGINS.includes(origin)) {
       console.warn(`Denied GET /recover from origin: ${origin}`);
       return new Response("Forbidden", { status: 403 });
     }
 
-    const result = await kv.get<string>(["backup", BACKUP_KEY]);
+    const key = url.searchParams.get("key");
+    if (!key) return new Response("Missing key", { status: 400 });
+
+    const result = await kv.get<string>(["backup", key]);
     if (!result.value) return new Response("Not found", { status: 404 });
 
     return new Response(result.value, {
@@ -108,6 +119,7 @@ Deno.serve(async (req) => {
       headers: {
         "content-type": "text/plain",
         "Access-Control-Allow-Origin": origin,
+        "Cache-Control": "no-store",
       },
     });
   }
