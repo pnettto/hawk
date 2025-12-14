@@ -8,10 +8,7 @@
 //   --watch \
 //   backup.ts
 
-import { serve } from "https://deno.land/std@0.140.0/http/server.ts";
-
-const kv = await Deno.openKv(Deno.env.get("DENO_KV_URL"));
-
+const kv = await Deno.openKv();
 
 // Load environment variables
 const BACKUP_KEY = Deno.env.get("BACKUP_KEY");
@@ -21,14 +18,9 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "")
   .filter(Boolean);
 
 // Validate required environment variables
-if (!BACKUP_KEY) {
-  console.error("ERROR: BACKUP_KEY environment variable is not set.");
-  Deno.exit(1);
-}
-
-if (ALLOWED_ORIGINS.length === 0) {
-  console.error("ERROR: ALLOWED_ORIGINS environment variable is not set or empty.");
-  Deno.exit(1);
+if (!BACKUP_KEY || ALLOWED_ORIGINS.length === 0) {
+  console.error("ERROR: Environment variables not set.");
+  throw new Error("Missing required environment variables");
 }
 
 console.log("Server starting with config:", {
@@ -137,4 +129,4 @@ async function handleRequest(req: Request) {
   return new Response("Not Found", { status: 404 });
 }
 
-serve(handleRequest);
+Deno.serve(handleRequest);
