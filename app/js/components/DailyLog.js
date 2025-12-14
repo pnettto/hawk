@@ -212,16 +212,20 @@ class DailyLog {
     /**
      * Main render method: builds UI, restores state, and sets up listeners.
      */
-    async render(date) {
-        this.currentDate = date;
-        const savedData = await loadForDate(formatDate(date)) || {};
-
+    render(date) {
         const { hoursContainer } = this.getElements();
         if (!hoursContainer) return;
 
+        this.currentDate = date;
+
+        loadForDate(formatDate(date))
+            .then(savedData => {
+                hoursContainer.innerHTML = this.buildRowsHTML(date);
+                this.restoreState(savedData);
+            })
+
         hoursContainer.innerHTML = this.buildRowsHTML(date);
-        this.restoreState(savedData);
-        this.setupEventListeners();
+        this.setupEventListeners();        
     }
 }
 
