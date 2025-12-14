@@ -39,6 +39,7 @@ export async function handleBackup(req: Request) {
     headers: { 
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "POST, GET",
     },
   });
 }
@@ -54,6 +55,7 @@ export async function handleRecover(_req: Request) {
       "content-type": "text/plain",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "POST, GET",
       "Cache-Control": "no-store",
     },
   });
