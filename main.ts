@@ -74,9 +74,9 @@ export async function handleRequest(req: Request) {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, GET",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, authorization",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     });
   }
