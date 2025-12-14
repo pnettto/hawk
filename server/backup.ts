@@ -75,19 +75,10 @@ Deno.serve(async (req) => {
 
   // Handle preflight
   if (req.method === "OPTIONS") {
-    const isAllowed = origin === "cli" || ALLOWED_ORIGINS.includes(origin);
-    
-    console.log(`[OPTIONS] Origin allowed: ${isAllowed} | Checking: "${origin}" in [${ALLOWED_ORIGINS.join(", ")}]`);
-    
-    if (!isAllowed) {
-      console.warn(`[OPTIONS] ❌ Denied preflight from origin: ${origin}`);
-      return new Response(null, { status: 403 });
-    }
-
-    console.log(`[OPTIONS] ✓ Allowed preflight from origin: ${origin}`);
+    console.log(`[OPTIONS] Allowing all origins for testing`);
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, GET",
         "Access-Control-Allow-Headers": "Content-Type",
       },
