@@ -30,7 +30,7 @@ export function backup() {
         localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
         const apiKey = localStorage.getItem('apiKey')
 
-        fetch(`/api/backup/create`, {
+        fetch(window.apiRoot + `api/backup/create`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${apiKey}`,

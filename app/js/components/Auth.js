@@ -52,11 +52,8 @@ class Auth {
 
     render () {
         const apiKey = localStorage.getItem('apiKey');
-        console.log(`apiKey`, apiKey);
-
         if (!apiKey) {
             this.open();
-            
             this.setupListeners();
         };
 
