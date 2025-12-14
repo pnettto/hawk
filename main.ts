@@ -3,6 +3,7 @@ import { handleBackup, handleRecover } from "./server/backup.ts";
 import { getClientIp } from "./server/utils/ip.ts";
 import { rateLimit } from "./server/utils/rateLimit.ts";
 import { isAuth } from "./server/utils/auth.ts";
+import { corsResponse } from "./server/utils/cors.ts";
 
 // Load environment variables
 const API_KEY = Deno.env.get("API_KEY") || '';
@@ -22,33 +23,27 @@ export async function handleRequest(req: Request) {
   );
 
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Methods": "POST, GET",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
+    return corsResponse(null);
   }
 
   const path = url.pathname.replace(/\/$/, "");
 
   if (req.method === "POST" && path === "/api/backup/create") {
     if (!(await rateLimit(ip))) {
-      return new Response("Too many requests", { status: 429 });
+      return corsResponse("Too many requests", { status: 429 });
     }
     if (!isAuth(req)) {
-      return new Response("Forbidden", { status: 403 });
+      return corsResponse("Forbidden", { status: 403 });
     }
     return handleBackup(req);
   }
 
   if (req.method === "GET" && path === "/api/backup/recover") {
     if (!(await rateLimit(ip))) {
-      return new Response("Too many requests", { status: 429 });
+      return corsResponse("Too many requests", { status: 429 });
     }
     if (!isAuth(req)) {
-      return new Response("Forbidden", { status: 403 });
+      return corsResponse("Forbidden", { status: 403 });
     }
     return handleRecover(req);
   }
@@ -62,7 +57,7 @@ export async function handleRequest(req: Request) {
   });
 
   if (res.status === 404) {
-    return new Response("Not found", { status: 404 });
+    return corsResponse("Not found", { status: 404 });
   }
 
   return res;
