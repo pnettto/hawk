@@ -35,8 +35,8 @@ class DailyLog {
     /**
      * Collects all hour data and notes, then persists to localStorage.
      */
-    saveCurrentState() {
-        const savedData = loadForDate(formatDate(this.currentDate));
+    async saveCurrentState() {
+        const savedData = await loadForDate(formatDate(this.currentDate));
         const { hoursContainer } = this.getElements();
         if (!hoursContainer || !this.currentDate) return;
 
@@ -212,9 +212,9 @@ class DailyLog {
     /**
      * Main render method: builds UI, restores state, and sets up listeners.
      */
-    render(date) {
+    async render(date) {
         this.currentDate = date;
-        const savedData = loadForDate(formatDate(date)) || {};
+        const savedData = await loadForDate(formatDate(date)) || {};
 
         const { hoursContainer } = this.getElements();
         if (!hoursContainer) return;

@@ -8,7 +8,8 @@ import * as Backup from './components/Backup.js';
 import * as Mirror from './components/Mirror.js';
 import * as Auth from './components/Auth.js';
 
-window.apiRoot = 'https://hawk.pnettto.deno.net/';
+// Load data
+
 window.selectedDate = new Date();
 document.addEventListener('selectNewDate', (e) => {
     selectedDate = e.detail.date;
@@ -33,10 +34,3 @@ Auth.init();
 if (selectedDate.getHours() >= 8 || selectedDate.getHours() < 18) {
     ZenMode.close();
 }
-
-// fetch("/api/backup/recover", {
-//     method: "GET",
-// })
-// .then(res => res.json())
-// .then(data => console.log(data))
-// .catch(err => console.error(err));

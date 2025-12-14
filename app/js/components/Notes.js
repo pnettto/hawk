@@ -20,8 +20,8 @@ class Notes {
         }
     }
 
-    saveCurrentState() {
-        const savedData = loadForDate(formatDate(this.currentDate));
+    async saveCurrentState() {
+        const savedData = await loadForDate(formatDate(this.currentDate));
         const { notesInput } = this.getElements();
 
         this.updateNotesMarkdown()
@@ -176,10 +176,10 @@ class Notes {
         this.listenersInitiated = true;
     }
 
-    render (date) {
+    async render (date) {
         this.currentDate = date;
         const { notesInput } = this.getElements();
-        const savedData = loadForDate(formatDate(date)) || {};
+        const savedData = await formatDate(date) || {};
         this.notesMarkdown = savedData.notesMarkdown || '';
         notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
         this.setupListeners();

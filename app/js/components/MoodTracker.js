@@ -50,8 +50,8 @@ class MoodTracker {
         this.listenersInitiated = true;
     }
 
-    save (options) {
-        const savedData = loadForDate(formatDate(this.currentDate));
+    async save (options) {
+        const savedData = await loadForDate(formatDate(this.currentDate));
         const { selected } = this.getElements();
         
         let newMood;
@@ -71,9 +71,9 @@ class MoodTracker {
         saveForDate(formatDate(this.currentDate), mergedData);
     }
 
-    load () {
+    async load () {
         const { selected } = this.getElements();
-        const savedData = loadForDate(formatDate(this.currentDate)) || {};
+        const savedData = await loadForDate(formatDate(this.currentDate)) || {};
         this.mood = savedData.mood || this.logoImg;
         if (this.mood) {
             selected.innerHTML = this.mood;
