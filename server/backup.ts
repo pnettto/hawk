@@ -10,7 +10,8 @@
 
 import { serve } from "https://deno.land/std@0.140.0/http/server.ts";
 
-const kv = await Deno.openKv();
+const kv = await Deno.openKv(Deno.env.get("DENO_KV_URL"));
+
 
 // Load environment variables
 const BACKUP_KEY = Deno.env.get("BACKUP_KEY");
