@@ -28,6 +28,7 @@ export function loadAll() {
         }
 
         const data = await res.json();
+
         window.logs = data;
         return data;
     })();
@@ -41,11 +42,10 @@ export function saveAll(obj) {
         method: 'POST',
         body: JSON.stringify(obj),
         headers: {
-            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'text/plain',
+            'Authorization': `Bearer ${apiKey}`,
         },
     });
-
-    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(obj))
 }
 
 export async function loadForDate(dateStr) {
@@ -55,6 +55,9 @@ export async function loadForDate(dateStr) {
 
 export async function saveForDate(dateStr, data) {
     const all = await loadAll();
+    if (!all[dateStr]) {
+        all[dateStr] = {}
+    }
     all[dateStr] = data;
     saveAll(all);
 }

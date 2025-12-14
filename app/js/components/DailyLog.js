@@ -221,7 +221,9 @@ class DailyLog {
         loadForDate(formatDate(date))
             .then(savedData => {
                 hoursContainer.innerHTML = this.buildRowsHTML(date);
-                this.restoreState(savedData);
+                if (savedData) {
+                    this.restoreState(savedData);
+                }
             })
 
         hoursContainer.innerHTML = this.buildRowsHTML(date);
