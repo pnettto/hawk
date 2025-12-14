@@ -36,7 +36,10 @@ export async function handleBackup(req: Request) {
 
   return new Response("Backup saved", {
     status: 200,
-    headers: { "Access-Control-Allow-Origin": '*' },
+    headers: { 
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
   });
 }
 
@@ -49,7 +52,8 @@ export async function handleRecover(_req: Request) {
     status: 200,
     headers: {
       "content-type": "text/plain",
-      "Access-Control-Allow-Origin":  '*',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Cache-Control": "no-store",
     },
   });
