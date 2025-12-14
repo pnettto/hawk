@@ -86,6 +86,10 @@ export function init() {
     zen.render();
 }
 
+export function close() {
+    zen.leave();
+}
+
 export function enter  () {
     zen.enter();
 }

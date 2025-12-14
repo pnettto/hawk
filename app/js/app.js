@@ -8,6 +8,7 @@ import * as Backup from './components/Backup.js';
 import * as Mirror from './components/Mirror.js';
 import * as Auth from './components/Auth.js';
 
+window.apiRoot = 'https://hawk.pnetto.deno.net/';
 window.selectedDate = new Date();
 document.addEventListener('selectNewDate', (e) => {
     selectedDate = e.detail.date;
