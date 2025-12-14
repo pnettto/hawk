@@ -176,12 +176,14 @@ class Notes {
         this.listenersInitiated = true;
     }
 
-    async render (date) {
+    render (date) {
         this.currentDate = date;
         const { notesInput } = this.getElements();
-        const savedData = await formatDate(date) || {};
-        this.notesMarkdown = savedData.notesMarkdown || '';
-        notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
+        loadForDate(formatDate(date))
+            .then(savedData => {
+                this.notesMarkdown = savedData.notesMarkdown || '';
+                notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
+            })
         this.setupListeners();
     }
     
