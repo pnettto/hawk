@@ -71,13 +71,20 @@ class MoodTracker {
         saveForDate(formatDate(this.currentDate), mergedData);
     }
 
-    async load () {
+    load() {
         const { selected } = this.getElements();
-        const savedData = await loadForDate(formatDate(this.currentDate)) || {};
-        this.mood = savedData.mood || this.logoImg;
-        if (this.mood) {
-            selected.innerHTML = this.mood;
-        }
+
+        loadForDate(formatDate(this.currentDate))
+            .then(savedData => {
+                const data = savedData || {};
+                this.mood = data.mood || this.logoImg;
+
+                if (this.mood) {
+                    selected.innerHTML = this.mood;
+                }
+            })
+
+        selected.innerHTML = this.logoImg;
     }
 
     render (date) {

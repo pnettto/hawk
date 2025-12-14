@@ -1,6 +1,6 @@
 import { kv } from "./kv.ts";
 
-const RATE_LIMIT = 10; // max requests
+const RATE_LIMIT = 150; // max requests
 const WINDOW_MS = 60_000; // 1 minute
 
 export async function rateLimit(ip: string) {
