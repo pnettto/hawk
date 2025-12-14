@@ -13,7 +13,7 @@ Note:
 - Data is stored in the extension's page `localStorage`
 
 ## Backlog
-- Add search: type a word to go to day (maybe you want to recover notes from that day, for example)
+- Add search: type a word to go to day (maybe you want to restore notes from that day, for example)
 - Report: mood stats in period, finished tasks in period, etc
 - Tabbed/Vertical switch: two ways of seeing the content
 - Save settings automatically for the next load

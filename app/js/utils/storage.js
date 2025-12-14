@@ -1,47 +1,60 @@
 import { LOCALSTORAGE_KEY } from '../global.js';
 import { formatDate } from './date.js';
 
-export function loadAll() {
-    const raw = localStorage.getItem(LOCALSTORAGE_KEY);
+const apiRoot = 'https://hawk.pnettto.deno.net/';
+let loadAllPromise = null;
 
-    if (!raw) return {};
-    try { return JSON.parse(raw) || {} } catch (e) { return {} }
+export function loadAll() {
+    if (window.logs) {
+        return Promise.resolve(window.logs);
+    }
+
+    if (loadAllPromise) {
+        return loadAllPromise;
+    }
+
+    loadAllPromise = (async () => {
+        const apiKey = localStorage.getItem('apiKey');
+
+        const res = await fetch(apiRoot + 'api/logs', {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+            },
+        });
+
+        if (!res.ok) {
+            loadAllPromise = null;
+            return {};
+        }
+
+        const data = await res.json();
+        window.logs = data;
+        return data;
+    })();
+
+    return loadAllPromise;
 }
 
 export function saveAll(obj) {
     try { localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(obj)) } catch (e) { /* ignore quota errors */ }
 }
 
-export function loadForDate(dateStr) {
-    const all = loadAll();
+export async function loadForDate(dateStr) {
+    const all = await loadAll();
     return all[dateStr] || null;
 }
 
-export function saveForDate(dateStr, data) {
-    const all = loadAll();
+export async function saveForDate(dateStr, data) {
+    const all = await loadAll();
     all[dateStr] = data;
     saveAll(all);
 }
 
-export function backup() {
-    const obj = loadAll()
+export async function backup() {
+    const obj = await loadAll()
     const dateStr = formatDate(new Date());
     try {
         localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
-        const apiKey = localStorage.getItem('apiKey')
-
-        fetch(window.apiRoot + `api/backup/create`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${apiKey}`,
-                "Content-Type": "text/plain",
-            },
-            body: JSON.stringify({[dateStr]: obj}),
-        })
-        .then(res => res.text())
-        .then(console.log)
-        .catch(console.error);
-
         console.log(`Backup ${dateStr} for  saved`)
     } catch (e) {
         console.error('Error saving backup', e);

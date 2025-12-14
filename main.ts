@@ -28,7 +28,7 @@ export async function handleRequest(req: Request) {
 
   const path = url.pathname.replace(/\/$/, "");
 
-  if (req.method === "POST" && path === "/api/backup/create") {
+  if (req.method === "POST" && path === "/api/logs") {
     if (!(await rateLimit(ip))) {
       return corsResponse("Too many requests", { status: 429 });
     }
@@ -38,7 +38,7 @@ export async function handleRequest(req: Request) {
     return handleBackup(req);
   }
 
-  if (req.method === "GET" && path === "/api/backup/recover") {
+  if (req.method === "GET" && path === "/api/logs") {
     if (!(await rateLimit(ip))) {
       return corsResponse("Too many requests", { status: 429 });
     }

@@ -30,6 +30,6 @@ export async function handleRecover(_req: Request) {
   const result = await kv.get<string>(["backup", BACKUP_KEY]);
   if (!result.value) return corsResponse("Not found", { status: 404 });
 
-  console.log(`[GET /recover] ✓ Recovered ${result.value.length} bytes for key: ${BACKUP_KEY}`);
+  console.log(`[GET /restore] ✓ Recovered ${result.value.length} bytes for key: ${BACKUP_KEY}`);
   return corsResponse(result.value, { status: 200 });
 }
