@@ -35,7 +35,7 @@ class ZenMode {
     }
 
     async loadCsv() {
-        const res = await fetch(window.location.href + 'data/quotes.csv');
+        const res = await fetch('/data/quotes.csv');
         const text = await res.text();
         const lines = text.split(/\r?\n/)
         return lines;
@@ -64,7 +64,7 @@ class ZenMode {
     enter () {
         const { zenMode } = this.getElements();
         zenMode.classList.remove('hidden')
-        document.body.style = 'overflow: hidden;';
+        document.body.style = 'overflow: hidden; height: 100vw;';
         this.showNewQuote();
     }
 
@@ -74,7 +74,8 @@ class ZenMode {
         document.body.style = '';
     }
 
-    async render () {
+    render () {
+        this.leave();
         this.setupListeners();
     }
 }

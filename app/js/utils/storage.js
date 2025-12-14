@@ -4,13 +4,6 @@ import { formatDate } from './date.js';
 export function loadAll() {
     const raw = localStorage.getItem(LOCALSTORAGE_KEY);
 
-    fetch("/api/backup/recover", {
-        method: "GET",
-    })
-    .then(res => res.json())
-    .then(data => console.log(data))
-    .catch(err => console.error(err));
-
     if (!raw) return {};
     try { return JSON.parse(raw) || {} } catch (e) { return {} }
 }
@@ -35,10 +28,12 @@ export function backup() {
     const dateStr = formatDate(new Date());
     try {
         localStorage.setItem(`${LOCALSTORAGE_KEY}_backup_${dateStr}`, JSON.stringify(obj));
+        const apiKey = localStorage.getItem('apiKey')
 
         fetch(`/api/backup/create`, {
             method: "POST",
             headers: {
+                "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "text/plain",
             },
             body: JSON.stringify({[dateStr]: obj}),

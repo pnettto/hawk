@@ -3,13 +3,14 @@ import { handleBackup, handleRecover } from "./server/backup.ts";
 import { kv } from "./server/utils/kv.ts";
 
 // Load environment variables
+const API_KEY = Deno.env.get("API_KEY") || '';
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
 // Validate required environment variables
-if (ALLOWED_ORIGINS.length === 0) {
+if (API_KEY === ''  || ALLOWED_ORIGINS.length === 0 ) {
   console.error("ERROR: Environment variables not set.");
   throw new Error("Missing required environment variables");
 }
@@ -60,8 +61,15 @@ function normalizeOrigin(origin: string) {
   return origin.replace(/\/$/, "");
 }
 
-function isOriginAllowed(origin: string) {
-  return ALLOWED_ORIGINS.includes(origin); // || origin === "cli"
+function isAuth(req: Request): boolean {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return false;
+
+    const token = authHeader.startsWith('Bearer ') 
+        ? authHeader.slice(7)
+        : null;
+
+    return token === API_KEY;
 }
 
 export async function handleRequest(req: Request) {
@@ -90,7 +98,7 @@ export async function handleRequest(req: Request) {
     if (!(await rateLimit(ip))) {
       return new Response("Too many requests", { status: 429 });
     }
-    if (!isOriginAllowed(origin)) {
+    if (!isAuth(req)) {
       return new Response("Forbidden", { status: 403 });
     }
     return handleBackup(req, origin);
@@ -100,7 +108,7 @@ export async function handleRequest(req: Request) {
     if (!(await rateLimit(ip))) {
       return new Response("Too many requests", { status: 429 });
     }
-    if (!isOriginAllowed(origin)) {
+    if (!isAuth(req)) {
       return new Response("Forbidden", { status: 403 });
     }
     return handleRecover(req, origin);
