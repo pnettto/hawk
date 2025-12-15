@@ -15,6 +15,8 @@ class ZenMode {
         if (this.listenersInitiated) return;
         const { zenMode } = this.getElements();
 
+        zenMode.addEventListener('click', () => this.leave());
+
         document.addEventListener('keydown', (e) => {
             const active = document.activeElement;
             const isTyping = active.tagName === "INPUT" ||
@@ -75,7 +77,7 @@ class ZenMode {
     }
 
     render () {
-        this.leave();
+        this.showNewQuote();
         this.setupListeners();
     }
 }
@@ -86,10 +88,6 @@ export function init() {
     zen.render();
 }
 
-export function close() {
+export function leave() {
     zen.leave();
-}
-
-export function enter  () {
-    zen.enter();
 }
