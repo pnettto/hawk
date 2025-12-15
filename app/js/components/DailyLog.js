@@ -6,7 +6,7 @@ import { debounce } from '../utils/dom.js';
 /**
  * Manages the daily log UI: hourly rows with checkboxes and text inputs.
  * Handles rendering, state persistence, and user interactions.
- */
+ */ 
 class DailyLog {
     constructor() {
         this.HOURS_START = HOURS_START;
