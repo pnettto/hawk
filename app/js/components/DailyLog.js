@@ -74,7 +74,7 @@ class DailyLog {
         timeDisplay.setHours(hour, minutes, 0, 0);
         const timeText = timeDisplay.toLocaleTimeString(
             [], 
-            { hour: 'numeric', minute: 'numeric'}
+            { hour: '2-digit', minute: 'numeric'}
         );
 
         // Highlight current hour if viewing today
@@ -143,7 +143,7 @@ class DailyLog {
 
             if (event.key.toLocaleLowerCase() === "w") this.goUp();
             if (event.key.toLocaleLowerCase() === "s") this.goDown();
-            if (event.key.toLocaleLowerCase() === "f") this.toggleShowAllHours();
+            if (event.key.toLocaleLowerCase() === "f") this.toggleShowMostHours();
         });
 
         document.addEventListener('newDateSelected', (e) => {
@@ -167,14 +167,14 @@ class DailyLog {
         this.render(this.currentDate);
     }
 
-    toggleShowAllHours () {
+    toggleShowMostHours () {
         if (this.showingAllHours) {
             this.HOURS_START = HOURS_START;
             this.HOURS_END = HOURS_END;
             this.showingAllHours = false;
         } else {
-            this.HOURS_START = 6;
-            this.HOURS_END = 22;
+            this.HOURS_START = 7;
+            this.HOURS_END = 20;
             this.showingAllHours = true;
         }
 
