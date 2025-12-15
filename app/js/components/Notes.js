@@ -6,7 +6,7 @@ class Notes {
     constructor () {
         this.listenersInitiated = false;
         this.currentDate = null;
-         this.notesMarkdown = '';
+        this.notesMarkdown = '';
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
                 this.saveCurrentState();
@@ -21,35 +21,17 @@ class Notes {
     }
 
     async saveCurrentState() {
-        const savedData = await loadForDate(formatDate(this.currentDate));
         const { notesInput } = this.getElements();
-
-        this.updateNotesMarkdown()
-        const data = {
+        const newData = {
             notes: notesInput?.innerHTML || '',
             notesMarkdown: this.notesMarkdown
         };
-
-        const mergedData = {...savedData, ...data}
+        const savedData = await loadForDate(formatDate(this.currentDate));
+        const mergedData = {...savedData, ...newData}
 
         saveForDate(formatDate(this.currentDate), mergedData);
     }
 
-    updateNotesMarkdown () {
-        // Extract text preserving line breaks
-        this.notesMarkdown = notesInput.innerHTML
-            .replace(/<div>/g, "\n")   // opening div becomes newline
-            .replace(/<\/div>/g, "")   // closing div removed
-            .replace(/<br\s*\/?>/g, "\n") // br becomes newline
-            .replace(/<div>/gi, '')
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&')
-            .trim();
-    }
-    
     setupListeners () {
         if (this.listenersInitiated) return;
         
@@ -59,7 +41,7 @@ class Notes {
             const a = e.target.closest('a');
             if (!a) return;
 
-            if (e.metaKey || e.ctrlKey) {
+            if (e.metaKey || e.ctrlKey) {qq
                 e.preventDefault();
                 window.open(a.href, "_blank");
             }
@@ -71,36 +53,25 @@ class Notes {
 
         // Focus: show markdown
         notesInput.addEventListener('focus', () => {
-            // Convert HTML back to markdown for editing
-            const markdown = this.notesMarkdown;
-            notesInput.innerHTML = '';
-
-            // Insert text with preserved line breaks
-            const lines = markdown.split('\n');
-            lines.forEach((line, index) => {
-                notesInput.appendChild(document.createTextNode(line));
-                if (index < lines.length - 1) {
-                    notesInput.appendChild(document.createElement('br'));
-                }
-            });
-
-            // Place cursor at end
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(notesInput);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
+            notesInput.innerHTML = this.notesMarkdown;
         });
 
         // Blur: parse and show HTML
         notesInput.addEventListener('blur', () => {
-            this.updateNotesMarkdown()
+            let notesMarkdown = notesInput.innerHTML
+            .replace(/<div>/gi, '\n')
+            .replace(/<\/div>/gi, '')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .trim();
+
+            this.notesMarkdown = notesMarkdown;
             notesInput.innerHTML = marked.parse(this.notesMarkdown);
-            this.saveCurrentState();
+
             if (window.Prism) {
                 Prism.highlightAllUnder(notesInput);
             }
+
+            this.saveCurrentState();
         });
 
         // Paste: convert image URLs to markdown format
@@ -121,7 +92,7 @@ class Notes {
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
-                range.deleteContents();
+            range.deleteContents();
                 const textNode = document.createTextNode(textToInsert);
                 range.insertNode(textNode);
                 range.setStartAfter(textNode);

@@ -22,6 +22,22 @@ a {
     color: var(--accent);
 }
 
+h1 {
+    font-size: 2em;
+}
+
+h2 {
+    font-size: 1.75em;
+}
+
+h3 {
+    font-size: 1.5em;
+}
+
+h4, h5, h6 {
+    font-size: 1.25em;
+}
+
 
 table {
   width: 100%;

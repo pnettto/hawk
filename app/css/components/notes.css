@@ -14,12 +14,25 @@
     cursor: pointer;
 }
 
+.notes-input h1 {
+    font-size: 1.25em;
+}
+
+.notes-input h2,
+.notes-input h3,
+.notes-input h4,
+.notes-input h5,
+.notes-input h6 {
+    font-size: 1.15em;
+}
+
 .notes-input:hover, .notes-input:focus {
     background-color: var(--glass);
 }
 
 .notes-input:focus {
     cursor: text;
+    white-space: pre-wrap;
 }
 
 .notes-input.highlighted {

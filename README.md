@@ -15,7 +15,7 @@ Note:
 ## Backlog
 - Add search: type a word to go to day (maybe you want to restore notes from that day, for example)
 - Report: mood stats in period, finished tasks in period, etc
-- Tabbed/Vertical switch: two ways of seeing the content
+- Tabbed/Vertical switch: two ways of seeing the content (tabs on a sidebar?)
 - Save settings automatically for the next load
 - Migrate to Web Components
 - Save data in cloud storage (multi-device)
