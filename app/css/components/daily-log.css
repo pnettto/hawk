@@ -73,10 +73,6 @@
     cursor: text;
 }
 
-.highlighted .hour-time {
-    color: var(--accent);
-}
-
 .hour-input::placeholder {
     color: #6b7b80;
 }
@@ -89,4 +85,12 @@
     height: 1px;
     background-color: var(--accent);
     opacity: 0.1;
+}
+
+.highlighted .hour-time {
+    color: var(--accent);
+}
+
+.highlighted {
+    color: var(--accent)
 }
