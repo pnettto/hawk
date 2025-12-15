@@ -24,7 +24,7 @@ export async function handleRequest(req: Request) {
   );
 
   if (req.method === "OPTIONS") {
-    return corsResponse("", { status: 204 });
+    return corsResponse(null, { status: 204 });
   }
 
   const path = url.pathname.replace(/\/$/, "");

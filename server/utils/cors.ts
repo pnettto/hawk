@@ -1,4 +1,4 @@
-export function corsResponse(body: string = "", init: ResponseInit = {}) {
+export function corsResponse(body: string|null, init: ResponseInit = {}) {
   const headers = new Headers(init?.headers);
   headers.set("Access-Control-Allow-Origin", "*"); // allow any origin
   headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
