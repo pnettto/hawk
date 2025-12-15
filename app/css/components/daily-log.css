@@ -9,7 +9,7 @@
 .hour-row {
     position: relative;
     display: grid;
-    grid-template-columns: 4.5rem 2rem minmax(0, 1fr);
+    grid-template-columns: 6em auto minmax(0, 1fr);
     align-items: center;
     gap: 0.5rem;
 }
