@@ -7,12 +7,19 @@ export async function handleCmd(req: Request) {
     if (!cmd) return corsResponse("Send ?cmd=<JS code>", { status: 500 });
 
     try {
-        const result = await (async () => {
-            return await eval(cmd);
-        })();
+        const kv = await Deno.openKv();
+
+        const AsyncFunction =
+            Object.getPrototypeOf(async function () {}).constructor;
+        const func = new AsyncFunction("kv", cmd); // the cmd code can use 'kv'
+
+        const result = await func(kv);
 
         return corsResponse(JSON.stringify(result), { status: 200 });
     } catch (e) {
-        return corsResponse(e.toString(), { status: 500 });
+        return corsResponse(
+            e instanceof Error ? e.message : String(e),
+            { status: 500 },
+        );
     }
 }
