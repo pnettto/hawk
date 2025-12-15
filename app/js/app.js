@@ -31,6 +31,7 @@ Mirror.init();
 Auth.init();
 
 // Only show app by default from 8am to 6pm 🌙
-if (selectedDate.getHours() >= 8 || selectedDate.getHours() < 18) {
-    ZenMode.close();
+const selectedDateHour = selectedDate.getHours();
+if (selectedDateHour >= 8 && selectedDateHour <= 18) {
+    ZenMode.leave();
 }
