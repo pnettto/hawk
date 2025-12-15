@@ -80,12 +80,6 @@
     color: #6b7b80;
 }
 
-@media (max-width:40rem) {
-    .hour-row {
-        grid-template-columns: 4rem 2rem minmax(0, 1fr);
-    }
-}
-
 .hour-line {
     position: absolute;
     bottom: -5px;
