@@ -26,3 +26,5 @@ Note:
 - General notes: simple view to add notes independent of calendar
 - Publish on Google Chrome extension directory
 - Have the Shortcuts class handle all shortcut creation/destruction
+- Notifications
+- Sync with Calendar
