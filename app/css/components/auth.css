@@ -8,3 +8,29 @@
     background-color: var(--bg);
     z-index: 1000;
 }
+
+.auth-form {
+    width: min(15rem, 90vw);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.auth-form .logo {
+    width: 3rem;
+}
+
+.auth-form > * {
+    display: block;
+    border: 0;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    width: 100%;
+}
+
+.auth-form input, 
+.auth-form button {
+    border-radius: 10px;
+}

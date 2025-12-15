@@ -14,12 +14,13 @@ class Auth {
         return {
             authContainer,
             form: authContainer.querySelector('.auth-form'),
+            guest: authContainer.querySelector('.guest'),
         }
     }
 
     setupListeners () {
         if (this.listenersInitiated) return;
-        const { form } = this.getElements();
+        const { form, guest } = this.getElements();
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -31,6 +32,11 @@ class Auth {
             const key = await createHash(password);
             
             localStorage.setItem('apiKey', key);
+            this.close();
+        });
+
+        guest.addEventListener('click', (e) => {
+            e.preventDefault();
             this.close();
         });
 
