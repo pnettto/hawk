@@ -15,7 +15,8 @@ body {
 }
 
 body, input, button {
-    font-family: 'Cascadia Code', ui-monospace;
+    font-family: "code-saver", ui-monospace;
+    font-weight: 400;
 }
 
 a {
