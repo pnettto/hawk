@@ -1,19 +1,9 @@
 
 .hours {
-    max-height: 70vh;
-    overflow-x: hidden;
-    overflow-y: scroll;
     display: flex;
     flex-direction: column;
     margin-bottom: 2rem;
     gap: 0.5rem;
-}
-
-@media (min-width: 600px) {
-    .hours {
-        max-height: initial;
-        overflow: auto;
-    }
 }
 
 .hour-row {
