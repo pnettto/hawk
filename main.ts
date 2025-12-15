@@ -1,5 +1,4 @@
 import { serveDir } from "https://deno.land/std/http/file_server.ts";
-import { handleCmd } from "./server/cmd.ts";
 import { handleBackup, handleRecover } from "./server/backup.ts";
 import { getClientIp } from "./server/utils/ip.ts";
 import { rateLimit } from "./server/utils/rateLimit.ts";
@@ -49,16 +48,6 @@ export async function handleRequest(req: Request) {
     return handleRecover(req);
   }
   
-  if (req.method === "GET" && path === "/api/cmd") {
-    if (!(await rateLimit(ip))) {
-      return corsResponse("Too many requests", { status: 429 });
-    }
-    if (!isAuth(req)) {
-      return corsResponse("Forbidden", { status: 403 });
-    }
-    return handleCmd(req);
-  }
-
   // Static files
   const res = await serveDir(req, {
     fsRoot: "app",
