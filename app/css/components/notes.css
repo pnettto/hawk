@@ -26,6 +26,32 @@
     font-size: 1.15em;
 }
 
+.notes-input h1, 
+.notes-input h2 {
+    margin: 3rem 0 0.5rem;
+}
+
+.notes-input :first-child {
+    margin-top: 0;
+}
+
+.notes-input a {
+    cursor: pointer;
+}
+
+.notes-input img {
+    max-width: 100%;
+}
+
+.notes-input li, .notes-input li > * {
+    margin: 0;
+}
+
+.notes-input p, .notes-input ul {
+    margin: 0;
+    margin-bottom: 1rem;
+}
+
 .notes-input:hover, .notes-input:focus {
     background-color: var(--glass);
 }
@@ -41,16 +67,4 @@
 
 .notes-input::placeholder {
     color: #6b7b80;
-}
-
-.notes-input a {
-    cursor: pointer;
-}
-
-.notes-input img {
-    max-width: 100%;
-}
-
-.notes-input li {
-    margin-bottom: 1rem;
 }
