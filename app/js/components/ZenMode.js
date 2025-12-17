@@ -1,5 +1,7 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
+import { formatDate } from '../utils/date.js';
+
 
 const style = /* css */ `
 .zen-mode {
@@ -93,7 +95,7 @@ class ZenMode extends Component {
         if (this.hidden) return;
         this.hidden = true;
         this.render();
-    }
+    } 
 
     render() {
         const { app } = this.getState();
@@ -102,13 +104,19 @@ class ZenMode extends Component {
         if (!app?.selectedDate) return;
         
         // Auto-hide
+        const todayStr = formatDate(new Date());
+        const selectedDateStr = formatDate(app.selectedDate);
+        const selectedIsToday = todayStr === selectedDateStr;
         const h = app.selectedDate.getHours();
-        const shouldHideByTime = (h >= 8 && h <= 18);
+        const shouldHideByTime = (selectedIsToday && (h >= 8&& h <= 18));
         const isHidden = this.hidden || shouldHideByTime;
+        this.hidden = true;
         if (isHidden) return;
 
+        this.hidden = false;
+        
         const content = `
-            <div class="zen-mode ">
+            <div class="zen-mode">
                 <div class="quote-wrapper">
                 ${
                     quote
