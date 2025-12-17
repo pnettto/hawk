@@ -16,4 +16,10 @@
 
 .mood-tracker .options .item {
   cursor: pointer;
+  padding: 0 0.2rem;
+  transition: transform 0.2s ease;
+}
+
+.mood-tracker .options .item:hover {
+  transform: scale(1.2);
 }

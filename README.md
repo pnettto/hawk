@@ -30,3 +30,5 @@ Note:
 - Sync with Calendar
 - Ability to use localStorage for browsing/testing
 - Add note per task instead of general one (maybe in addition to?)
+- Add note to mood
+- Full week view (report)
