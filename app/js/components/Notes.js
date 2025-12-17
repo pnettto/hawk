@@ -41,7 +41,7 @@ class Notes {
             const a = e.target.closest('a');
             if (!a) return;
 
-            if (e.metaKey || e.ctrlKey) {qq
+            if (e.metaKey || e.ctrlKey) {
                 e.preventDefault();
                 window.open(a.href, "_blank");
             }
