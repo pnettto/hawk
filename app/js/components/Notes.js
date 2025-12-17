@@ -153,6 +153,7 @@ class Notes {
         const { notesInput } = this.getElements();
         loadForDate(formatDate(date))
             .then(savedData => {
+                if (!savedData) return;
                 this.notesMarkdown = savedData.notesMarkdown || '';
                 notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : this.defaultText;
             })

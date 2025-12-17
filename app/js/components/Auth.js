@@ -1,3 +1,5 @@
+import * as DailyLog from './DailyLog.js';
+
 async function createHash(str) {
     const encoder = new TextEncoder();
     const data = encoder.encode(str);
@@ -6,7 +8,6 @@ async function createHash(str) {
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     return hashHex;
 }
-
 
 class Auth {
     getElements () {
@@ -33,6 +34,8 @@ class Auth {
             
             localStorage.setItem('apiKey', key);
             this.close();
+
+            DailyLog.init();
         });
 
         guest.addEventListener('click', (e) => {
