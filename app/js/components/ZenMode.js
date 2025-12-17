@@ -95,13 +95,13 @@ class ZenMode extends Component {
     }
 
     render() {
-        const { app } = this.getState();
+        // const { app } = this.getState();
+        // ${JSON.stringify(app)}
         const { quote } = this;
 
         const content = `
             <div class="zen-mode">
                 <div class="quote-wrapper">
-                ${JSON.stringify(app)}
                 ${
                     quote
                         ? `<div class="quote">${quote[0]}</div>
