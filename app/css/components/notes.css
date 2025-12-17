@@ -7,7 +7,6 @@
     line-height: 1.5em;
     color: inherit;
     outline: none;
-    font-size: 1rem;
     border-radius: 0.25rem;
     transition: background-color 0.3s ease;
     resize: none;
@@ -63,6 +62,10 @@
 .notes-input > p, .notes-input ul {
     margin: 0;
     margin-bottom: 1rem;
+}
+
+.notes-input strong {
+    color: var(--accent);
 }
 
 /* .notes-input:hover, .notes-input:focus {
