@@ -7,6 +7,7 @@ class Notes {
         this.listenersInitiated = false;
         this.currentDate = null;
         this.notesMarkdown = '';
+        this.defaultText = 'Type a note here...';
         this.debouncedSave = debounce(() => {
             if (this.currentDate) {
                 this.saveCurrentState();
@@ -65,7 +66,7 @@ class Notes {
             .trim();
 
             this.notesMarkdown = notesMarkdown;
-            notesInput.innerHTML = marked.parse(this.notesMarkdown);
+            notesInput.innerHTML = marked.parse(this.notesMarkdown) || this.defaultText;
 
             if (window.Prism) {
                 Prism.highlightAllUnder(notesInput);
@@ -153,7 +154,7 @@ class Notes {
         loadForDate(formatDate(date))
             .then(savedData => {
                 this.notesMarkdown = savedData.notesMarkdown || '';
-                notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : '';
+                notesInput.innerHTML = this.notesMarkdown ? marked.parse(this.notesMarkdown) : this.defaultText;
             })
         this.setupListeners();
     }

@@ -22,7 +22,7 @@ export class Store extends EventTarget {
 export class AppStore extends Store {
   constructor () {
     super();
-    this.setState({ app: {} });
+    this.setState({});
   }
 
   setState(partial) {

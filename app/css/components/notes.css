@@ -14,6 +14,15 @@
     cursor: pointer;
 }
 
+.notes-input h1,
+.notes-input h2,
+.notes-input h3,
+.notes-input h4,
+.notes-input h5,
+.notes-input h6 {
+    font-weight: 700;
+}
+
 .notes-input h1 {
     font-size: 1.25em;
 }
@@ -47,14 +56,18 @@
     margin: 0;
 }
 
-.notes-input p, .notes-input ul {
+.notes-input p {
+    margin : 0;
+}
+
+.notes-input > p, .notes-input ul {
     margin: 0;
     margin-bottom: 1rem;
 }
 
-.notes-input:hover, .notes-input:focus {
+/* .notes-input:hover, .notes-input:focus {
     background-color: var(--glass);
-}
+} */
 
 .notes-input:focus {
     cursor: text;
