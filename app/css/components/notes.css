@@ -50,3 +50,7 @@
 .notes-input img {
     max-width: 100%;
 }
+
+.notes-input li {
+    margin-bottom: 1rem;
+}

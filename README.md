@@ -28,3 +28,4 @@ Note:
 - Have the Shortcuts class handle all shortcut creation/destruction
 - Notifications
 - Sync with Calendar
+- Ability to use localStorage for browsing/testing
