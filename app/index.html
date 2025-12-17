@@ -69,12 +69,7 @@
       <div class="looking-good">Looking good! 😍</div>
     </div>
     
-    <div id="zenMode" class="zen-mode">
-      <div class="quote-wrapper">
-        <div class="quote"></div>
-        <div class="author"></div>
-      </div>
-    </div>
+    <zen-mode />
     
     <div id="authContainer" class="auth-container hidden">
       <form class="auth-form">
@@ -93,8 +88,9 @@
     
     <div id="backupSaved" class="backup-saved hidden">Backup saved!</div>
     
-    <script src="js/libs/marked.min.js"></script>
+    <script type="module" src="js/index.js"></script>
     <script src="js/libs/prism.min.js"></script>
+    <script src="js/libs/marked.min.js"></script>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>
