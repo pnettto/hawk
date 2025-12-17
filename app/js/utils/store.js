@@ -16,18 +16,25 @@ export class Store extends EventTarget {
     this.#state = { ...this.#state, ...partial };
     this.dispatchEvent(new Event("change"));
   }
+}
 
-  async asyncSetState(promise) {
-    if (typeof promise === "function") {
-      const newState = await promise();
-      this.setState({ app: newState });
-    }
+// Specialization that always writes into `app`
+export class AppStore extends Store {
+  constructor () {
+    super();
+    this.setState({ app: {} });
+  }
+
+  setState(partial) {
+    const prevApp = this.getState().app ?? {};
+    super.setState({ app: { ...prevApp, ...partial } });
   }
 }
 
-const loadState = async () => {
-  return await loadLogs();
-}
+export const appStore = new AppStore();
 
-export const appStore = new Store();
-appStore.asyncSetState(loadState);
+const loadAppData = async () => {
+  const logs = await loadLogs();
+  appStore.setState({ logs });
+};
+loadAppData();

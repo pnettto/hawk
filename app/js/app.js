@@ -7,15 +7,18 @@ import * as Backup from './components/Backup.js';
 import * as Mirror from './components/Mirror.js';
 import * as Auth from './components/Auth.js';
 
-// Load data
+import { appStore } from "../js/utils/store.js";
 
+// Load data
 window.selectedDate = new Date();
+appStore.setState({ selectedDate })
 document.addEventListener('selectNewDate', (e) => {
     selectedDate = e.detail.date;
     const event = new CustomEvent(
         'newDateSelected', 
         { detail: { date: selectedDate } }
     );
+    appStore.setState({ selectedDate })
     document.dispatchEvent(event)
 })
 
