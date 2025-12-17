@@ -36,11 +36,14 @@ export class Component extends HTMLElement {
         return Object.assign({}, ...this.stores.map((s) => s.getState()));
     }
 
+
     display(content) {
         // Remove all children except the style
         Array.from(this.shadowRoot.children)
             .filter(el => el.tagName.toLowerCase() !== 'style') 
             .forEach(el => this.shadowRoot.removeChild(el));
+        
+        if (!content || !content.trim()) return;
 
         const container = document.createElement("div");
         container.innerHTML = content;

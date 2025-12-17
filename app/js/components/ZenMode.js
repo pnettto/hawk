@@ -1,4 +1,4 @@
-import { Component } from "./base.js";
+import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 
 const style = /* css */ `
@@ -64,10 +64,10 @@ class ZenMode extends Component {
         document.addEventListener("keydown", this.keydownHandler);
 
         this.render();
-
+        
         // Load quotes and show one
         this.quoteLines = await loadQuotes();
-        this.showNewQuote();
+        this.updateQuote();
     }
 
     disconnectedCallback() {
@@ -75,32 +75,40 @@ class ZenMode extends Component {
         document.removeEventListener("keydown", this.keydownHandler);
     }
 
-    showNewQuote() {
+    updateQuote() {
         if (this.quoteLines.length == 0) return;
         const randomLine =
             this.quoteLines[Math.floor(Math.random() * this.quoteLines.length)];
         this.quote = randomLine.split("|");
-        this.render();
     }
 
     enter() {
-        this.showNewQuote();
+        if (!this.hidden) return;
+        this.updateQuote();
         this.hidden = false;
         this.render();
     }
 
     leave() {
+        if (this.hidden) return;
         this.hidden = true;
         this.render();
     }
 
     render() {
-        // const { app } = this.getState();
-        // ${JSON.stringify(app)}
+        const { app } = this.getState();
         const { quote } = this;
 
+        if (!app?.selectedDate) return;
+        
+        // Auto-hide
+        const h = app.selectedDate.getHours();
+        const shouldHideByTime = (h >= 8 && h <= 18);
+        const isHidden = this.hidden || shouldHideByTime;
+        if (isHidden) return;
+
         const content = `
-            <div class="zen-mode">
+            <div class="zen-mode ">
                 <div class="quote-wrapper">
                 ${
                     quote
