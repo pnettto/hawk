@@ -1,93 +1,119 @@
-class ZenMode {
-    constructor () {
+import { Component } from "./base.js";
+import { appStore } from "../utils/store.js";
+
+const style = /* css */ `
+.zen-mode {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg);
+    z-index: 1000;
+}
+
+.quote-wrapper {
+    position: absolute;
+    right: 2rem;
+    bottom: 2rem;
+    text-align: right;
+    width: 20rem;
+}
+
+.quote {
+    font-size: 0.8rem;
+    color: var(--glass);
+    margin-bottom: 0.5rem;
+}
+.author {
+    font-size: 0.7rem;
+    color: var(--glass);
+}
+`;
+
+async function loadQuotes() {
+    const res = await fetch("/data/quotes.csv");
+    const text = await res.text();
+    const lines = text.split(/\r?\n/);
+    return lines;
+}
+
+class ZenMode extends Component {
+    constructor() {
+        super({ style });
+        this.addStore(appStore);
         this.quoteLines = [];
     }
-    getElements () {
-        const zenMode = document.getElementById('zenMode');
-        return {
-            zenMode,
-            quoteEl: zenMode.querySelector('.quote'),
-            authorEl: zenMode.querySelector('.author')
+
+    keydownHandler = (e) => {
+        const active = document.activeElement;
+        if (
+            active.tagName === "INPUT" || active.tagName === "TEXTAREA" ||
+            active.isContentEditable
+        ) return;
+        if (e.key.toLowerCase() === "z") {
+            this.hidden ? this.enter() : this.leave();
         }
-    }
+    };
 
-    setupListeners () {
-        if (this.listenersInitiated) return;
-        const { zenMode } = this.getElements();
+    async connectedCallback() {
+        super.connectedCallback();
 
-        zenMode.addEventListener('click', () => this.leave());
+        this.addEventListener("click", this.leave);
+        document.addEventListener("keydown", this.keydownHandler);
 
-        document.addEventListener('keydown', (e) => {
-            const active = document.activeElement;
-            const isTyping = active.tagName === "INPUT" ||
-                        active.tagName === "TEXTAREA" ||
-                        active.isContentEditable;
-            if (isTyping) return;
+        this.render();
 
-            if (e.key.toLowerCase() === 'z') {
-                if (zenMode.classList.contains('hidden')) {
-                    this.enter();
-                } else {
-                    this.leave()
-                }
-            }
-        });
-
-        this.listenersInitiated = true;
-    }
-
-    async loadCsv() {
-        const res = await fetch('/data/quotes.csv');
-        const text = await res.text();
-        const lines = text.split(/\r?\n/)
-        return lines;
-    }
-
-    async getRandomLine() {
-        let quoteLines;
-        if (this.quoteLines.length > 0) {
-            quoteLines = this.quoteLines;
-        } else {
-            quoteLines = await this.loadCsv();
-            this.quoteLines = quoteLines;
-        }
-        const randomLine = this.quoteLines[Math.floor(Math.random() * this.quoteLines.length)];
-        const lineAtr = randomLine.split('|');
-        return lineAtr;
-    }
-
-    async showNewQuote () {
-        const { quoteEl, authorEl } = this.getElements();
-        const [quote, author] = await this.getRandomLine()
-        quoteEl.innerHTML = `"${quote}"`;
-        authorEl.innerHTML = author
-    }
-
-    enter () {
-        const { zenMode } = this.getElements();
-        zenMode.classList.remove('hidden')
-        document.body.style = 'overflow: hidden; height: 100vw;';
+        // Load quotes and show one
+        this.quoteLines = await loadQuotes();
         this.showNewQuote();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener("keydown", this.keydownHandler);
+    }
+
+    showNewQuote() {
+        if (this.quoteLines.length == 0) return;
+        const randomLine =
+            this.quoteLines[Math.floor(Math.random() * this.quoteLines.length)];
+        this.quote = randomLine.split("|");
+        this.render();
+    }
+
+    enter() {
+        this.showNewQuote();
+        this.hidden = false;
+        this.render();
     }
 
     leave() {
-        const { zenMode } = this.getElements();
-        zenMode.classList.add('hidden')
-        document.body.style = '';
+        this.hidden = true;
+        this.render();
     }
 
-    render () {
-        this.showNewQuote();
-        this.setupListeners();
+    render() {
+        const { app } = this.getState();
+        const { quote } = this;
+
+        const content = `
+            <div class="zen-mode">
+                <div class="quote-wrapper">
+                ${JSON.stringify(app)}
+                ${
+                    quote
+                        ? `<div class="quote">${quote[0]}</div>
+                           <div class="author">${quote[1]}</div>`
+                        : ""
+                }
+                </div>
+            </div>
+        `;
+
+        this.display(content);
     }
 }
 
-const zen = new ZenMode()
-
-export function init() {
-    zen.render();
-}
-
-export function leave() {
-    zen.leave();
-}
+customElements.define("zen-mode", ZenMode);
