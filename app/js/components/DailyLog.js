@@ -62,7 +62,8 @@ class DailyLog {
             return item;
         }));
 
-        saveForDate(formatDate(this.currentDate), cleanData);
+        await saveForDate(formatDate(this.currentDate), cleanData);
+        this.restoreState(cleanData)
     }
 
     /**
@@ -196,6 +197,10 @@ class DailyLog {
             
             if (checkbox) checkbox.checked = !!state.checked;
             if (input) input.value = state.text || '';
+            if (state.text !== '') 
+                input.classList.add('not-empty') 
+            else 
+                input.classList.remove('not-empty');
         }
         
         // Mid-hour inputs
@@ -206,6 +211,10 @@ class DailyLog {
             
             if (checkbox) checkbox.checked = !!state.checked;
             if (input) input.value = state.text || '';
+            if (state.text !== '') 
+                input.classList.add('not-empty') 
+            else 
+                input.classList.remove('not-empty');
         }
     }
 
