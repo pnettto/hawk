@@ -61,6 +61,10 @@
     cursor: pointer;
 }
 
+.hour-input.not-empty {
+    background-color: var(--glass-dark);
+}
+
 .hour-input:hover {
     background-color: var(--glass-dark);
 }
