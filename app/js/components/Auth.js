@@ -1,4 +1,5 @@
 import * as DailyLog from './DailyLog.js';
+import * as Notes from './Notes.js';
 
 async function createHash(str) {
     const encoder = new TextEncoder();
@@ -36,6 +37,7 @@ class Auth {
             this.close();
 
             DailyLog.init();
+            Notes.init()
         });
 
         guest.addEventListener('click', (e) => {
