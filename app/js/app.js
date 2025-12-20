@@ -1,26 +1,26 @@
-import * as DatePicker from './components/DatePicker.js';
-import * as DailyLog from './components/DailyLog.js';
-import * as Notes from './components/Notes.js';
-import * as MoodTracker from './components/MoodTracker.js';
-import * as Shortcuts from './components/Shortcuts.js';
-import * as Backup from './components/Backup.js';
-import * as Mirror from './components/Mirror.js';
-import * as Auth from './components/Auth.js';
+import * as DatePicker from "./components/DatePicker.js";
+import * as DailyLog from "./components/DailyLog.js";
+import * as Notes from "./components/Notes.js";
+import * as MoodTracker from "./components/MoodTracker.js";
+import * as Shortcuts from "./components/Shortcuts.js";
+import * as Backup from "./components/Backup.js";
+import * as Mirror from "./components/Mirror.js";
+import * as Auth from "./components/Auth.js";
 
 import { appStore } from "../js/utils/store.js";
 
 // Load data
-window.selectedDate = new Date();
-appStore.setState({ selectedDate })
-document.addEventListener('selectNewDate', (e) => {
-    selectedDate = e.detail.date;
-    const event = new CustomEvent(
-        'newDateSelected', 
-        { detail: { date: selectedDate } }
-    );
-    appStore.setState({ selectedDate })
-    document.dispatchEvent(event)
-})
+globalThis.selectedDate = new Date();
+appStore.setState({ selectedDate });
+document.addEventListener("selectNewDate", (e) => {
+  selectedDate = e.detail.date;
+  const event = new CustomEvent(
+    "newDateSelected",
+    { detail: { date: selectedDate } },
+  );
+  appStore.setState({ selectedDate });
+  document.dispatchEvent(event);
+});
 
 DatePicker.init();
 DailyLog.init();

@@ -1,101 +1,101 @@
-import { loadForDate, saveForDate } from '../utils/storage.js';
-import { formatDate as formatDate } from '../utils/date.js';
+import { loadForDate, saveForDate } from "../utils/storage.js";
+import { formatDate as formatDate } from "../utils/date.js";
 
 class MoodTracker {
-    constructor () {
-        this.listenersInitiated = false;
-        this.currentDate = null;
-        this.logoImg = '<img src="images/logo.svg" class="logo" />';
-    }
+  constructor() {
+    this.listenersInitiated = false;
+    this.currentDate = null;
+    this.logoImg = '<img src="images/logo.svg" class="logo" />';
+  }
 
-    getElements () {
-        const moodTracker = document.getElementById('moodTracker');
-        return {
-            moodTracker,
-            selected: moodTracker.querySelector('.selected '),
-            options: moodTracker.querySelector('.options'),
-        }
-    }
+  getElements() {
+    const moodTracker = document.getElementById("moodTracker");
+    return {
+      moodTracker,
+      selected: moodTracker.querySelector(".selected "),
+      options: moodTracker.querySelector(".options"),
+    };
+  }
 
-    setupListeners () {
-        if (this.listenersInitiated) return;
-        const { selected, options } = this.getElements();
+  setupListeners() {
+    if (this.listenersInitiated) return;
+    const { selected, options } = this.getElements();
 
-        selected.addEventListener('click', () => {
-            selected.classList.toggle('hidden');
-            options.classList.toggle('hidden');
-        });
-        
-        options.querySelectorAll('.item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                const selectedEmoji = e.target.innerText;
+    selected.addEventListener("click", () => {
+      selected.classList.toggle("hidden");
+      options.classList.toggle("hidden");
+    });
 
-                if (selectedEmoji === '❌') {
-                    this.save({clear: true});
-                } else {
-                    selected.innerText = selectedEmoji;
-                    this.save()
-                }
+    options.querySelectorAll(".item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        const selectedEmoji = e.target.innerText;
 
-                selected.classList.toggle('hidden');
-                options.classList.toggle('hidden');
-            });
-        });
-
-        document.addEventListener('newDateSelected', (e) => {
-            this.currentDate = e.detail.date
-            this.render(e.detail.date);
-        });
-
-        this.listenersInitiated = true;
-    }
-
-    async save (options) {
-        const savedData = await loadForDate(formatDate(this.currentDate));
-        const { selected } = this.getElements();
-        
-        let newMood;
-        if (options?.clear) {
-            selected.innerHTML = this.logoImg;
-            newMood = null
+        if (selectedEmoji === "❌") {
+          this.save({ clear: true });
         } else {
-            newMood = selected.innerText;
+          selected.innerText = selectedEmoji;
+          this.save();
         }
-        
-        const data = {
-            mood: newMood,
-        };
 
-        const mergedData = {...savedData, ...data}
+        selected.classList.toggle("hidden");
+        options.classList.toggle("hidden");
+      });
+    });
 
-        saveForDate(formatDate(this.currentDate), mergedData);
+    document.addEventListener("newDateSelected", (e) => {
+      this.currentDate = e.detail.date;
+      this.render(e.detail.date);
+    });
+
+    this.listenersInitiated = true;
+  }
+
+  async save(options) {
+    const savedData = await loadForDate(formatDate(this.currentDate));
+    const { selected } = this.getElements();
+
+    let newMood;
+    if (options?.clear) {
+      selected.innerHTML = this.logoImg;
+      newMood = null;
+    } else {
+      newMood = selected.innerText;
     }
 
-    load() {
-        const { selected } = this.getElements();
+    const data = {
+      mood: newMood,
+    };
 
-        loadForDate(formatDate(this.currentDate))
-            .then(savedData => {
-                const data = savedData || {};
-                this.mood = data.mood || this.logoImg;
+    const mergedData = { ...savedData, ...data };
 
-                if (this.mood) {
-                    selected.innerHTML = this.mood;
-                }
-            })
+    saveForDate(formatDate(this.currentDate), mergedData);
+  }
 
-        selected.innerHTML = this.logoImg;
-    }
+  load() {
+    const { selected } = this.getElements();
 
-    render (date) {
-        this.currentDate = date;
-        this.load();
-        this.setupListeners();
-    }
+    loadForDate(formatDate(this.currentDate))
+      .then((savedData) => {
+        const data = savedData || {};
+        this.mood = data.mood || this.logoImg;
+
+        if (this.mood) {
+          selected.innerHTML = this.mood;
+        }
+      });
+
+    selected.innerHTML = this.logoImg;
+  }
+
+  render(date) {
+    this.currentDate = date;
+    this.load();
+    this.setupListeners();
+  }
 }
 
-const tracker = new MoodTracker()
+const tracker = new MoodTracker();
 
 export function init() {
-    tracker.render(window.selectedDate);
+  tracker.render(globalThis.selectedDate);
 }
