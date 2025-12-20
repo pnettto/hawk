@@ -1,6 +1,9 @@
 import { LOCALSTORAGE_KEY } from '../global.js';
 import { formatDate } from './date.js';
 
+const isChromeExtension = window.location.href.startsWith('chrome-extension://');
+const apiUrl = isChromeExtension ? 'https://hawk.pnettto.deno.net' : '';
+
 let loadAllPromise = null;
 
 export function loadAll() {
@@ -14,7 +17,7 @@ export function loadAll() {
 
     loadAllPromise = (async () => {
         const apiKey = localStorage.getItem('apiKey');
-        const res = await fetch('/api/logs', {
+        const res = await fetch(`${apiUrl}/api/logs`, {
             headers: {
                 Authorization: `Bearer ${apiKey}`,
             },
@@ -36,7 +39,7 @@ export function loadAll() {
 
 export function saveAll(obj) {
     const apiKey = localStorage.getItem('apiKey');
-    fetch('/api/logs', {
+    fetch(`${apiUrl}/api/logs`, {
         method: 'POST',
         body: JSON.stringify(obj),
         headers: {

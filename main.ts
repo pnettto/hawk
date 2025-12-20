@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/deno";
+import { cors } from 'hono/cors';
 
 import { auth } from "./server/middleware/auth.ts";
 import { rateLimit } from "./server/middleware/rateLimit.ts";
@@ -8,6 +9,12 @@ import { setLogs, getLogs } from "./server/routeHandlers/app.ts";
 import { listEntries, setEntry, deleteEntry } from "./server/routeHandlers/kv.ts";
 
 const app = new Hono();
+
+app.use('/api/*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+}));
 
 // Protected routes: API Logs and KV Entries
 app.use("/api/*", rateLimit, auth);
