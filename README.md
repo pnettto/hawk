@@ -32,3 +32,4 @@ Note:
 - Add note per task instead of general one (maybe in addition to?)
 - Add note to mood
 - Full week view (report)
+- Activate notification per task (not default)
