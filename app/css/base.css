@@ -3,7 +3,7 @@
 }
 
 html {
-    font-size: 18px;
+    font-size: 16px;
 }
 
 body {
@@ -40,16 +40,12 @@ h4, h5, h6 {
 }
 
 body,
-button {
-  font-size: inherit;
-}
-
+button,
 input,
 textarea,
 select {
-    font-size: 0.8rem;
+  font-size: inherit;
 }
-
 
 table {
   width: 100%;
