@@ -3,12 +3,11 @@
     "org": "pnettto",
     "app": "hawk"
   },
+  "imports": {
+    "hono": "npm:hono@^4.11.1"
+  },
   "tasks": {
     "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv --env --watch main.ts",
     "deploy": "deno deploy --org pnettto --app hawk --prod"
-  },
-  "imports": {
-    "hono": "jsr:@hono/hono@^4.6.14",
-    "hono/deno": "jsr:@hono/hono@^4.6.14/deno"
   }
 }
