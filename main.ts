@@ -1,66 +1,34 @@
-import { serveDir } from "https://deno.land/std/http/file_server.ts";
-import { handleBackup, handleRecover } from "./server/backup.ts";
-import { getClientIp } from "./server/utils/ip.ts";
-import { rateLimit } from "./server/utils/rateLimit.ts";
-import { isAuth } from "./server/utils/auth.ts";
-import { corsResponse } from "./server/utils/cors.ts";
+import { Hono } from "hono";
+import { serveStatic } from "hono/deno";
 
-// Load environment variables
-const API_KEY = Deno.env.get("API_KEY") || '';
+import { auth } from "./server/middleware/auth.ts";
+import { rateLimit } from "./server/middleware/rateLimit.ts";
 
-// Validate required environment variables
-if (API_KEY === '') {
-  console.error("ERROR: Environment variables not set.");
-  throw new Error("Missing required environment variables");
-}
+import { setLogs, getLogs } from "./server/routeHandlers/app.ts";
+import { listEntries, setEntry, deleteEntry } from "./server/routeHandlers/kv.ts";
 
-export async function handleRequest(req: Request) {
-  const url = new URL(req.url);
-  const ip = getClientIp(req);
+const app = new Hono();
 
-  console.log(
-    `[${req.method}] ${url.pathname} | IP: ${ip}`,
-  );
+// Protected routes: API Logs and KV Entries
+app.use("/api/*", rateLimit, auth);
 
-  if (req.method === "OPTIONS") {
-    return corsResponse(null, { status: 204 });
-  }
+// API Logs
+app.post("/api/logs", setLogs);
+app.get("/api/logs", getLogs);
 
-  const path = url.pathname.replace(/\/$/, "");
+// KV Entries
+app.get("/api/entries", listEntries);
+app.post("/api/entries", setEntry);
+app.delete("/api/entries", deleteEntry);
 
-  if (req.method === "POST" && path === "/api/logs") {
-    if (!(await rateLimit(ip))) {
-      return corsResponse("Too many requests", { status: 429 });
-    }
-    if (!isAuth(req)) {
-      return corsResponse("Forbidden", { status: 403 });
-    }
-    return handleBackup(req);
-  }
+// Serve frontend
+app.use("/kv/*", serveStatic({ 
+    root: "./kv",
+    rewriteRequestPath: (path: string) => path.replace(/^\/kv/, "")
+}));
+app.use("/*", serveStatic({ root: "./app" }));
 
-  if (req.method === "GET" && path === "/api/logs") {
-    if (!(await rateLimit(ip))) {
-      return corsResponse("Too many requests", { status: 429 });
-    }
-    if (!isAuth(req)) {
-      return corsResponse("Forbidden", { status: 403 });
-    }
-    return handleRecover(req);
-  }
-  
-  // Static files
-  const res = await serveDir(req, {
-    fsRoot: "app",
-    urlRoot: "",
-    showDirListing: false,
-    enableCors: true,
-  });
+// 404 handler
+app.notFound((c) => c.text("Not found", 404));
 
-  if (res.status === 404) {
-    return corsResponse("Not found", { status: 404 });
-  }
-
-  return res;
-}
-
-Deno.serve(handleRequest);
+Deno.serve(app.fetch);
