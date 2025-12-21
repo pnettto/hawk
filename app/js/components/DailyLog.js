@@ -79,7 +79,11 @@ class DailyLog {
     timeDisplay.setHours(hour, minutes, 0, 0);
     const timeText = timeDisplay.toLocaleTimeString(
       [],
-      { hour: "2-digit", minute: "numeric" },
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      },
     );
 
     // Highlight current hour if viewing today
