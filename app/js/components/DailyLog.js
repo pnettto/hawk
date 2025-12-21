@@ -19,7 +19,7 @@ class DailyLog {
       if (this.currentDate) {
         this.saveCurrentState();
       }
-    }, 500);
+    }, 1000);
   }
 
   /**
@@ -42,16 +42,20 @@ class DailyLog {
 
     // Gather checkbox and input values for each hour
     const hourInputs = hoursContainer.querySelectorAll(".hour-input");
+
+    // Prepare data structure
     const data = {};
+
     hourInputs.forEach((hourInput) => {
       const hour = hourInput.dataset.hour;
-      const checkbox = hoursContainer.querySelector(
-        `.hour-checkbox[data-hour="${hour}"]`,
-      );
+      const hourRow = hourInput.closest(".hour-row");
+      const checkbox = hourRow.querySelector(".hour-checkbox");
+      const comment = hourRow.querySelector(".hour-comment");
 
       data[hour] = {
         checked: checkbox?.checked || false,
         text: hourInput.value,
+        comment: comment.value,
       };
     });
 
@@ -60,7 +64,9 @@ class DailyLog {
       Object.entries(mergedData).filter((item) => {
         const [key, value] = item;
         if (/^\d{1,2}(?:-\d{1,2})?$/.test(key)) {
-          return (value.checked || value.text !== "") ? item : false;
+          return (value.checked || value.text !== "" || value.comment !== "")
+            ? item
+            : false;
         }
         return item;
       }),
@@ -68,6 +74,51 @@ class DailyLog {
 
     await saveForDate(formatDate(this.currentDate), cleanData);
     this.restoreState(cleanData);
+  }
+
+  /**
+   * Restores checkboxes and text inputs from saved data.
+   */
+  restoreState(savedData) {
+    const { hoursContainer } = this.getElements();
+    if (!hoursContainer) return;
+
+    const restoreHour = (hourKey) => {
+      const state = savedData[hourKey] ||
+        { checked: false, text: "", comment: "" };
+
+      const checkbox = hoursContainer.querySelector(
+        `.hour-checkbox[data-hour="${hourKey}"]`,
+      );
+      const input = hoursContainer.querySelector(
+        `.hour-input[data-hour="${hourKey}"]`,
+      );
+      const comment = hoursContainer.querySelector(
+        `.hour-comment[data-hour="${hourKey}"]`,
+      );
+
+      if (input) {
+        input.value = state.text || "";
+        input.classList.toggle("not-empty", state.text !== "");
+      }
+
+      if (checkbox) checkbox.checked = !!state.checked;
+
+      if (comment) {
+        if (state.comment !== "") {
+          const commentSwitch = hoursContainer.querySelector(
+            `.hour-comment-switch[data-hour="${hourKey}"]`,
+          );
+          commentSwitch.classList.add("not-empty");
+          comment.value = state.comment || "";
+        }
+      }
+    };
+
+    for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
+      restoreHour(hour); // full hour
+      restoreHour(`${hour}-30`); // mid-hour
+    }
   }
 
   /**
@@ -95,23 +146,19 @@ class DailyLog {
       ? now.getMinutes() < 30
       : now.getMinutes() >= 30;
     const isHighlightedHour = isSameDay && isCurrentHour && isCurrentMinute;
-
-    const hourLine = `
-        <div class="hour-line"></div>
-        `;
+    const hourStr = `${hour}${minutes !== 0 ? ("-" + minutes) : ""}`;
 
     return `
         <div class="hour-row ${isHighlightedHour ? "highlighted" : ""}">
             <div class="hour-time">${timeText}</div>
+            <button class="hour-comment-switch" data-hour="${hourStr}">💬</button>
             <div class="hour-checkbox-wrap">
-                <input type="checkbox" class="hour-checkbox" data-hour="${hour}${
-      minutes !== 0 ? ("-" + minutes) : ""
-    }">
+                <input type="checkbox" class="hour-checkbox" data-hour="${hourStr}" />
             </div>
-            <input class="hour-input" data-hour="${hour}${
-      minutes !== 0 ? ("-" + minutes) : ""
-    }">
-            ${isHighlightedHour ? hourLine : ""}
+            <input class="hour-input" data-hour="${hourStr}" />
+            <textarea class="hour-comment hidden" data-hour="${hourStr}"></textarea>
+
+            ${isHighlightedHour ? `<div class="hour-line"></div>` : ""}
         </div>
         `;
   }
@@ -145,8 +192,50 @@ class DailyLog {
 
     // Text input changes save with debounce
     hoursContainer.addEventListener("input", (e) => {
-      if (e.target.matches(".hour-input")) {
+      if (
+        e.target.matches(".hour-comment") ||
+        e.target.matches(".hour-input")
+      ) {
         this.debouncedSave();
+
+        if (e.target.matches(".hour-comment")) {
+          const commentSwitch = e.target.closest(".hour-row").querySelector(
+            ".hour-comment-switch",
+          );
+          commentSwitch.classList.toggle("not-empty", e.target.value !== "");
+        }
+      }
+    });
+
+    hoursContainer.addEventListener("focusout", (e) => {
+      if (
+        e.target.matches(".hour-comment") ||
+        e.target.matches(".hour-input")
+      ) {
+        this.debouncedSave();
+      }
+
+      if (e.target.matches(".hour-comment")) {
+        const hourComment = e.target;
+        hourComment.classList.toggle("hidden");
+
+        const commentSwitch = hourComment.closest(".hour-row").querySelector(
+          ".hour-comment-switch",
+        );
+        commentSwitch.classList.toggle("not-empty", e.target.value !== "");
+      }
+    });
+
+    hoursContainer.addEventListener("click", (e) => {
+      if (e.target.matches(".hour-comment-switch")) {
+        const hourComment = e.target.closest(".hour-row").querySelector(
+          ".hour-comment",
+        );
+        const isHidden = hourComment.classList.contains("hidden");
+        hourComment.classList.toggle("hidden");
+        // if (isHidden) {
+        //   hourComment.focus();
+        // }
       }
     });
 
@@ -195,52 +284,6 @@ class DailyLog {
     }
 
     this.render(this.currentDate);
-  }
-
-  /**
-   * Restores checkboxes and text inputs from saved data.
-   */
-  restoreState(savedData) {
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer) return;
-
-    // Full hour inputs
-    for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
-      const state = savedData[hour] || { checked: false, text: "" };
-      const checkbox = hoursContainer.querySelector(
-        `.hour-checkbox[data-hour="${hour}"]`,
-      );
-      const input = hoursContainer.querySelector(
-        `.hour-input[data-hour="${hour}"]`,
-      );
-
-      if (checkbox) checkbox.checked = !!state.checked;
-      if (input) input.value = state.text || "";
-      if (state.text !== "") {
-        input.classList.add("not-empty");
-      } else {
-        input.classList.remove("not-empty");
-      }
-    }
-
-    // Mid-hour inputs
-    for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
-      const state = savedData[`${hour}-30`] || { checked: false, text: "" };
-      const checkbox = hoursContainer.querySelector(
-        `.hour-checkbox[data-hour="${hour}-30"]`,
-      );
-      const input = hoursContainer.querySelector(
-        `.hour-input[data-hour="${hour}-30"]`,
-      );
-
-      if (checkbox) checkbox.checked = !!state.checked;
-      if (input) input.value = state.text || "";
-      if (state.text !== "") {
-        input.classList.add("not-empty");
-      } else {
-        input.classList.remove("not-empty");
-      }
-    }
   }
 
   /**

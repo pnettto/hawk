@@ -9,7 +9,7 @@
 .hour-row {
     position: relative;
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto auto minmax(0, 1fr);
     align-items: center;
     gap: 0.5rem;
 }
@@ -84,6 +84,34 @@
 
 .hour-input::placeholder {
     color: #6b7b80;
+}
+
+.hour-comment-switch-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hour-comment-switch {
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.2;
+}
+
+.hour-comment-switch.not-empty {
+    opacity: 1;
+}
+
+.hour-comment {
+    grid-column: 1 / -1;
+    border: 0;
+    padding: 0.5rem;
+    height: 10rem;
+    color: inherit;
+    background-color: var(--glass-dark);
+    border-radius: 0.25rem;
+    outline: none;
 }
 
 .hour-line {

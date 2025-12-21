@@ -1,13 +1,13 @@
 class Shortcuts {
-    constructor () {
-        this.shortcutsModal = undefined;
-        this.modalOverlay = undefined;
-        this.listenersInitialized = false;
-        this.isVisible = false;
-    }
+  constructor() {
+    this.shortcutsModal = undefined;
+    this.modalOverlay = undefined;
+    this.listenersInitialized = false;
+    this.isVisible = false;
+  }
 
-    getContent () {
-        return `
+  getContent() {
+    return `
 | Shortcut         | Action                         |
 |------------------|--------------------------------|
 | t                | Show today                     |
@@ -23,75 +23,74 @@ class Shortcuts {
 | m                | Enter Mirror Mode 😍           |
 | b                | Backup data                    |
 | ?                | Show shortcuts                 |
-`
-    }
+`;
+  }
 
-    getElements () {
-        return { 
-            shortcutsModal: document.getElementById('shortcutsModal'), 
-            modalOverlay: document.getElementById('shortcutsModalOverlay'),
-            shortcutsTrigger: document.getElementById('shortcutsTrigger'),
-        }
-    }
+  getElements() {
+    return {
+      shortcutsModal: document.getElementById("shortcutsModal"),
+      modalOverlay: document.getElementById("shortcutsModalOverlay"),
+      shortcutsTrigger: document.getElementById("shortcutsTrigger"),
+    };
+  }
 
-    toggleVisibility () {
-        const { shortcutsModal, modalOverlay } = this.getElements();
+  toggleVisibility() {
+    const { shortcutsModal, modalOverlay } = this.getElements();
 
-        this.isVisible = !this.isVisible;
-        shortcutsModal.classList.toggle('hidden')
-        modalOverlay.classList.toggle('hidden')
-    }
+    this.isVisible = !this.isVisible;
+    shortcutsModal.classList.toggle("hidden");
+    modalOverlay.classList.toggle("hidden");
+  }
 
-    setupListeners() {
-        if (this.listenersInitialized) return;
+  setupListeners() {
+    if (this.listenersInitialized) return;
 
-        const { shortcutsModal, modalOverlay, shortcutsTrigger } = this.getElements();
+    const { shortcutsModal, modalOverlay, shortcutsTrigger } = this
+      .getElements();
 
-        document.addEventListener("keydown", (event) => {
-            const active = document.activeElement;
+    document.addEventListener("keydown", (event) => {
+      const active = document.activeElement;
+      const isTyping = active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable;
+      if (isTyping) return;
 
-            const isSomeInputInFocus =
-                active.classList.contains("hour-input") ||
-                active.closest(".notes-input") !== null;
+      if (event.key === "?") {
+        this.toggleVisibility();
+      }
+    });
 
-            if (isSomeInputInFocus) return;
+    document.addEventListener("DOMContentLoaded", () => {
+      const content = this.getContent();
+      shortcutsModal.innerHTML = marked.parse(content);
+    });
 
-            if (event.key === "?") {
-                this.toggleVisibility();
-            }
-        });
-        
-        document.addEventListener("DOMContentLoaded", () => {
-            const content = this.getContent();
-            shortcutsModal.innerHTML = marked.parse(content);
-        });
+    modalOverlay.addEventListener("click", () => {
+      this.toggleVisibility();
+    });
 
-        modalOverlay.addEventListener('click', () => {
-            this.toggleVisibility();
-        });
+    document.addEventListener("keydown", (event) => {
+      if (!this.isVisible) return;
 
-        document.addEventListener("keydown", (event) => {
-            if (!this.isVisible) return;
+      if (event.key.toLocaleLowerCase() === "escape") {
+        this.toggleVisibility();
+      }
+    });
 
-            if (event.key.toLocaleLowerCase() === "escape") {
-                this.toggleVisibility();
-            }
-        });
+    shortcutsTrigger.addEventListener("click", () => {
+      this.toggleVisibility();
+    });
 
-        shortcutsTrigger.addEventListener('click', () => {
-            this.toggleVisibility();
-        });
+    this.listenersInitialized = true;
+  }
 
-        this.listenersInitialized = true;
-    }
-
-     init () {
-        this.setupListeners()
-    }
+  init() {
+    this.setupListeners();
+  }
 }
 
 const shortcuts = new Shortcuts();
 
 export function init() {
-    shortcuts.init();
+  shortcuts.init();
 }

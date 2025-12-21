@@ -51,11 +51,10 @@ class DatePicker {
 
     document.addEventListener("keydown", (event) => {
       const active = document.activeElement;
-
-      const isSomeInputInFocus = active.classList.contains("hour-input") ||
-        active.closest(".notes-input") !== null;
-
-      if (isSomeInputInFocus) return;
+      const isTyping = active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable;
+      if (isTyping) return;
 
       if (event.key === "a") this.goPrev();
       if (event.key === "ArrowLeft") this.goPrev();
