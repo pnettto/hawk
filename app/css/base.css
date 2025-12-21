@@ -88,7 +88,13 @@ thead th {
 }
 
 .app-header {
+    position: sticky;
+    top: 0;
+    padding-top: 1rem;
+    margin-top: -1rem;
     margin-bottom: 1rem;
+    background: var(--bg);
+    z-index: 1000;
 }
 
 .modal-overlay {
