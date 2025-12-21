@@ -108,6 +108,7 @@
     border: 0;
     padding: 0.5rem;
     height: 10rem;
+    font-size: 0.75rem;
     color: inherit;
     background-color: var(--glass-dark);
     border-radius: 0.25rem;
