@@ -1,8 +1,8 @@
 :root {
-    --bg: #101418;
+    --bg: hsl(212 40% 5% / 1);
     --panel: #212c34;
     --muted: #9aa6ad;
-    --accent: #e1b65a;
+    --accent: hsl(41 49% 53% / 1);
     --line: #1b2226;
     --glass: rgba(255, 255, 255, 0.1);
     --glass-dark: rgba(255, 255, 255, 0.05);
