@@ -3,6 +3,15 @@ import { loadForDate, saveForDate } from "../utils/storage.js";
 import { formatDate as formatDate } from "../utils/date.js";
 import { debounce } from "../utils/dom.js";
 
+const isVisuallyEmpty = (html) => {
+  if (!html) return true;
+  return html
+    .replace(/<(div|p)><br><\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "")
+    .replace(/&nbsp;/g, "")
+    .trim() === "";
+};
+
 /**
  * Manages the daily log UI: hourly rows with checkboxes and text inputs.
  * Handles rendering, state persistence, and user interactions.
@@ -82,15 +91,6 @@ class DailyLog {
   restoreState(savedData) {
     const { hoursContainer } = this.getElements();
     if (!hoursContainer) return;
-
-    const isVisuallyEmpty = (html) => {
-      if (!html) return true;
-      return html
-        .replace(/<(div|p)><br><\/\1>/gi, "")
-        .replace(/<br\s*\/?>/gi, "")
-        .replace(/&nbsp;/g, "")
-        .trim() === "";
-    };
 
     const restoreHour = (hourKey) => {
       const state = savedData[hourKey] ||
@@ -214,15 +214,13 @@ class DailyLog {
 
         if (e.type === "cut") {
           comment.innerHTML = "";
-          hourRow.classList.remove("not-empty");
-
-          if (checkbox.checked) {
-            checkbox.checked = false;
-          }
-
           input.value = "";
+          checkbox.checked = false;
+
           hourRow.classList.remove("not-empty");
-          this.debouncedSave();
+          hourRow.classList.remove("is-comment");
+
+          this.saveCurrentState();
         }
       }
     }
@@ -282,7 +280,6 @@ class DailyLog {
 
     hoursContainer.addEventListener("cut", this.#handleCutOrCopy);
     hoursContainer.addEventListener("copy", this.#handleCutOrCopy);
-
     hoursContainer.addEventListener("paste", (e) => {
       if (e.target.matches(".hour-input")) {
         const jsonData = e.clipboardData.getData("application/hawk-hour");
@@ -295,6 +292,9 @@ class DailyLog {
 
             e.target.value = data.text;
             comment.innerHTML = data.comment;
+            if (!isVisuallyEmpty(data.comment)) {
+              hourRow.classList.add("is-comment");
+            }
             checkbox.checked = data.checkbox;
             hourRow.classList.toggle("not-empty", comment.innerHTML !== "");
 
@@ -317,7 +317,7 @@ class DailyLog {
 
       if (e.target.matches(".hour-time")) {
         const hourRow = e.target.closest(".hour-row");
-        const hour = hourRow.querySelector(".hour-input").dataset.hour;
+        const hour = hourRow.dataset.hour;
 
         if (this.movingFrom) {
           // Just return if clicked hour is source
@@ -330,7 +330,7 @@ class DailyLog {
           const targetInput = hourRow.querySelector(".hour-input");
           const targetComment = hourRow.querySelector(".hour-comment");
           const isTargetEmptySlot = targetInput.value.trim() === "" &&
-            targetComment.value.trim() === "";
+            isVisuallyEmpty(targetComment.innerHtml);
 
           if (isTargetEmptySlot) {
             // Move data, update UI
@@ -443,10 +443,10 @@ class DailyLog {
     if (!hoursContainer) return;
 
     const sourceInput = hoursContainer.querySelector(
-      `.hour-input[data-hour="${fromHour}"]`,
+      `.hour-row[data-hour="${fromHour}"] .hour-input`,
     );
     const targetInput = hoursContainer.querySelector(
-      `.hour-input[data-hour="${toHour}"]`,
+      `.hour-row[data-hour="${toHour}"] .hour-input`,
     );
 
     const sourceRow = sourceInput.closest(".hour-row");
@@ -458,21 +458,21 @@ class DailyLog {
     const targetCheckbox = targetRow.querySelector(".hour-checkbox");
 
     targetInput.value = sourceInput.value;
-    targetComment.value = sourceComment.innerHTML;
+    targetComment.innerHTML = sourceComment.innerHTML;
     targetCheckbox.checked = sourceCheckbox.checked;
 
     sourceInput.value = "";
-    sourceComment.value = "";
+    sourceComment.innerHTML = "";
     sourceCheckbox.checked = false;
 
     // Update UI
-    targetInput.classList.toggle("not-empty", targetInput.value !== "");
-    sourceInput.classList.remove("not-empty");
+    sourceRow.classList.remove("not-empty");
+    sourceRow.classList.remove("is-comment");
 
-    const targetSwitch = targetRow.querySelector(".hour-comment-switch");
-    const sourceSwitch = sourceRow.querySelector(".hour-comment-switch");
-    targetSwitch.classList.toggle("not-empty", targetComment.value !== "");
-    sourceSwitch.classList.remove("not-empty");
+    targetRow.classList.toggle("not-empty", targetComment.value !== "");
+    if (!isVisuallyEmpty(targetComment.innerHTML)) {
+      targetRow.classList.add("is-comment");
+    }
 
     this.saveCurrentState();
   }
