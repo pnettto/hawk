@@ -20,6 +20,7 @@ class DailyLog {
         this.saveCurrentState();
       }
     }, 1000);
+    this.lastCutContent = null;
   }
 
   /**
@@ -204,6 +205,10 @@ class DailyLog {
           );
           commentSwitch.classList.toggle("not-empty", e.target.value !== "");
         }
+
+        if (e.target.matches(".hour-input")) {
+          e.target.classList.toggle("not-empty", e.target.value !== "");
+        }
       }
     });
 
@@ -223,6 +228,59 @@ class DailyLog {
           ".hour-comment-switch",
         );
         commentSwitch.classList.toggle("not-empty", e.target.value !== "");
+      }
+    });
+
+    hoursContainer.addEventListener("cut", (e) => {
+      if (e.target.matches(".hour-input")) {
+        const input = e.target;
+        if (
+          input.selectionStart === 0 &&
+          input.selectionEnd === input.value.length &&
+          input.value !== ""
+        ) {
+          const hourRow = input.closest(".hour-row");
+          const comment = hourRow.querySelector(".hour-comment");
+          const checkbox = hourRow.querySelector(".hour-checkbox");
+          const commentSwitch = hourRow.querySelector(".hour-comment-switch");
+
+          this.lastCutContent = {
+            text: input.value,
+            comment: comment.value,
+          };
+
+          comment.value = "";
+          commentSwitch.classList.remove("not-empty");
+
+          if (checkbox.checked) {
+            checkbox.checked = false;
+          }
+
+          input.classList.remove("not-empty");
+          this.debouncedSave();
+        }
+      }
+    });
+
+    hoursContainer.addEventListener("paste", (e) => {
+      if (e.target.matches(".hour-input") && this.lastCutContent) {
+        const pastedText = (e.clipboardData || globalThis.clipboardData)
+          .getData(
+            "text",
+          );
+        if (pastedText === this.lastCutContent.text) {
+          const hourRow = e.target.closest(".hour-row");
+          const comment = hourRow.querySelector(".hour-comment");
+          const commentSwitch = hourRow.querySelector(".hour-comment-switch");
+
+          comment.value = this.lastCutContent.comment;
+          commentSwitch.classList.toggle("not-empty", comment.value !== "");
+          e.target.classList.add("not-empty");
+
+          this.lastCutContent = null;
+
+          this.debouncedSave();
+        }
       }
     });
 
