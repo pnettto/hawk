@@ -56,7 +56,7 @@ class DailyLog {
       data[hour] = {
         checked: checkbox?.checked || false,
         text: hourInput.value,
-        comment: comment.value,
+        comment: comment.innerHTML,
       };
     });
 
@@ -74,7 +74,6 @@ class DailyLog {
     );
 
     await saveForDate(formatDate(this.currentDate), cleanData);
-    this.restoreState(cleanData);
   }
 
   /**
@@ -84,35 +83,37 @@ class DailyLog {
     const { hoursContainer } = this.getElements();
     if (!hoursContainer) return;
 
+    const isVisuallyEmpty = (html) => {
+      if (!html) return true;
+      return html
+        .replace(/<(div|p)><br><\/\1>/gi, "")
+        .replace(/<br\s*\/?>/gi, "")
+        .replace(/&nbsp;/g, "")
+        .trim() === "";
+    };
+
     const restoreHour = (hourKey) => {
       const state = savedData[hourKey] ||
         { checked: false, text: "", comment: "" };
 
-      const checkbox = hoursContainer.querySelector(
-        `.hour-checkbox[data-hour="${hourKey}"]`,
+      const hourRow = hoursContainer.querySelector(
+        `.hour-row[data-hour="${hourKey}"]`,
       );
-      const input = hoursContainer.querySelector(
-        `.hour-input[data-hour="${hourKey}"]`,
-      );
-      const comment = hoursContainer.querySelector(
-        `.hour-comment[data-hour="${hourKey}"]`,
-      );
+      const checkbox = hourRow.querySelector(`.hour-checkbox`);
+      const input = hourRow.querySelector(`.hour-input`);
+      const comment = hourRow.querySelector(`.hour-comment`);
 
       if (input) {
         input.value = state.text || "";
-        input.classList.toggle("not-empty", state.text !== "");
+        hourRow.classList.toggle("not-empty", state.text !== "");
       }
 
       if (checkbox) checkbox.checked = !!state.checked;
 
-      if (comment) {
-        if (state.comment !== "") {
-          const commentSwitch = hoursContainer.querySelector(
-            `.hour-comment-switch[data-hour="${hourKey}"]`,
-          );
-          commentSwitch.classList.add("not-empty");
-          comment.value = state.comment || "";
-        }
+      if (comment && !isVisuallyEmpty(state.comment)) {
+        comment.innerHTML = state.comment || "";
+        hourRow.classList.add("not-empty");
+        hourRow.classList.add("is-comment");
       }
     };
 
@@ -150,14 +151,21 @@ class DailyLog {
     const hourStr = `${hour}${minutes !== 0 ? ("-" + minutes) : ""}`;
 
     return `
-        <div class="hour-row ${isHighlightedHour ? "highlighted" : ""}">
-            <div class="hour-time">${timeText}</div>
+        <div class="hour-row ${
+      isHighlightedHour ? "highlighted" : ""
+    }" data-hour="${hourStr}">
+          <div class="hour-time">${timeText}</div>
+          <div class="hour-controls">
             <button class="hour-comment-switch" data-hour="${hourStr}">💬</button>
             <div class="hour-checkbox-wrap">
-                <input type="checkbox" class="hour-checkbox" data-hour="${hourStr}" />
+              <input type="checkbox" class="hour-checkbox" data-hour="${hourStr}" />
             </div>
+            <div class="hour-text-content">
             <input class="hour-input" data-hour="${hourStr}" />
-            <textarea class="hour-comment hidden" data-hour="${hourStr}"></textarea>
+            <div class="hour-comment hidden" data-hour="${hourStr}" contenteditable="true""></div>
+            </div>
+            <button class="hour-comment-clear" data-hour="${hourStr}">✖️</button>
+          </div>
         </div>
         `;
   }
@@ -185,15 +193,12 @@ class DailyLog {
         const hourRow = input.closest(".hour-row");
         const comment = hourRow.querySelector(".hour-comment");
         const checkbox = hourRow.querySelector(".hour-checkbox");
-        const commentSwitch = hourRow.querySelector(".hour-comment-switch");
 
         const data = {
           text: input.value,
-          comment: comment.value,
+          comment: comment.innerHTML,
           checkbox: checkbox.checked,
         };
-
-        console.log(`data`, data);
 
         // External format: Text + optional comment on new line
         const externalText = data.comment
@@ -208,15 +213,15 @@ class DailyLog {
         e.preventDefault();
 
         if (e.type === "cut") {
-          comment.value = "";
-          commentSwitch.classList.remove("not-empty");
+          comment.innerHTML = "";
+          hourRow.classList.remove("not-empty");
 
           if (checkbox.checked) {
             checkbox.checked = false;
           }
 
           input.value = "";
-          input.classList.remove("not-empty");
+          hourRow.classList.remove("not-empty");
           this.debouncedSave();
         }
       }
@@ -246,15 +251,13 @@ class DailyLog {
       ) {
         this.debouncedSave();
 
-        if (e.target.matches(".hour-comment")) {
-          const commentSwitch = e.target.closest(".hour-row").querySelector(
-            ".hour-comment-switch",
-          );
-          commentSwitch.classList.toggle("not-empty", e.target.value !== "");
-        }
-
         if (e.target.matches(".hour-input")) {
           e.target.classList.toggle("not-empty", e.target.value !== "");
+        }
+
+        if (e.target.matches(".hour-comment")) {
+          const hourRow = e.target.closest(".hour-row");
+          hourRow.classList.toggle("not-empty", e.target.innerHTML !== "");
         }
       }
     });
@@ -271,10 +274,9 @@ class DailyLog {
         const hourComment = e.target;
         hourComment.classList.toggle("hidden");
 
-        const commentSwitch = hourComment.closest(".hour-row").querySelector(
-          ".hour-comment-switch",
-        );
-        commentSwitch.classList.toggle("not-empty", e.target.value !== "");
+        const hourRow = hourComment.closest(".hour-row");
+        hourRow.classList.toggle("is-comment", e.target.textContent !== "");
+        hourRow.classList.toggle("not-empty", e.target.textContent !== "");
       }
     });
 
@@ -289,14 +291,12 @@ class DailyLog {
             const data = JSON.parse(jsonData);
             const hourRow = e.target.closest(".hour-row");
             const comment = hourRow.querySelector(".hour-comment");
-            const commentSwitch = hourRow.querySelector(".hour-comment-switch");
             const checkbox = hourRow.querySelector(".hour-checkbox");
 
             e.target.value = data.text;
-            comment.value = data.comment;
+            comment.innerHTML = data.comment;
             checkbox.checked = data.checkbox;
-            commentSwitch.classList.toggle("not-empty", comment.value !== "");
-            e.target.classList.add("not-empty");
+            hourRow.classList.toggle("not-empty", comment.innerHTML !== "");
 
             e.preventDefault();
             this.debouncedSave();
@@ -353,6 +353,23 @@ class DailyLog {
             this.updateMovingUI();
           }
         }
+      }
+
+      if (e.target.matches(".hour-comment-clear")) {
+        if (!confirm("Confirm?")) return;
+
+        const hourRow = e.target.closest(".hour-row");
+        const hourCheckbox = hourRow.querySelector(".hour-checkbox");
+        const hourInput = hourRow.querySelector(".hour-input");
+        const hourComment = hourRow.querySelector(".hour-comment");
+
+        hourCheckbox.checked = false;
+        hourInput.value = "";
+        hourComment.innerHTML = "";
+        hourRow.classList.remove("not-empty");
+        hourRow.classList.remove("is-comment");
+
+        this.saveCurrentState();
       }
     });
 
@@ -441,7 +458,7 @@ class DailyLog {
     const targetCheckbox = targetRow.querySelector(".hour-checkbox");
 
     targetInput.value = sourceInput.value;
-    targetComment.value = sourceComment.value;
+    targetComment.value = sourceComment.innerHTML;
     targetCheckbox.checked = sourceCheckbox.checked;
 
     sourceInput.value = "";

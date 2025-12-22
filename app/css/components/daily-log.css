@@ -8,17 +8,25 @@
 .hour-row {
   position: relative;
   display: grid;
-  grid-template-columns: auto auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+
+.hour-row.not-empty {
+  background-color: var(--glass-dark);
+  border-radius: 0.25rem;
 }
 
 .hour-time {
   color: var(--muted);
   text-align: right;
-  font-size: 0.75rem;
+  font-size: 0.6rem;
+  padding: 0.35rem 0.2rem;
   cursor: pointer;
   user-select: none;
+  opacity: 0.5;
 }
 
 .hour-row.moving-source .hour-time {
@@ -35,23 +43,42 @@
   text-decoration: underline;
 }
 
-@media (min-width: 600px) {
-  .hour-time {
-    font-size: 1rem;
-  }
+
+.hour-row .hour-controls {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: start;
 }
 
-/* Custom checkbox */
+.hour-text-content {
+  display:flex;
+  flex-direction: column;
+}
+
+.hour-comment-switch {
+  font-size: 0.5rem;
+  background: none;
+  padding: 0.4rem;
+  border: none;
+  cursor: pointer;
+  opacity: 0.2;
+}
+
+.hour-row.is-comment .hour-comment-switch {
+  opacity: 0.6;
+}
+
 .hour-checkbox-wrap {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0.45rem 0.5rem;
 }
 
 .hour-checkbox {
   appearance: none;
-  width: 1rem;
-  height: 1rem;
+  width: 0.5rem;
+  height: 0.5rem;
   margin: 0;
   border-radius: 50%;
   background: var(--glass);
@@ -73,63 +100,41 @@
   font-weight: 700;
 }
 
-.hour-input {
-  background: transparent;
+.hour-input,
+.hour-comment {
   border: 0;
-  padding: 0.3rem;
+  background: transparent;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
   color: inherit;
+  line-height: 1.9;
   outline: none;
-  border-radius: 0.25rem;
-  transition: background-color 0.1s ease;
   cursor: pointer;
 }
 
-.hour-input.not-empty {
-  background-color: var(--glass-dark);
-}
-
-.hour-input:hover {
-  background-color: var(--glass-dark);
-}
-
-.hour-input:focus {
-  background-color: var(--glass);
+.hour-input:focus, .hour-comment:focus {
   cursor: text;
 }
 
-.hour-input::placeholder {
-  color: #6b7b80;
+.hour-comment {
+  margin-top: 0.5rem;
+  font-size: 0.6rem;
+  min-height: 3rem;
+  opacity: 0.6;
+  white-space: pre-wrap;
 }
 
-.hour-comment-switch-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hour-comment-switch {
+.hour-comment-clear {
+  font-size: 0.5rem;
   background: none;
+  padding: 0.4rem;
   border: none;
   cursor: pointer;
   opacity: 0.2;
 }
 
-.hour-comment-switch.not-empty {
-  opacity: 1;
-}
-
-.hour-comment {
-  grid-column: 1 / -1;
-  border: 0;
-  padding: 0.5rem;
-  height: 5rem;
-  font-size: 0.75rem;
-  color: inherit;
-  background-color: var(--glass-dark);
-  border-radius: 0.25rem;
-  outline: none;
-  resize: vertical;
-  line-height: 1.5;
+.hour-comment-clear:hover {
+  opacity: 1; 
 }
 
 .highlighted .hour-time {
