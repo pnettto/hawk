@@ -132,16 +132,6 @@
   line-height: 1.5;
 }
 
-.hour-line {
-  position: absolute;
-  bottom: -3px;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background-color: var(--accent);
-  opacity: 0.1;
-}
-
 .highlighted .hour-time {
   color: var(--accent);
 }

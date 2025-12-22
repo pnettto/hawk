@@ -158,8 +158,6 @@ class DailyLog {
             </div>
             <input class="hour-input" data-hour="${hourStr}" />
             <textarea class="hour-comment hidden" data-hour="${hourStr}"></textarea>
-
-            ${isHighlightedHour ? `<div class="hour-line"></div>` : ""}
         </div>
         `;
   }
