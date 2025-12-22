@@ -15,6 +15,7 @@ class DailyLog {
     this.hoursContainer = null;
     this.listenersInitialized = false;
     this.showingAllHours = false;
+    this.movingFrom = null;
     this.debouncedSave = debounce(() => {
       if (this.currentDate) {
         this.saveCurrentState();
@@ -313,11 +314,47 @@ class DailyLog {
         const hourComment = e.target.closest(".hour-row").querySelector(
           ".hour-comment",
         );
-        const isHidden = hourComment.classList.contains("hidden");
         hourComment.classList.toggle("hidden");
-        // if (isHidden) {
-        //   hourComment.focus();
-        // }
+      }
+
+      if (e.target.matches(".hour-time")) {
+        const hourRow = e.target.closest(".hour-row");
+        const hour = hourRow.querySelector(".hour-input").dataset.hour;
+
+        if (this.movingFrom) {
+          // Just return if clicked hour is source
+          if (this.movingFrom === hour) {
+            this.movingFrom = null;
+            this.updateMovingUI();
+            return;
+          }
+
+          const targetInput = hourRow.querySelector(".hour-input");
+          const targetComment = hourRow.querySelector(".hour-comment");
+          const isTargetEmptySlot = targetInput.value.trim() === "" &&
+            targetComment.value.trim() === "";
+
+          if (isTargetEmptySlot) {
+            // Move data, update UI
+            this.moveData(this.movingFrom, hour);
+            this.movingFrom = null;
+            this.updateMovingUI();
+          } else {
+            // Switch source if clicking another occupied slot, udpate UI
+            this.movingFrom = hour;
+            this.updateMovingUI();
+          }
+        } else {
+          // Show options on screen
+          const sourceInput = hourRow.querySelector(".hour-input");
+          const sourceComment = hourRow.querySelector(".hour-comment");
+          if (
+            sourceInput.value.trim() !== "" || sourceComment.value.trim() !== ""
+          ) {
+            this.movingFrom = hour;
+            this.updateMovingUI();
+          }
+        }
       }
     });
 
@@ -368,6 +405,63 @@ class DailyLog {
     this.render(this.currentDate);
   }
 
+  updateMovingUI() {
+    const { hoursContainer } = this.getElements();
+    const rows = hoursContainer.querySelectorAll(".hour-row");
+
+    rows.forEach((row) => {
+      const hour = row.querySelector(".hour-input").dataset.hour;
+      const input = row.querySelector(".hour-input");
+      const commentTextarea = row.querySelector(".hour-comment");
+
+      row.classList.toggle("moving-source", this.movingFrom === hour);
+      row.classList.toggle(
+        "moving-target",
+        this.movingFrom && this.movingFrom !== hour && input.value === "" &&
+          commentTextarea.value === "",
+      );
+    });
+  }
+
+  moveData(fromHour, toHour) {
+    const { hoursContainer } = this.getElements();
+    if (!hoursContainer) return;
+
+    const sourceInput = hoursContainer.querySelector(
+      `.hour-input[data-hour="${fromHour}"]`,
+    );
+    const targetInput = hoursContainer.querySelector(
+      `.hour-input[data-hour="${toHour}"]`,
+    );
+
+    const sourceRow = sourceInput.closest(".hour-row");
+    const sourceComment = sourceRow.querySelector(".hour-comment");
+    const sourceCheckbox = sourceRow.querySelector(".hour-checkbox");
+
+    const targetRow = targetInput.closest(".hour-row");
+    const targetComment = targetRow.querySelector(".hour-comment");
+    const targetCheckbox = targetRow.querySelector(".hour-checkbox");
+
+    targetInput.value = sourceInput.value;
+    targetComment.value = sourceComment.value;
+    targetCheckbox.checked = sourceCheckbox.checked;
+
+    sourceInput.value = "";
+    sourceComment.value = "";
+    sourceCheckbox.checked = false;
+
+    // Update UI
+    targetInput.classList.toggle("not-empty", targetInput.value !== "");
+    sourceInput.classList.remove("not-empty");
+
+    const targetSwitch = targetRow.querySelector(".hour-comment-switch");
+    const sourceSwitch = sourceRow.querySelector(".hour-comment-switch");
+    targetSwitch.classList.toggle("not-empty", targetComment.value !== "");
+    sourceSwitch.classList.remove("not-empty");
+
+    this.saveCurrentState();
+  }
+
   /**
    * Main render method: builds UI, restores state, and sets up listeners.
    */
@@ -376,6 +470,7 @@ class DailyLog {
     if (!hoursContainer) return;
 
     this.currentDate = date;
+    this.movingFrom = null;
 
     loadForDate(formatDate(date))
       .then((savedData) => {
