@@ -20,7 +20,6 @@ class DailyLog {
         this.saveCurrentState();
       }
     }, 1000);
-    this.lastCutContent = null;
   }
 
   /**
@@ -176,6 +175,55 @@ class DailyLog {
     return html;
   }
 
+  #handleCutOrCopy = (e) => {
+    if (e.target.matches(".hour-input")) {
+      const input = e.target;
+      if (
+        input.selectionStart === 0 &&
+        input.selectionEnd === input.value.length &&
+        input.value !== ""
+      ) {
+        const hourRow = input.closest(".hour-row");
+        const comment = hourRow.querySelector(".hour-comment");
+        const checkbox = hourRow.querySelector(".hour-checkbox");
+        const commentSwitch = hourRow.querySelector(".hour-comment-switch");
+
+        const data = {
+          text: input.value,
+          comment: comment.value,
+          checkbox: checkbox.checked,
+        };
+
+        console.log(`data`, data);
+
+        // External format: Text + optional comment on new line
+        const externalText = data.comment
+          ? `${data.text}\n${data.comment}`
+          : data.text;
+
+        e.clipboardData.setData("text/plain", externalText);
+        e.clipboardData.setData(
+          "application/hawk-hour",
+          JSON.stringify(data),
+        );
+        e.preventDefault();
+
+        if (e.type === "cut") {
+          comment.value = "";
+          commentSwitch.classList.remove("not-empty");
+
+          if (checkbox.checked) {
+            checkbox.checked = false;
+          }
+
+          input.value = "";
+          input.classList.remove("not-empty");
+          this.debouncedSave();
+        }
+      }
+    }
+  };
+
   /**
    * Sets up event delegation on the hours container.
    * Checkboxes save immediately, text inputs save with debounce.
@@ -231,55 +279,31 @@ class DailyLog {
       }
     });
 
-    hoursContainer.addEventListener("cut", (e) => {
-      if (e.target.matches(".hour-input")) {
-        const input = e.target;
-        if (
-          input.selectionStart === 0 &&
-          input.selectionEnd === input.value.length &&
-          input.value !== ""
-        ) {
-          const hourRow = input.closest(".hour-row");
-          const comment = hourRow.querySelector(".hour-comment");
-          const checkbox = hourRow.querySelector(".hour-checkbox");
-          const commentSwitch = hourRow.querySelector(".hour-comment-switch");
-
-          this.lastCutContent = {
-            text: input.value,
-            comment: comment.value,
-          };
-
-          comment.value = "";
-          commentSwitch.classList.remove("not-empty");
-
-          if (checkbox.checked) {
-            checkbox.checked = false;
-          }
-
-          input.classList.remove("not-empty");
-          this.debouncedSave();
-        }
-      }
-    });
+    hoursContainer.addEventListener("cut", this.#handleCutOrCopy);
+    hoursContainer.addEventListener("copy", this.#handleCutOrCopy);
 
     hoursContainer.addEventListener("paste", (e) => {
-      if (e.target.matches(".hour-input") && this.lastCutContent) {
-        const pastedText = (e.clipboardData || globalThis.clipboardData)
-          .getData(
-            "text",
-          );
-        if (pastedText === this.lastCutContent.text) {
-          const hourRow = e.target.closest(".hour-row");
-          const comment = hourRow.querySelector(".hour-comment");
-          const commentSwitch = hourRow.querySelector(".hour-comment-switch");
+      if (e.target.matches(".hour-input")) {
+        const jsonData = e.clipboardData.getData("application/hawk-hour");
+        if (jsonData) {
+          try {
+            const data = JSON.parse(jsonData);
+            const hourRow = e.target.closest(".hour-row");
+            const comment = hourRow.querySelector(".hour-comment");
+            const commentSwitch = hourRow.querySelector(".hour-comment-switch");
+            const checkbox = hourRow.querySelector(".hour-checkbox");
 
-          comment.value = this.lastCutContent.comment;
-          commentSwitch.classList.toggle("not-empty", comment.value !== "");
-          e.target.classList.add("not-empty");
+            e.target.value = data.text;
+            comment.value = data.comment;
+            checkbox.checked = data.checkbox;
+            commentSwitch.classList.toggle("not-empty", comment.value !== "");
+            e.target.classList.add("not-empty");
 
-          this.lastCutContent = null;
-
-          this.debouncedSave();
+            e.preventDefault();
+            this.debouncedSave();
+          } catch (err) {
+            console.error("Failed to parse hawk-log data", err);
+          }
         }
       }
     });
