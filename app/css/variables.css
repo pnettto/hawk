@@ -1,9 +1,9 @@
 :root {
-    --bg: hsl(212 40% 5% / 1);
+    --bg: hsl(212deg 40% 4% / 100%);
     --panel: #212c34;
     --muted: #9aa6ad;
     --accent: hsl(41 49% 53% / 1);
     --line: #1b2226;
     --glass: rgba(255, 255, 255, 0.1);
-    --glass-dark: rgba(255, 255, 255, 0.05);
+    --glass-dark: hsl(212deg 40% 8% / 70%);
 }
