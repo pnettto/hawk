@@ -56,13 +56,13 @@
 }
 
 .hour-comment-switch {
-  font-size: 0.5rem;
+  font-size: 0.8rem;
   background: none;
   padding: 0.4rem;
   border: none;
   cursor: pointer;
   opacity: 0.2;
-  padding-top: 0.55rem;
+  padding-top: 0.35rem;
 }
 
 .hour-row.is-comment .hour-comment-switch {
@@ -73,14 +73,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem;
-  padding-top: 0.65rem;
+  padding: 0.8rem;
+  padding-top: 0.5rem;
 }
 
 .hour-checkbox {
   appearance: none;
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
   margin: 0;
   border-radius: 50%;
   background: var(--glass);
