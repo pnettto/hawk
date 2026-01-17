@@ -13,6 +13,14 @@ import {
   setLogs,
 } from "./server/routeHandlers/app.ts";
 import {
+  deleteCollection,
+  deleteNote,
+  getCollectionNotes,
+  getCollections,
+  saveCollections,
+  saveNote,
+} from "./server/routeHandlers/notes.ts";
+import {
   deleteEntry,
   listEntries,
   setEntry,
@@ -42,6 +50,14 @@ app.post("/api/day", setDayLog);
 
 // Migration endpoint
 app.post("/api/migrate", migrateLogs);
+
+// Notes API
+app.get("/api/notes/collections", getCollections);
+app.post("/api/notes/collections", saveCollections);
+app.delete("/api/notes/collections/:cid", deleteCollection);
+app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
+app.post("/api/notes/notes", saveNote);
+app.delete("/api/notes/notes/:nid", deleteNote);
 
 // KV Entries (existing)
 app.get("/api/entries", listEntries);

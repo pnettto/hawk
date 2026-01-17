@@ -5,6 +5,7 @@ import "./components/MoodTracker.js";
 import "./components/DatePicker.js";
 import "./components/DailyLog.js";
 import "./components/Notes.js";
+import "./components/NotesApp.js";
 import "./components/Shortcuts.js";
 import "./components/Auth.js";
 import "./components/Mirror.js";
