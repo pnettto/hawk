@@ -8,9 +8,10 @@ const style = /* css */ `
     height: 80vh;
     overflow: hidden;
     color: var(--text);
-    font-family: inherit;
+    font-family: var(--font-mono);
     gap: 1.5rem;
     position: relative;
+    font-size: var(--body);
 }
 
 .sidebar {
@@ -35,7 +36,7 @@ const style = /* css */ `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.15rem;
     color: var(--muted);
@@ -45,7 +46,7 @@ const style = /* css */ `
 .item-list {
     flex: 1;
     overflow-y: auto;
-    font-size: 0.9rem;
+    font-size: var(--body);
 }
 
 .list-item {
@@ -85,7 +86,7 @@ const style = /* css */ `
     background: none;
     border: none;
     color: var(--text);
-    font-size: 3rem;
+    font-size: var(--h1);
     width: 100%;
     outline: none;
     font-weight: 800;
@@ -98,28 +99,28 @@ const style = /* css */ `
     background: none;
     border: none;
     color: var(--text);
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     width: 100%;
     height: 100%;
     outline: none;
     resize: none;
-    line-height: 1.8;
+    line-height: var(--lh);
     font-family: inherit;
     opacity: 0.85;
 }
 
 .rendered-content {
-    line-height: 1.8;
-    font-size: 1.2rem;
+    line-height: var(--lh);
+    font-size: var(--small);
     opacity: 0.85;
     cursor: text;
     min-height: 300px;
 }
 
 .rendered-content h1, .rendered-content h2, .rendered-content h3 { 
+    font-size: var(--h2);
     border-bottom: 1px solid var(--line); 
     padding-bottom: 0.5rem; 
-    margin-top: 2.5rem;
 }
 
 .btn-icon-tiny {
@@ -141,7 +142,7 @@ const style = /* css */ `
 
 .delete-btn {
     opacity: 0;
-    font-size: 1.2rem;
+    font-size: var(--h3);
 }
 
 .list-item:hover .delete-btn {
@@ -193,7 +194,7 @@ const style = /* css */ `
 }
 
 .modal-title {
-    font-size: 1.1rem;
+    font-size: var(--h3);
     font-weight: bold;
     color: var(--text);
 }
@@ -204,7 +205,7 @@ const style = /* css */ `
     padding: 0.8rem;
     border-radius: 6px;
     color: var(--text);
-    font-size: 1rem;
+    font-size: var(--body);
     outline: none;
 }
 
