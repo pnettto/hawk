@@ -140,6 +140,80 @@ export function saveAll(obj) {
 }
 
 /**
+ * Notes API
+ */
+
+export async function getNotesCollections() {
+  try {
+    const res = await fetch(`${apiUrl}/api/notes/collections`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to get collections:", e);
+    return [];
+  }
+}
+
+export async function saveNotesCollections(collections) {
+  try {
+    await fetch(`${apiUrl}/api/notes/collections`, {
+      method: "POST",
+      body: JSON.stringify(collections),
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to save collections:", e);
+  }
+}
+
+export async function deleteNotesCollection(cid) {
+  try {
+    await fetch(`${apiUrl}/api/notes/collections/${cid}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to delete collection:", e);
+  }
+}
+
+export async function getCollectionNotes(cid) {
+  try {
+    const res = await fetch(`${apiUrl}/api/notes/collections/${cid}/notes`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to get notes:", e);
+    return [];
+  }
+}
+
+export async function saveNote(note) {
+  try {
+    await fetch(`${apiUrl}/api/notes/notes`, {
+      method: "POST",
+      body: JSON.stringify(note),
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to save note:", e);
+  }
+}
+
+export async function deleteNote(nid) {
+  try {
+    await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to delete note:", e);
+  }
+}
+
+/**
  * Local backup
  */
 export function backup() {

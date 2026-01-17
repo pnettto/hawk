@@ -5,14 +5,21 @@ const style = /* css */ `
 :host {
     display: block;
     width: 100%;
-    max-width: 800px;
     margin: 0 auto;
     padding: 2rem;
+    box-sizing: border-box;
 }
 
 .container {
     display: flex;
     flex-direction: column;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.container.wide {
+    max-width: 1200px;
 }
 
 .app-header {
@@ -91,30 +98,45 @@ class MainApp extends Component {
   updateNav(currentPage) {
     const navApp = this.shadowRoot.getElementById("nav-app");
     const navReport = this.shadowRoot.getElementById("nav-report");
+    const navNotes = this.shadowRoot.getElementById("nav-notes");
     if (navApp) navApp.classList.toggle("active", currentPage === "app");
     if (navReport) {
       navReport.classList.toggle("active", currentPage === "report");
     }
+    if (navNotes) navNotes.classList.toggle("active", currentPage === "notes");
   }
 
   updatePageVisibility(currentPage) {
     const journalPage = this.shadowRoot.getElementById("journal-page");
     const reportPage = this.shadowRoot.getElementById("report-page");
+    const notesPage = this.shadowRoot.getElementById("notes-page");
+    const container = this.shadowRoot.querySelector(".container");
+    if (container) {
+      container.classList.toggle("wide", currentPage === "notes");
+    }
     if (journalPage) {
       journalPage.classList.toggle("hidden", currentPage !== "app");
     }
     if (reportPage) {
       reportPage.classList.toggle("hidden", currentPage !== "report");
     }
+    if (notesPage) {
+      notesPage.classList.toggle("hidden", currentPage !== "notes");
+    }
   }
 
   fullRender(isAuth, currentPage) {
     const content = `
-      <div class="container ${!isAuth ? "hidden" : ""}">
+      <div class="container ${!isAuth ? "hidden" : ""} ${
+      currentPage === "notes" ? "wide" : ""
+    }">
         <nav>
             <button class="${
       currentPage === "app" ? "active" : ""
     }" id="nav-app">Journal</button>
+            <button class="${
+      currentPage === "notes" ? "active" : ""
+    }" id="nav-notes">Notes</button>
             <button class="${
       currentPage === "report" ? "active" : ""
     }" id="nav-report">Report</button>
@@ -130,6 +152,12 @@ class MainApp extends Component {
             
             <daily-log></daily-log>
             <notes-input></notes-input>
+        </main>
+
+        <main id="notes-page" class="page-content ${
+      currentPage === "notes" ? "" : "hidden"
+    }">
+            <notes-app></notes-app>
         </main>
 
         <main id="report-page" class="page-content ${
@@ -151,6 +179,8 @@ class MainApp extends Component {
     if (isAuth) {
       this.shadowRoot.getElementById("nav-app").onclick = () =>
         appStore.setCurrentPage("app");
+      this.shadowRoot.getElementById("nav-notes").onclick = () =>
+        appStore.setCurrentPage("notes");
       this.shadowRoot.getElementById("nav-report").onclick = () =>
         appStore.setCurrentPage("report");
     }
