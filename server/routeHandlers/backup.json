@@ -1,0 +1,495 @@
+{
+  "2025-12-11": {
+    "14": { "checked": true, "text": "Lucia" },
+    "15": {
+      "checked": true,
+      "text": "Daniel meeting (AW/gingerbread competition?)"
+    },
+    "16": { "checked": true, "text": "Mandatory studies (sustainability)" },
+    "14-30": { "checked": false, "text": "Hawk" },
+    "15-30": { "checked": true, "text": "Hawk" },
+    "notes": "",
+    "notesMarkdown": "",
+    "mood": "🙂"
+  },
+  "2025-12-08": {
+    "10": { "checked": true, "text": "Planning" },
+    "11": { "checked": true, "text": "Catch up emails" },
+    "12": { "checked": true, "text": "Github Cap Setup" },
+    "13": { "checked": true, "text": "Hawk" },
+    "14": { "checked": true, "text": "Lunch" },
+    "15": {
+      "checked": true,
+      "text": "Some mandatory courses (Ethics, SpeakUp, Data protection)"
+    },
+    "17": { "checked": true, "text": "More Hawk" }
+  },
+  "2025-12-09": {
+    "12": { "checked": true, "text": "Catch up" },
+    "13": {
+      "checked": false,
+      "text": "Mandatory courses (cyber security, intellectual property, anti corruption, competition law)"
+    },
+    "17": { "checked": false, "text": "Svenska hemuppgift" },
+    "notes": "<br>",
+    "mood": "😴"
+  },
+  "2025-12-10": {
+    "13": { "checked": true, "text": "#hawk" },
+    "15": { "checked": true, "text": "Fika" },
+    "16": { "checked": true, "text": "#hawk" },
+    "mood": "😴"
+  },
+  "2025-12-12": {
+    "12": { "checked": true, "text": "Lunch with interns" },
+    "13": { "checked": false, "text": "Gingerbread planning informal meeting" },
+    "15": { "checked": true, "text": "Data-powered Innovation Review" },
+    "13-30": {
+      "checked": true,
+      "text": "How to post updates in Cap Site (internal for sharing with team)"
+    },
+    "14-30": { "checked": true, "text": "Start write up" },
+    "mood": "😐",
+    "notes": "<p>Data-powered Innovation Review PDF: <a href=\"https://www.capgemini.com/wp-content/uploads/2025/12/Data-powered_Innovation_Review_Wave_11.pdf\">https://www.capgemini.com/wp-content/uploads/2025/12/Data-powered_Innovation_Review_Wave_11.pdf</a> My questions got asked at the panel! :)</p>\n",
+    "notesMarkdown": "Data-powered Innovation Review PDF: https://www.capgemini.com/wp-content/uploads/2025/12/Data-powered_Innovation_Review_Wave_11.pdf My questions got asked at the panel! :)",
+    "15-30": {
+      "checked": true,
+      "text": "Write WSL/Docker/Airflow setup, Hawk, Insights about development"
+    }
+  },
+  "2025-12-05": { "mood": "🤷‍♀️" },
+  "2025-12-13": {},
+  "2025-12-15": {
+    "10": { "checked": true, "text": "JS Native notifications study #hawk" },
+    "12": { "checked": true, "text": "Lunch" },
+    "13": { "checked": true, "text": "Prep chat" },
+    "14": { "checked": true, "text": "Markdown work #hawk" },
+    "17": {
+      "checked": true,
+      "text": "Fix Microsoft Loop with Internship reflections / Send to Foad"
+    },
+    "18": { "checked": true, "text": "Meal prep" },
+    "21": {
+      "checked": true,
+      "text": "Studies: Go, parallelism, concurrency, web components, wasm (web assembly)"
+    },
+    "notes": "<h1>Foad meeting notes</h1>\n<ul>\n<li><p>People to contact</p>\n<ul>\n<li>Elias Stove (former trainee, working on Telia, maybe knows opportunities for me? Foad said to mention he sent me there)</li>\n<li>Luis Alberto (Lucho) - Gen AI lead</li>\n</ul>\n</li>\n<li><p>Telia project</p>\n<ul>\n<li>If I go into project, learn as much as possible\nMonth later, tell a \"Go to market lead\" that I know this and that and that I'd be ok going to a client meeting, start from there</li>\n</ul>\n</li>\n<li><p>Use Microsoft Loop for notes</p>\n</li>\n</ul>\n<h1>Day summary</h1>\n<ul>\n<li>Broken routine, scattered attention, too much time improving Hawk, need to improve.</li>\n<li>Chat with Foad went really well, confirmed most my intuitions. Left feeling like I need to focus on the Agentic stuff and let Databricks path be my second task. He said I could reach out to talk after he leaves as well.</li>\n<li>Airflow is failing to grab my attention, need to finish examples and move on.</li>\n<li>Hawk is more reliable on saving markdown, so I'll start using it for day notes a lot more. Also, the cross device access is amazing</li>\n</ul>\n",
+    "notesMarkdown": "# Foad meeting notes\n\n* People to contact\n    * Elias Stove (former trainee, working on Telia, maybe knows opportunities for me? Foad said to mention he sent me there)\n    * Luis Alberto (Lucho) - Gen AI lead\n\n* Telia project\n    * If I go into project, learn as much as possible\nMonth later, tell a \"Go to market lead\" that I know this and that and that I'd be ok going to a client meeting, start from there\n\n* Use Microsoft Loop for notes\n\n\n\n\n# Day summary\n- Broken routine, scattered attention, too much time improving Hawk, need to improve.\n- Chat with Foad went really well, confirmed most my intuitions. Left feeling like I need to focus on the Agentic stuff and let Databricks path be my second task. He said I could reach out to talk after he leaves as well.\n- Airflow is failing to grab my attention, need to finish examples and move on.\n- Hawk is more reliable on saving markdown, so I'll start using it for day notes a lot more. Also, the cross device access is amazing",
+    "mood": "🙂",
+    "9-30": { "checked": true, "text": "Ginger bread meeeting" },
+    "13-30": { "checked": true, "text": "Chat Foad" },
+    "10-30": { "checked": true, "text": "Airflow studies" },
+    "16-30": { "checked": true, "text": "Airflow studies" }
+  },
+  "2025-12-14": {
+    "1-30": { "checked": true, "text": "asdfdsfrr" },
+    "notes": "<h1>Learned about Deno</h1>\n<ul>\n<li><p>Created an app to host Hawk’s data</p>\n<ul>\n<li>Learnead about CORS and setting up a web server in Deno</li>\n<li>Used KV, Deno’s db</li>\n<li>Added auth to Hawk by allowing the user to create an API that becomes a known secret in Deno after being hashed and stored in localStorage (good for 1 person use)</li>\n</ul>\n</li>\n<li><p>Vanilla js</p>\n<ul>\n<li>Struggled with global state now that I’m using an api to fetch and save the data, might need to use a small framework that helps with state management# Learned about Deno<span style=\"color: inherit; font-size: 1rem;\"></span></li>\n</ul>\n</li>\n</ul>\n",
+    "notesMarkdown": "# Learned about Deno\n- Created an app to host Hawk’s data\n  - Learnead about CORS and setting up a web server in Deno\n  - Used KV, Deno’s db\n  - Added auth to Hawk by allowing the user to create an API that becomes a known secret in Deno after being hashed and stored in localStorage (good for 1 person use)\n\n- Vanilla js\n  - Struggled with global state now that I’m using an api to fetch and save the data, might need to use a small framework that helps with state management# Learned about Deno<span style=\"color: inherit; font-size: 1rem;\"></span>"
+  },
+  "2025-12-16": {
+    "13": {
+      "checked": true,
+      "text": "Final Presentation Demo and Wrap up Telia Upskilling Initiative"
+    },
+    "14": {
+      "checked": true,
+      "text": "Join the Data Lounge - Unpacking Data & AI for 2026"
+    },
+    "16": {
+      "checked": true,
+      "text": "Review Week 50 text and send to Therese Edberg"
+    },
+    "21": {
+      "checked": true,
+      "text": "#hawk Studying Web Components and refactoring ZenMode to use it! Multi store capability too"
+    },
+    "notes": "<h1>Telia Upskilling Initiative - Final Presentation</h1>\n<ul>\n<li>Interesting projects, but not sure if ground breaking</li>\n</ul>\n<h1>Data Lounge - Unpacking Data &amp; AI</h1>\n<ul>\n<li>Interesting project by Lucas Pudifoot, in the Netherlands. They used agentic AI to create a system that allows people to ask about old files from a Dutch files archive 1700s, etc)</li>\n</ul>\n<h1>Loop</h1>\n<ul>\n<li>Learned Ms Loop uses a thing called Fluid Framework and that it sends the content in a binary (base64) format, which in turn is used to hydrate the web page components. It's mega difficult to reverse engineer the functionality, but it was good practice. Used Copilot to generate scripts to find the right file/request and to parse the binary contents. It created stuff I will never be able to understand and got really close with my instructions and files (I uploaded a 32MB HAR file).</li>\n</ul>\n<h1>Other</h1>\n<ul>\n<li>Foad suggested I should publish my Week 50 text on the Life in Capgemini channel. I thought it was a really cool idea and started polishing the text for publishing, but it will actually need to wait until Michael is here. Maybe I'll just send it to Therese Edberg (Head of HR for I&amp;D) like Foad suggested.</li>\n<li>(Night) Learned about Web Components, State management and flow, created a solution from scratch for Zen Mode</li>\n</ul>\n",
+    "notesMarkdown": "# Telia Upskilling Initiative - Final Presentation\n- Interesting projects, but not sure if ground breaking\n\n# Data Lounge - Unpacking Data &amp; AI\n- Interesting project by Lucas Pudifoot, in the Netherlands. They used agentic AI to create a system that allows people to ask about old files from a Dutch files archive 1700s, etc)\n\n\n# Loop\n- Learned Ms Loop uses a thing called Fluid Framework and that it sends the content in a binary (base64) format, which in turn is used to hydrate the web page components. It's mega difficult to reverse engineer the functionality, but it was good practice. Used Copilot to generate scripts to find the right file/request and to parse the binary contents. It created stuff I will never be able to understand and got really close with my instructions and files (I uploaded a 32MB HAR file).\n\n\n# Other\n- Foad suggested I should publish my Week 50 text on the Life in Capgemini channel. I thought it was a really cool idea and started polishing the text for publishing, but it will actually need to wait until Michael is here. Maybe I'll just send it to Therese Edberg (Head of HR for I&amp;D) like Foad suggested.\n- (Night) Learned about Web Components, State management and flow, created a solution from scratch for Zen Mode",
+    "10-30": { "checked": true, "text": "Review text Week 50 for publishing" },
+    "11-30": {
+      "checked": true,
+      "text": "Work on custom Ms Loop export (failed)"
+    },
+    "14-30": {
+      "checked": true,
+      "text": "Work with Copilot to figure out HAR/Loop Fluid parser"
+    },
+    "9-30": { "checked": false, "text": "Text Elias Tove" },
+    "mood": "😐"
+  },
+  "2025-12-17": {
+    "14": {
+      "checked": true,
+      "text": "Read https://www.di.se/brandstudio/capgemini/norges-forsta-ai-fabrik-banar-vag-for-sakra-och-grona-innovationer/studies / Agentic AI Github setup, start path"
+    },
+    "15": { "checked": true, "text": "Fika" },
+    "18": { "checked": true, "text": "Talk to Felix" },
+    "19": { "checked": true, "text": "Talk to Louise" },
+    "11-30": { "checked": true, "text": "Insights & Data - Nordic Townhall" },
+    "mood": "😐",
+    "10-30": {
+      "checked": true,
+      "text": "Send Week 50 to Therése (RH), Malin (Comm Dir) and Jessica (MKT)"
+    },
+    "notes": "<h1>Nordic townhall</h1>\n<ul>\n<li><p>Martin Tidell - Head of AI</p>\n<ul>\n<li>Telco expert</li>\n<li>Worked with data whole life</li>\n<li>Located in Stockholm!</li>\n</ul>\n</li>\n<li><p>Sovereign AI (study)</p>\n<ul>\n<li>Telenor case study</li>\n<li>Something to specialize in?</li>\n</ul>\n</li>\n<li><p>Strategic partners with Databricks</p>\n</li>\n<li><p>Nordics</p>\n<ul>\n<li>Norway going strong (Microsoft and Snowflake)</li>\n<li>Sweden challenging year across industry (positive trend in last few months)</li>\n<li>Finland strong year</li>\n</ul>\n</li>\n<li><p>Sweden</p>\n<ul>\n<li>Go to market team having a difficult time (opportunity to help?)<ul>\n<li>Expert advice on Databricks and GCP/Agentic toolkit?</li>\n</ul>\n</li>\n<li>35m euros revenue in 2025 </li>\n<li>Data is the central question on AI<ul>\n<li>Arne Rossmann is trying to figure this out</li>\n</ul>\n</li>\n<li>Volvo<ul>\n<li>Diverse, interesting AI solutions</li>\n<li>Tobias Persson</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n<h1>Interesting article</h1>\n<ul>\n<li>Shared by Arne Roßmann</li>\n<li>About how Capgemini is developing sovereign AI factories in Norway</li>\n<li><a href=\"https://www.di.se/brandstudio/capgemini/norges-forsta-ai-fabrik-banar-vag-for-sakra-och-grona-innovationer/\">https://www.di.se/brandstudio/capgemini/norges-forsta-ai-fabrik-banar-vag-for-sakra-och-grona-innovationer/</a></li>\n</ul>\n<h1>Fika</h1>\n<ul>\n<li>Daniel Westin - Photographer! I should contact him for information on what to focus on the Agentic path. Mentioned it's a good idea to study agentic ai because it's so new and people can go senior pretty quick. </li>\n<li>Anna Karin - Sales executive (go to market), technical bg</li>\n<li>Veronica Asterfall (team manager), strong tech bg, broad skillset</li>\n</ul>\n",
+    "notesMarkdown": "# Nordic townhall\n- Martin Tidell - Head of AI\n  - Telco expert\n  - Worked with data whole life\n  - Located in Stockholm!\n- Sovereign AI (study)\n    - Telenor case study\n    - Something to specialize in?\n\n- Strategic partners with Databricks\n\n\n- Nordics\n  - Norway going strong (Microsoft and Snowflake)\n  - Sweden challenging year across industry (positive trend in last few months)\n  - Finland strong year\n\n- Sweden\n  - Go to market team having a difficult time (opportunity to help?)\n      - Expert advice on Databricks and GCP/Agentic toolkit?\n  - 35m euros revenue in 2025 \n  - Data is the central question on AI\n    - Arne Rossmann is trying to figure this out \n  - Volvo\n    - Diverse, interesting AI solutions\n    - Tobias Persson\n\n# Interesting article \n  - Shared by Arne Roßmann\n  - About how Capgemini is developing sovereign AI factories in Norway\n  - https://www.di.se/brandstudio/capgemini/norges-forsta-ai-fabrik-banar-vag-for-sakra-och-grona-innovationer/\n\n# Fika\n- Daniel Westin - Photographer! I should contact him for information on what to focus on the Agentic path. Mentioned it's a good idea to study agentic ai because it's so new and people can go senior pretty quick. \n- Anna Karin - Sales executive (go to market), technical bg\n- Veronica Asterfall (team manager), strong tech bg, broad skillset",
+    "12-30": {
+      "checked": true,
+      "text": "#hawk Use state management in ZenMode"
+    },
+    "13-30": {
+      "checked": true,
+      "text": "Lunch / Nice chat with Amir Hasne (DE)"
+    },
+    "14-30": { "checked": true, "text": "Airflow " },
+    "15-30": { "checked": true, "text": "Write Fika impressions" },
+    "16-30": {
+      "checked": true,
+      "text": "#hawk Fixing ZenMode and styling :'("
+    },
+    "20-30": {
+      "checked": true,
+      "text": "Study Hono, Edge, Queuing for high intensity traffic, JWT, oAuth"
+    },
+    "23-30": {
+      "checked": true,
+      "text": "Adjust large screens style in pnetto.com"
+    }
+  },
+  "2025-12-18": {
+    "12": {
+      "checked": true,
+      "text": "Airflow Docker work / Postgress/SQL operator",
+      "comment": ""
+    },
+    "13": { "checked": true, "text": "Lunch", "comment": "" },
+    "14": {
+      "checked": true,
+      "text": "Learn about Docker / Entrypoint / Anchor references in compose files",
+      "comment": ""
+    },
+    "15": {
+      "checked": true,
+      "text": "I&D GBL 2025 End-year Global Celebration — The Impact Awards",
+      "comment": ""
+    },
+    "21": {
+      "checked": true,
+      "text": "Study Javascript fundamentals (memory handling, event loop, etc) and feature timeline"
+    },
+    "22": {
+      "checked": true,
+      "text": "Create a Deno solution to update kv entries with snapshot support"
+    },
+    "notes": "<h1>Airflow, Docker and Postgres</h1>\n<ul>\n<li>Learned a bit more about docker-compose.yaml when trying to add a package to the airflow installation</li>\n<li>In the end it took 20x less time to search the solution to my problem online compared to Copiloting it. Copilot was suggesting an deprecated method!</li>\n<li>Create a DAG to showcase Airflow to Anton :)</li>\n</ul>\n<h1>The Impact Awards</h1>\n<ul>\n<li>The Amsterdam Chat with History won most innovative - maybe reach out to check the solution out?</li>\n</ul>\n",
+    "notesMarkdown": "# Airflow, Docker and Postgres\n- Learned a bit more about docker-compose.yaml when trying to add a package to the airflow installation\n- In the end it took 20x less time to search the solution to my problem online compared to Copiloting it. Copilot was suggesting an deprecated method!\n- Create a DAG to showcase Airflow to Anton :)\n\n\n# The Impact Awards\n- The Amsterdam Chat with History won most innovative - maybe reach out to check the solution out?",
+    "mood": "🙂",
+    "10-30": {
+      "checked": true,
+      "text": "Fika with Elin, Anton and Daniel",
+      "comment": ""
+    },
+    "13-30": { "checked": true, "text": "Airflow studies", "comment": "" },
+    "14-30": {
+      "checked": true,
+      "text": "Learn about how Airflow uses Docker and sets up services",
+      "comment": ""
+    },
+    "11-30": {
+      "checked": true,
+      "text": "#hawk fixing styles",
+      "comment": "Some comment could go here"
+    }
+  },
+  "2025-12-19": {
+    "13": { "checked": true, "text": "Lunch with Mike" },
+    "16": { "checked": true, "text": "Winter Townhall" },
+    "17": { "checked": true, "text": "Ginger bread competiton (photos)" },
+    "21": { "checked": true, "text": "Bring kv gui into #hawk / Use Hono" },
+    "11-30": { "checked": true, "text": "Nordic Townhall" },
+    "notes": "Type a note here...",
+    "notesMarkdown": "",
+    "mood": "😐",
+    "19-30": { "checked": true, "text": "Edit photos" }
+  },
+  "2025-12-20": {
+    "19": {
+      "checked": false,
+      "text": "Reflections/Weekly journal/Networking agenda"
+    },
+    "22": { "checked": true, "text": "Web Crypto API pnetto.com" },
+    "10-30": {
+      "checked": true,
+      "text": "Learn about running LLMs locally with Macs (notes)"
+    },
+    "notes": "<h1>Running LLMS locally, test</h1>\n<ul>\n<li><a href=\"https://www.youtube.com/watch?v=4l4UWZGxvoc\">https://www.youtube.com/watch?v=4l4UWZGxvoc</a></li>\n</ul>\n",
+    "notesMarkdown": "# Running LLMS locally, test\n- https://www.youtube.com/watch?v=4l4UWZGxvoc",
+    "15-30": {
+      "checked": true,
+      "text": "Improve image handling in pnetto.com"
+    },
+    "mood": "😐"
+  },
+  "2025-12-21": {
+    "12": {
+      "checked": true,
+      "text": "Fixing pnetto.com cover page (and fade-ins)",
+      "comment": ""
+    },
+    "22": {
+      "checked": true,
+      "text": "Add better image handling for pnetto.com",
+      "comment": "Used AVIF and new settings for JPEG generation, resulting in smaller and better files. But the total img folder is now HUGE with 3500 photos 🤯"
+    },
+    "notes": "Type a note here...",
+    "notesMarkdown": "",
+    "14-30": {
+      "checked": false,
+      "text": "Reflections/Weekly journal/Networking agenda",
+      "comment": ""
+    },
+    "mood": "🙂",
+    "19-30": {
+      "checked": true,
+      "text": "Add per task comments #hawk",
+      "comment": ""
+    }
+  },
+  "2025-12-22": {
+    "10": {
+      "checked": true,
+      "text": "Many changes on pnetto and #hawk throughout day",
+      "comment": "Comment box, image handling, copy/paste handling, js module work, move data between tasks."
+    },
+    "22": { "checked": true, "text": "Finish text Week 51", "comment": "<br>" },
+    "notes": "<br>",
+    "notesMarkdown": "<p><a href=\"https://jyn.dev/\">https://jyn.dev/</a></p>",
+    "mood": "😴"
+  },
+  "2025-12-23": {
+    "11": { "checked": false, "text": "Check Townhall PDF", "comment": "" },
+    "11-30": {
+      "checked": true,
+      "text": "Check NotebookLM",
+      "comment": "https://notebooklm.google/ "
+    },
+    "notes": "<div>- GCP VM</div><div>- Docker to run Judge0</div>- asciinema https://docs.asciinema.org/manual/cli/quick-start/#__tabbed_1_3<div>- Caddy reverse proxy</div>",
+    "notesMarkdown": "- https://docs.asciinema.org/manual/cli/quick-start/#__tabbed_1_3"
+  },
+  "2025-12-24": {
+    "10-30": {
+      "checked": true,
+      "text": "Create my own code executor and host it on demos vm",
+      "comment": ""
+    }
+  },
+  "2025-12-26": {
+    "10": {
+      "checked": false,
+      "text": "Working on demos environment, so many bugs!",
+      "comment": ""
+    }
+  },
+  "2025-12-27": { "notes": "Type a note here...", "notesMarkdown": "" },
+  "2025-12-30": {
+    "10": {
+      "checked": true,
+      "text": "Take a look https://github.com/pnettto/pnetto.com-v2/actions/new",
+      "comment": ""
+    },
+    "11": {
+      "checked": true,
+      "text": "Update pnetto.com for large screens 🤦‍♂️",
+      "comment": ""
+    },
+    "13": {
+      "checked": true,
+      "text": "Create profiles I could fit in",
+      "comment": "fractional CTO, Sales Engineer, Engineer with soft skills/client facing, Consultant, Solutions Engineer, Industrial IoT Engineer, Conference Speaker/Advocate?, Bootcamp instructor"
+    },
+    "10-30": {
+      "checked": true,
+      "text": "Create a work profile (done, know, studying, want to know)",
+      "comment": ""
+    },
+    "mood": "🙂"
+  },
+  "2025-12-28": {
+    "10": {
+      "checked": true,
+      "text": "pnetto.com Cloudfare r2 images",
+      "comment": ""
+    },
+    "11": {
+      "checked": true,
+      "text": "pnetto.com minification and bundling of assets",
+      "comment": ""
+    },
+    "10-30": {
+      "checked": true,
+      "text": "pnetto.com New design system",
+      "comment": ""
+    },
+    "11-30": {
+      "checked": true,
+      "text": "pnetto.com Write blog post",
+      "comment": ""
+    },
+    "9-30": {
+      "checked": true,
+      "text": "pnetto.com Reduce deployment time",
+      "comment": ""
+    }
+  },
+  "2025-12-29": {
+    "10": {
+      "checked": true,
+      "text": "Make Design System a submodule",
+      "comment": ""
+    },
+    "10-30": {
+      "checked": true,
+      "text": "Fixed development flow in pnetto.com",
+      "comment": "Private pages now take way less to load"
+    }
+  },
+  "2026-01-01": {
+    "18-30": {
+      "checked": true,
+      "text": "Make schedule for 5th and on",
+      "comment": ""
+    }
+  },
+  "2025-12-31": {
+    "9-30": {
+      "checked": true,
+      "text": "Create Demo Garden post",
+      "comment": ""
+    }
+  },
+  "2026-01-03": {},
+  "2026-01-09": {
+    "10": { "checked": true, "text": "ADK Workshop all morning", "comment": "" }
+  },
+  "2026-01-02": {
+    "10": {
+      "checked": true,
+      "text": "Create a CDN for Design System",
+      "comment": ""
+    },
+    "9-30": { "checked": true, "text": "Fix Spotify Client", "comment": "" }
+  },
+  "2026-01-04": {
+    "10-30": {
+      "checked": false,
+      "text": "https://www.lesswrong.com/posts/p7x32SEt43ZMC9r7r/embedded-agents",
+      "comment": ""
+    }
+  },
+  "2026-01-05": {
+    "10": { "checked": true, "text": "Fika with Elin and Anton" },
+    "11": { "checked": true, "text": "Take a look into GCP Agentic portal" },
+    "15": { "checked": true, "text": "Find main resources, prepare for " },
+    "10-30": {
+      "checked": true,
+      "text": "Transfer all Weekly notes to internship logs"
+    },
+    "notes": "Type a note here...",
+    "notesMarkdown": ""
+  },
+  "2026-01-06": {
+    "10": { "checked": false, "text": "Check https://skillbuilder.aws/" },
+    "10-30": {
+      "checked": false,
+      "text": "Check https://learn.microsoft.com/en-us/training/"
+    }
+  },
+  "2026-01-07": {
+    "12": { "checked": true, "text": "Lunch with Felix", "comment": "" },
+    "15": { "checked": true, "text": "I&D Fika", "comment": "" },
+    "notes": "<h2><span style=\"background-color: transparent; color: inherit;\">Foad's tips</span></h2>\n<p>Role/area to focus on: AI Engineer &amp; Agentic AI </p>\n<p>Opportunities: E.ON Agentic AI project, Telia Agentic AI project</p>\n<p>Courses: check with Lucho and Elias</p>\n<p>Key persons to reach out to:</p>\n<ul>\n<li>Lucho - <a href=\"mailto:luis-alberto.farje@capgemini.com\">luis-alberto.farje@capgemini.com</a>. Google Partner responsible and AI Expert\nAsk for upskilling course and ongoing opportunities.</li>\n<li>Elias - <a href=\"mailto:elias.stove@capgemini.com\">elias.stove@capgemini.com</a>. Currently working as an AI Engineer at Telia\nAsk him for info on his journey to becoming an AI Engineer and for opportunities at Telia(they will need more resources going forward)</li>\n</ul>\n<h2>Fika</h2>\n<p>Met at fika:</p>\n<ul>\n<li>Ladan (DE at Arbets.)</li>\n<li>Anna (new at Stockholm office, works with Snowflake)</li>\n<li>Ankor (GTM Finance)</li>\n</ul>\n",
+    "notesMarkdown": "## <span style=\"background-color: transparent; color: inherit;\">Foad's tips</span>\n\n\nRole/area to focus on: AI Engineer &amp; Agentic AI \n\nOpportunities: E.ON Agentic AI project, Telia Agentic AI project\n\n\nCourses: check with Lucho and Elias\n\n\nKey persons to reach out to:\n- Lucho - luis-alberto.farje@capgemini.com. Google Partner responsible and AI Expert\nAsk for upskilling course and ongoing opportunities.\n- Elias - elias.stove@capgemini.com. Currently working as an AI Engineer at Telia\nAsk him for info on his journey to becoming an AI Engineer and for opportunities at Telia(they will need more resources going forward)\n\n\n## Fika\nMet at fika:\n- Ladan (DE at Arbets.)\n- Anna (new at Stockholm office, works with Snowflake)\n- Ankor (GTM Finance)",
+    "8-30": {
+      "checked": true,
+      "text": "Catch up, emails, planning",
+      "comment": ""
+    },
+    "9-30": {
+      "checked": true,
+      "text": "Start on GCP Cloud Developer path",
+      "comment": ""
+    }
+  },
+  "2026-01-08": {
+    "10": {
+      "checked": true,
+      "text": "Look into Google ADK (Agent Development Kit)",
+      "comment": "<span style=\"color: rgb(230, 240, 243);\">- https://www.youtube.com/watch?v=18RwoSxfb3A\n- </span><span style=\"color: rgb(230, 240, 243);\">https://google.github.io/adk-docs/</span>"
+    },
+    "15": {
+      "checked": false,
+      "text": "Google Cloud Developer Studies ",
+      "comment": ""
+    },
+    "notes": "<h2>Lunch with</h2>\n<ul>\n<li>Dimpa (?) (Scania System analyst)</li>\n<li>Donna (Mech. Eng)</li>\n<li>Roger</li>\n</ul>\n",
+    "notesMarkdown": "## Lunch with\n- Dimpa (?) (Scania System analyst)\n- Donna (Mech. Eng)\n- Roger",
+    "14-30": {
+      "checked": true,
+      "text": "Catch up with Michael",
+      "comment": "Takeaways: talk to Lucio, Elias and Daniel about my skills and whishes and see what they see for me in terms of direction."
+    },
+    "12-30": {
+      "checked": true,
+      "text": "Google Agentic Development Kit Workshop",
+      "comment": ""
+    }
+  },
+  "2026-01-12": {
+    "10-30": {
+      "checked": false,
+      "text": "Read",
+      "comment": "https://cloud.google.com/blog/products/ai-machine-learning/announcing-official-mcp-support-for-google-services"
+    }
+  },
+  "2026-01-11": {},
+  "2026-01-13": {
+    "15": {
+      "checked": true,
+      "text": "Data & AI Masterclass: Capgemini RAISE 2.0",
+      "comment": ""
+    },
+    "16": { "checked": true, "text": "Contact Mateen Kapadia", "comment": "" },
+    "10-30": {
+      "checked": true,
+      "text": "GCP Cloud Developer Studies",
+      "comment": ""
+    }
+  },
+  "2026-01-15": {
+    "10": {
+      "checked": true,
+      "text": "Create a new CV for Telia",
+      "comment": ""
+    }
+  },
+  "2026-01-16": {
+    "10": {
+      "checked": false,
+      "text": "Reach out to Lucio and Elias",
+      "comment": ""
+    },
+    "10-30": {
+      "checked": false,
+      "text": "https://degreed.com/pathway/o84o1dv584/pathway",
+      "comment": ""
+    }
+  },
+  "2026-01-14": {
+    "15": { "checked": true, "text": "Fika", "comment": "" },
+    "9-30": {
+      "checked": true,
+      "text": "GCP Cloud Developer studies",
+      "comment": "Storage, Authentication, GenAI and LLM APIs"
+    }
+  }
+}
