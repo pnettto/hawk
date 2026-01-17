@@ -49,7 +49,7 @@ class Calendar {
     daysEl.innerHTML = "";
 
     this.clearDayBtnHandlers();
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
     for (let i = 0; i < 42; i++) {
       const day = this.createDayButton(currentDate, month);
       daysEl.appendChild(day);

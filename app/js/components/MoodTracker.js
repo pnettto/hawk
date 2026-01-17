@@ -1,101 +1,115 @@
-import { loadForDate, saveForDate } from "../utils/storage.js";
-import { formatDate as formatDate } from "../utils/date.js";
+import { Component } from "./Base.js";
+import { appStore } from "../utils/store.js";
+import { formatDate } from "../utils/date.js";
+import { saveForDate } from "../utils/storage.js";
 
-class MoodTracker {
+const style = /* css */ `
+.mood-tracker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;  
+  height: 2rem;
+}
+
+.mood-tracker .selected {
+  cursor: pointer;
+}
+
+.mood-tracker .options-container {
+  display:flex;
+}
+
+.mood-tracker .options .item {
+  cursor: pointer;
+  padding: 0 0.2rem;
+  transition: transform 0.2s ease;
+}
+
+.mood-tracker .options .item:hover {
+  transform: scale(1.2);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.logo {
+    width: 2rem;
+    height: 2rem;
+}
+`;
+
+class MoodTracker extends Component {
   constructor() {
-    this.listenersInitiated = false;
-    this.currentDate = null;
+    super({ style });
+    this.addStore(appStore);
+    this.showOptions = false;
     this.logoImg = '<img src="images/logo.svg" class="logo" />';
   }
 
-  getElements() {
-    const moodTracker = document.getElementById("moodTracker");
-    return {
-      moodTracker,
-      selected: moodTracker.querySelector(".selected "),
-      options: moodTracker.querySelector(".options"),
-    };
+  toggleOptions() {
+    this.showOptions = !this.showOptions;
+    this.render();
   }
 
-  setupListeners() {
-    if (this.listenersInitiated) return;
-    const { selected, options } = this.getElements();
+  async selectMood(emoji) {
+    const { selectedDate, logs } = this.getState();
+    const dateStr = formatDate(selectedDate);
 
-    selected.addEventListener("click", () => {
-      selected.classList.toggle("hidden");
-      options.classList.toggle("hidden");
-    });
-
-    options.querySelectorAll(".item").forEach((item) => {
-      item.addEventListener("click", (e) => {
-        const selectedEmoji = e.target.innerText;
-
-        if (selectedEmoji === "❌") {
-          this.save({ clear: true });
-        } else {
-          selected.innerText = selectedEmoji;
-          this.save();
-        }
-
-        selected.classList.toggle("hidden");
-        options.classList.toggle("hidden");
-      });
-    });
-
-    document.addEventListener("newDateSelected", (e) => {
-      this.currentDate = e.detail.date;
-      this.render(e.detail.date);
-    });
-
-    this.listenersInitiated = true;
-  }
-
-  async save(options) {
-    const savedData = await loadForDate(formatDate(this.currentDate));
-    const { selected } = this.getElements();
-
-    let newMood;
-    if (options?.clear) {
-      selected.innerHTML = this.logoImg;
+    let newMood = emoji;
+    if (emoji === "❌") {
       newMood = null;
-    } else {
-      newMood = selected.innerText;
     }
 
-    const data = {
-      mood: newMood,
-    };
+    const currentLog = logs[dateStr] || {};
+    const updatedLog = { ...currentLog, mood: newMood };
 
-    const mergedData = { ...savedData, ...data };
+    appStore.updateLogForDate(dateStr, { mood: newMood });
+    await saveForDate(dateStr, updatedLog);
 
-    saveForDate(formatDate(this.currentDate), mergedData);
+    this.showOptions = false;
+    this.render();
   }
 
-  load() {
-    const { selected } = this.getElements();
+  render() {
+    const { selectedDate, logs } = this.getState();
+    const dateStr = formatDate(selectedDate);
+    const mood = logs[dateStr]?.mood || this.logoImg;
 
-    loadForDate(formatDate(this.currentDate))
-      .then((savedData) => {
-        const data = savedData || {};
-        this.mood = data.mood || this.logoImg;
+    const content = `
+      <div class="mood-tracker">
+        <span class="selected ${
+      this.showOptions ? "hidden" : ""
+    }">${mood}</span>
+        <div class="options ${this.showOptions ? "" : "hidden"}">
+          <div class="options-container">
+            <span class="item">🎉</span>
+            <span class="item">🔥</span>
+            <span class="item">😁</span>
+            <span class="item">🙂</span>
+            <span class="item">😐</span>
+            <span class="item">🙁</span>
+            <span class="item">😭</span>
+            <span class="item">😴</span>
+            <span class="item">❌</span>
+          </div>
+        </div>
+      </div>
+    `;
 
-        if (this.mood) {
-          selected.innerHTML = this.mood;
-        }
-      });
+    this.display(content);
 
-    selected.innerHTML = this.logoImg;
-  }
+    // Add event listeners after display
+    const selectedEl = this.shadowRoot.querySelector(".selected");
+    if (selectedEl) {
+      selectedEl.onclick = () => this.toggleOptions();
+    }
 
-  render(date) {
-    this.currentDate = date;
-    this.load();
-    this.setupListeners();
+    this.shadowRoot.querySelectorAll(".item").forEach((item) => {
+      item.onclick = (e) => this.selectMood(e.target.innerText);
+    });
   }
 }
 
-const tracker = new MoodTracker();
-
-export function init() {
-  tracker.render(globalThis.selectedDate);
-}
+customElements.define("mood-tracker", MoodTracker);

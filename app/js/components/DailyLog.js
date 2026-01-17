@@ -1,7 +1,12 @@
-import { HOURS_END, HOURS_START } from "../global.js";
-import { loadForDate, saveForDate } from "../utils/storage.js";
-import { formatDate as formatDate } from "../utils/date.js";
+import { Component } from "./Base.js";
+import { appStore } from "../utils/store.js";
+import { formatDate } from "../utils/date.js";
 import { debounce } from "../utils/dom.js";
+import {
+  HOURS_END as DEFAULT_END,
+  HOURS_START as DEFAULT_START,
+} from "../global.js";
+import { saveForDate } from "../utils/storage.js";
 
 const isVisuallyEmpty = (html) => {
   if (!html) return true;
@@ -12,496 +17,419 @@ const isVisuallyEmpty = (html) => {
     .trim() === "";
 };
 
-/**
- * Manages the daily log UI: hourly rows with checkboxes and text inputs.
- * Handles rendering, state persistence, and user interactions.
- */
-class DailyLog {
+const style = /* css */ `
+.hours {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2rem;
+  gap: 0.25rem;
+}
+
+.hour-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+
+.hour-row.not-empty {
+  background-color: var(--glass-dark);
+  border-radius: 0.25rem;
+}
+
+.hour-time {
+  color: var(--muted);
+  text-align: right;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.2rem;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.5;
+}
+
+.hour-row.moving-source .hour-time {
+  background-color: var(--accent);
+  color: #022;
+  border-radius: 4px;
+}
+
+.hour-row.moving-target .hour-time {
+  color: var(--accent);
+}
+
+.hour-row.moving-target .hour-time:hover {
+  text-decoration: underline;
+}
+
+.hour-row .hour-controls {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.hour-text-content {
+  display:flex;
+  flex-direction: column;
+}
+
+.hour-comment-switch {
+  font-size: 0.8rem;
+  background: none;
+  padding: 0.4rem;
+  border: none;
+  cursor: pointer;
+  opacity: 0.2;
+  padding-top: 0.35rem;
+}
+
+.hour-row.is-comment .hour-comment-switch {
+  opacity: 0.6;
+}
+
+.hour-checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem;
+  padding-top: 0.5rem;
+}
+
+.hour-checkbox {
+  appearance: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--glass);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s ease;
+}
+
+.hour-checkbox:checked {
+  background: var(--accent);
+  border: 0;
+}
+
+.hour-input,
+.hour-comment {
+  border: 0;
+  background: transparent;
+  padding: 0 0.5rem;
+  font-size: 1rem;
+  color: inherit;
+  line-height: 1.9;
+  outline: none;
+  cursor: pointer;
+}
+
+.hour-input:focus, .hour-comment:focus {
+  cursor: text;
+}
+
+.hour-comment {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  min-height: 3rem;
+  opacity: 0.6;
+  white-space: pre-wrap;
+}
+
+.hour-comment-clear {
+  font-size: 0.5rem;
+  background: none;
+  padding: 0.4rem;
+  border: none;
+  cursor: pointer;
+  opacity: 0.2;
+}
+
+.hour-comment-clear:hover {
+  opacity: 1; 
+}
+
+.highlighted .hour-time {
+  color: var(--accent);
+}
+
+.highlighted {
+  color: var(--accent);
+}
+
+.hidden {
+    display: none !important;
+}
+`;
+
+class DailyLog extends Component {
   constructor() {
-    this.HOURS_START = HOURS_START;
-    this.HOURS_END = HOURS_END;
-    this.currentDate = null;
-    this.hoursContainer = null;
-    this.listenersInitialized = false;
+    super({ style });
+    this.addStore(appStore);
+    this.HOURS_START = DEFAULT_START;
+    this.HOURS_END = DEFAULT_END;
     this.showingAllHours = false;
     this.movingFrom = null;
-    this.debouncedSave = debounce(() => {
-      if (this.currentDate) {
-        this.saveCurrentState();
-      }
-    }, 1000);
+    this.openComments = new Set();
+
+    this.debouncedSave = debounce(() => this.saveCurrentState(), 1000);
   }
 
-  /**
-   * Lazy-loads and caches DOM elements.
-   * Attaches notes input listener on first access.
-   */
-  getElements() {
-    return {
-      hoursContainer: document.getElementById("hoursContainer"),
+  connectedCallback() {
+    super.connectedCallback();
+    this._onKeyDown = (e) => {
+      if (Component.isTyping()) return;
+
+      if (e.key.toLowerCase() === "w") this.goUp();
+      if (e.key.toLowerCase() === "s") this.goDown();
+      if (e.key.toLowerCase() === "f") this.toggleShowMostHours();
     };
+    document.addEventListener("keydown", this._onKeyDown);
   }
 
-  /**
-   * Collects all hour data and notes, then persists to localStorage.
-   */
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener("keydown", this._onKeyDown);
+  }
+
   async saveCurrentState() {
-    const savedData = await loadForDate(formatDate(this.currentDate));
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer || !this.currentDate) return;
+    const { selectedDate, logs } = this.getState();
+    const dateStr = formatDate(selectedDate);
+    const rows = this.shadowRoot.querySelectorAll(".hour-row");
 
-    // Gather checkbox and input values for each hour
-    const hourInputs = hoursContainer.querySelectorAll(".hour-input");
+    const dayLogs = { ...logs[dateStr] };
 
-    // Prepare data structure
-    const data = {};
+    rows.forEach((row) => {
+      const hour = row.dataset.hour;
+      const checked = row.querySelector(".hour-checkbox").checked;
+      const text = row.querySelector(".hour-input").value;
+      const comment = row.querySelector(".hour-comment").innerHTML;
 
-    hourInputs.forEach((hourInput) => {
-      const hour = hourInput.dataset.hour;
-      const hourRow = hourInput.closest(".hour-row");
-      const checkbox = hourRow.querySelector(".hour-checkbox");
-      const comment = hourRow.querySelector(".hour-comment");
-
-      data[hour] = {
-        checked: checkbox?.checked || false,
-        text: hourInput.value,
-        comment: comment.innerHTML,
-      };
+      dayLogs[hour] = { checked, text, comment };
     });
 
-    const mergedData = { ...savedData, ...data };
     const cleanData = Object.fromEntries(
-      Object.entries(mergedData).filter((item) => {
-        const [key, value] = item;
+      Object.entries(dayLogs).filter(([key, value]) => {
         if (/^\d{1,2}(?:-\d{1,2})?$/.test(key)) {
-          return (value.checked || value.text !== "" || value.comment !== "")
-            ? item
-            : false;
+          return (value.checked || value.text !== "" ||
+            !isVisuallyEmpty(value.comment));
         }
-        return item;
+        return true;
       }),
     );
 
-    await saveForDate(formatDate(this.currentDate), cleanData);
-  }
-
-  /**
-   * Restores checkboxes and text inputs from saved data.
-   */
-  restoreState(savedData) {
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer) return;
-
-    const restoreHour = (hourKey) => {
-      const state = savedData[hourKey] ||
-        { checked: false, text: "", comment: "" };
-
-      const hourRow = hoursContainer.querySelector(
-        `.hour-row[data-hour="${hourKey}"]`,
-      );
-      const checkbox = hourRow.querySelector(`.hour-checkbox`);
-      const input = hourRow.querySelector(`.hour-input`);
-      const comment = hourRow.querySelector(`.hour-comment`);
-
-      if (input) {
-        input.value = state.text || "";
-        hourRow.classList.toggle("not-empty", state.text !== "");
-      }
-
-      if (checkbox) checkbox.checked = !!state.checked;
-
-      if (comment && !isVisuallyEmpty(state.comment)) {
-        comment.innerHTML = state.comment || "";
-        hourRow.classList.add("not-empty");
-        hourRow.classList.add("is-comment");
-      }
-    };
-
-    for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
-      restoreHour(hour); // full hour
-      restoreHour(`${hour}-30`); // mid-hour
-    }
-  }
-
-  /**
-   * Generates HTML for a single hour row.
-   * Highlights the row if it matches the current hour today.
-   */
-  createRowHTML(hour, minutes, selectedDate) {
-    const timeDisplay = new Date();
-    timeDisplay.setHours(hour, minutes, 0, 0);
-    const timeText = timeDisplay.toLocaleTimeString(
-      [],
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      },
-    );
-
-    // Highlight current hour if viewing today
-    const now = new Date();
-    const isSameDay =
-      now.toLocaleDateString() === selectedDate.toLocaleDateString();
-    const isCurrentHour = now.getHours() === hour;
-    const isCurrentMinute = minutes === 0
-      ? now.getMinutes() < 30
-      : now.getMinutes() >= 30;
-    const isHighlightedHour = isSameDay && isCurrentHour && isCurrentMinute;
-    const hourStr = `${hour}${minutes !== 0 ? ("-" + minutes) : ""}`;
-
-    return `
-        <div class="hour-row ${
-      isHighlightedHour ? "highlighted" : ""
-    }" data-hour="${hourStr}">
-          <div class="hour-time">${timeText}</div>
-          <div class="hour-controls">
-            <button class="hour-comment-switch" data-hour="${hourStr}">💬</button>
-            <div class="hour-checkbox-wrap">
-              <input type="checkbox" class="hour-checkbox" data-hour="${hourStr}" />
-            </div>
-            <div class="hour-text-content">
-            <input class="hour-input" data-hour="${hourStr}" />
-            <div class="hour-comment hidden" data-hour="${hourStr}" contenteditable="true""></div>
-            </div>
-            <button class="hour-comment-clear" data-hour="${hourStr}">✖️</button>
-          </div>
-        </div>
-        `;
-  }
-
-  /**
-   * Builds HTML for all hour rows between HOURS_START and HOURS_END.
-   */
-  buildRowsHTML(date) {
-    let html = "";
-    for (let hour = this.HOURS_START; hour <= this.HOURS_END; hour++) {
-      html += this.createRowHTML(hour, 0, date);
-      html += this.createRowHTML(hour, 30, date);
-    }
-    return html;
-  }
-
-  #handleCutOrCopy = (e) => {
-    if (e.target.matches(".hour-input")) {
-      const input = e.target;
-      if (
-        input.selectionStart === 0 &&
-        input.selectionEnd === input.value.length &&
-        input.value !== ""
-      ) {
-        const hourRow = input.closest(".hour-row");
-        const comment = hourRow.querySelector(".hour-comment");
-        const checkbox = hourRow.querySelector(".hour-checkbox");
-
-        const data = {
-          text: input.value,
-          comment: comment.innerHTML,
-          checkbox: checkbox.checked,
-        };
-
-        // External format: Text + optional comment on new line
-        const externalText = data.comment
-          ? `${data.text}\n${data.comment}`
-          : data.text;
-
-        e.clipboardData.setData("text/plain", externalText);
-        e.clipboardData.setData(
-          "application/hawk-hour",
-          JSON.stringify(data),
-        );
-        e.preventDefault();
-
-        if (e.type === "cut") {
-          comment.innerHTML = "";
-          input.value = "";
-          checkbox.checked = false;
-
-          hourRow.classList.remove("not-empty");
-          hourRow.classList.remove("is-comment");
-
-          this.saveCurrentState();
-        }
-      }
-    }
-  };
-
-  /**
-   * Sets up event delegation on the hours container.
-   * Checkboxes save immediately, text inputs save with debounce.
-   */
-  setupEventListeners() {
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer || this.listenersInitialized) return;
-
-    // Checkbox changes save immediately
-    hoursContainer.addEventListener("change", (e) => {
-      if (e.target.matches(".hour-checkbox")) {
-        this.saveCurrentState();
-      }
-    });
-
-    // Text input changes save with debounce
-    hoursContainer.addEventListener("input", (e) => {
-      if (
-        e.target.matches(".hour-comment") ||
-        e.target.matches(".hour-input")
-      ) {
-        this.debouncedSave();
-
-        if (e.target.matches(".hour-input")) {
-          e.target.classList.toggle("not-empty", e.target.value !== "");
-        }
-
-        if (e.target.matches(".hour-comment")) {
-          const hourRow = e.target.closest(".hour-row");
-          hourRow.classList.toggle("not-empty", e.target.innerHTML !== "");
-        }
-      }
-    });
-
-    hoursContainer.addEventListener("focusout", (e) => {
-      if (
-        e.target.matches(".hour-comment") ||
-        e.target.matches(".hour-input")
-      ) {
-        this.debouncedSave();
-      }
-
-      if (e.target.matches(".hour-comment")) {
-        const hourComment = e.target;
-        hourComment.classList.toggle("hidden");
-
-        const hourRow = hourComment.closest(".hour-row");
-        hourRow.classList.toggle("is-comment", e.target.textContent !== "");
-        hourRow.classList.toggle("not-empty", e.target.textContent !== "");
-      }
-    });
-
-    hoursContainer.addEventListener("cut", this.#handleCutOrCopy);
-    hoursContainer.addEventListener("copy", this.#handleCutOrCopy);
-    hoursContainer.addEventListener("paste", (e) => {
-      if (e.target.matches(".hour-input")) {
-        const jsonData = e.clipboardData.getData("application/hawk-hour");
-        if (jsonData) {
-          try {
-            const data = JSON.parse(jsonData);
-            const hourRow = e.target.closest(".hour-row");
-            const comment = hourRow.querySelector(".hour-comment");
-            const checkbox = hourRow.querySelector(".hour-checkbox");
-
-            e.target.value = data.text;
-            comment.innerHTML = data.comment;
-            if (!isVisuallyEmpty(data.comment)) {
-              hourRow.classList.add("is-comment");
-            }
-            checkbox.checked = data.checkbox;
-            hourRow.classList.toggle("not-empty", comment.innerHTML !== "");
-
-            e.preventDefault();
-            this.debouncedSave();
-          } catch (err) {
-            console.error("Failed to parse hawk-log data", err);
-          }
-        }
-      }
-    });
-
-    hoursContainer.addEventListener("click", (e) => {
-      if (e.target.matches(".hour-comment-switch")) {
-        const hourComment = e.target.closest(".hour-row").querySelector(
-          ".hour-comment",
-        );
-        hourComment.classList.toggle("hidden");
-      }
-
-      if (e.target.matches(".hour-time")) {
-        const hourRow = e.target.closest(".hour-row");
-        const hour = hourRow.dataset.hour;
-
-        if (this.movingFrom) {
-          // Just return if clicked hour is source
-          if (this.movingFrom === hour) {
-            this.movingFrom = null;
-            this.updateMovingUI();
-            return;
-          }
-
-          const targetInput = hourRow.querySelector(".hour-input");
-          const targetComment = hourRow.querySelector(".hour-comment");
-          const isTargetEmptySlot = targetInput.value.trim() === "" &&
-            isVisuallyEmpty(targetComment.innerHtml);
-
-          if (isTargetEmptySlot) {
-            // Move data, update UI
-            this.moveData(this.movingFrom, hour);
-            this.movingFrom = null;
-            this.updateMovingUI();
-          } else {
-            // Switch source if clicking another occupied slot, udpate UI
-            this.movingFrom = hour;
-            this.updateMovingUI();
-          }
-        } else {
-          // Show options on screen
-          const sourceInput = hourRow.querySelector(".hour-input");
-          const sourceComment = hourRow.querySelector(".hour-comment");
-          if (
-            sourceInput.value.trim() !== "" || sourceComment.value.trim() !== ""
-          ) {
-            this.movingFrom = hour;
-            this.updateMovingUI();
-          }
-        }
-      }
-
-      if (e.target.matches(".hour-comment-clear")) {
-        if (!confirm("Confirm?")) return;
-
-        const hourRow = e.target.closest(".hour-row");
-        const hourCheckbox = hourRow.querySelector(".hour-checkbox");
-        const hourInput = hourRow.querySelector(".hour-input");
-        const hourComment = hourRow.querySelector(".hour-comment");
-
-        hourCheckbox.checked = false;
-        hourInput.value = "";
-        hourComment.innerHTML = "";
-        hourRow.classList.remove("not-empty");
-        hourRow.classList.remove("is-comment");
-
-        this.saveCurrentState();
-      }
-    });
-
-    document.addEventListener("keydown", (event) => {
-      const active = document.activeElement;
-      const isTyping = active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable;
-      if (isTyping) return;
-
-      if (event.key.toLocaleLowerCase() === "w") this.goUp();
-      if (event.key.toLocaleLowerCase() === "s") this.goDown();
-      if (event.key.toLocaleLowerCase() === "f") this.toggleShowMostHours();
-    });
-
-    document.addEventListener("newDateSelected", (e) => {
-      this.render(e.detail.date);
-    });
-
-    this.listenersInitialized = true;
+    appStore.updateLogForDate(dateStr, cleanData);
+    await saveForDate(dateStr, cleanData);
   }
 
   goUp() {
     if (this.HOURS_START === 1) return;
     this.HOURS_START -= 1;
     this.HOURS_END -= 1;
-    this.render(this.currentDate);
+    this.render();
   }
 
   goDown() {
     if (this.HOURS_END === 23) return;
     this.HOURS_START += 1;
     this.HOURS_END += 1;
-    this.render(this.currentDate);
+    this.render();
   }
 
   toggleShowMostHours() {
     if (this.showingAllHours) {
-      this.HOURS_START = HOURS_START;
-      this.HOURS_END = HOURS_END;
+      this.HOURS_START = DEFAULT_START;
+      this.HOURS_END = DEFAULT_END;
       this.showingAllHours = false;
     } else {
       this.HOURS_START = 7;
       this.HOURS_END = 20;
       this.showingAllHours = true;
     }
-
-    this.render(this.currentDate);
-  }
-
-  updateMovingUI() {
-    const { hoursContainer } = this.getElements();
-    const rows = hoursContainer.querySelectorAll(".hour-row");
-
-    rows.forEach((row) => {
-      const hour = row.querySelector(".hour-input").dataset.hour;
-      const input = row.querySelector(".hour-input");
-      const commentTextarea = row.querySelector(".hour-comment");
-
-      row.classList.toggle("moving-source", this.movingFrom === hour);
-      row.classList.toggle(
-        "moving-target",
-        this.movingFrom && this.movingFrom !== hour && input.value === "" &&
-          commentTextarea.value === "",
-      );
-    });
+    this.render();
   }
 
   moveData(fromHour, toHour) {
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer) return;
+    const { selectedDate, logs } = this.getState();
+    const dateStr = formatDate(selectedDate);
+    const dayLogs = { ...logs[dateStr] };
 
-    const sourceInput = hoursContainer.querySelector(
-      `.hour-row[data-hour="${fromHour}"] .hour-input`,
-    );
-    const targetInput = hoursContainer.querySelector(
-      `.hour-row[data-hour="${toHour}"] .hour-input`,
-    );
+    dayLogs[toHour] = dayLogs[fromHour];
+    delete dayLogs[fromHour];
 
-    const sourceRow = sourceInput.closest(".hour-row");
-    const sourceComment = sourceRow.querySelector(".hour-comment");
-    const sourceCheckbox = sourceRow.querySelector(".hour-checkbox");
+    appStore.updateLogForDate(dateStr, dayLogs);
+    saveForDate(dateStr, dayLogs);
+    this.movingFrom = null;
+    this.render();
+  }
 
-    const targetRow = targetInput.closest(".hour-row");
-    const targetComment = targetRow.querySelector(".hour-comment");
-    const targetCheckbox = targetRow.querySelector(".hour-checkbox");
+  render() {
+    const { selectedDate, logs } = this.getState();
+    const dateStr = formatDate(selectedDate);
+    const dayLogs = logs[dateStr] || {};
+    const now = new Date();
+    const isToday = formatDate(now) === dateStr;
 
-    targetInput.value = sourceInput.value;
-    targetComment.innerHTML = sourceComment.innerHTML;
-    targetCheckbox.checked = sourceCheckbox.checked;
+    let rowsHtml = "";
+    for (let h = this.HOURS_START; h <= this.HOURS_END; h++) {
+      [0, 30].forEach((m) => {
+        const hourStr = `${h}${m !== 0 ? "-30" : ""}`;
+        const state = dayLogs[hourStr] ||
+          { checked: false, text: "", comment: "" };
+        const isCurrent = isToday && now.getHours() === h &&
+          (m === 0 ? now.getMinutes() < 30 : now.getMinutes() >= 30);
+        const timeText = `${h.toString().padStart(2, "0")}:${
+          m.toString().padStart(2, "0")
+        }`;
 
-    sourceInput.value = "";
-    sourceComment.innerHTML = "";
-    sourceCheckbox.checked = false;
-
-    // Update UI
-    sourceRow.classList.remove("not-empty");
-    sourceRow.classList.remove("is-comment");
-
-    targetRow.classList.toggle("not-empty", targetComment.value !== "");
-    if (!isVisuallyEmpty(targetComment.innerHTML)) {
-      targetRow.classList.add("is-comment");
+        rowsHtml += `
+            <div class="hour-row ${isCurrent ? "highlighted" : ""} ${
+          state.text || !isVisuallyEmpty(state.comment) ? "not-empty" : ""
+        } ${!isVisuallyEmpty(state.comment) ? "is-comment" : ""} ${
+          this.movingFrom === hourStr ? "moving-source" : ""
+        } ${
+          this.movingFrom && this.movingFrom !== hourStr && !state.text &&
+            isVisuallyEmpty(state.comment)
+            ? "moving-target"
+            : ""
+        }" data-hour="${hourStr}">
+                <div class="hour-time">${timeText}</div>
+                <div class="hour-controls">
+                    <button class="hour-comment-switch">💬</button>
+                    <div class="hour-checkbox-wrap">
+                        <input type="checkbox" class="hour-checkbox" ${
+          state.checked ? "checked" : ""
+        } />
+                    </div>
+                    <div class="hour-text-content">
+                        <input class="hour-input" value="${state.text || ""}" />
+                        <div class="hour-comment ${
+          this.openComments.has(hourStr) ? "" : "hidden"
+        }" contenteditable="true">${state.comment || ""}</div>
+                    </div>
+                    <button class="hour-comment-clear">✖️</button>
+                </div>
+            </div>`;
+      });
     }
 
-    this.saveCurrentState();
-  }
+    this.display(`<div class="hours">${rowsHtml}</div>`);
 
-  /**
-   * Main render method: builds UI, restores state, and sets up listeners.
-   */
-  render(date) {
-    const { hoursContainer } = this.getElements();
-    if (!hoursContainer) return;
+    // Listeners
+    this.shadowRoot.querySelectorAll(".hour-row").forEach((row) => {
+      const hour = row.dataset.hour;
+      const input = row.querySelector(".hour-input");
+      const comment = row.querySelector(".hour-comment");
+      const checkbox = row.querySelector(".hour-checkbox");
+      const time = row.querySelector(".hour-time");
 
-    this.currentDate = date;
-    this.movingFrom = null;
+      input.oninput = () => {
+        row.classList.toggle(
+          "not-empty",
+          input.value !== "" || !isVisuallyEmpty(comment.innerHTML),
+        );
+        this.debouncedSave();
+      };
+      comment.oninput = () => {
+        row.classList.toggle(
+          "not-empty",
+          input.value !== "" || !isVisuallyEmpty(comment.innerHTML),
+        );
+        row.classList.toggle("is-comment", !isVisuallyEmpty(comment.innerHTML));
+        this.debouncedSave();
+      };
+      checkbox.onchange = () => this.saveCurrentState();
 
-    loadForDate(formatDate(date))
-      .then((savedData) => {
-        hoursContainer.innerHTML = this.buildRowsHTML(date);
-        if (savedData) {
-          this.restoreState(savedData);
+      row.querySelector(".hour-comment-switch").onclick = () => {
+        if (this.openComments.has(hour)) this.openComments.delete(hour);
+        else this.openComments.add(hour);
+        comment.classList.toggle("hidden");
+      };
+
+      row.querySelector(".hour-comment-clear").onclick = () => {
+        if (confirm("Clear this hour?")) {
+          input.value = "";
+          comment.innerHTML = "";
+          checkbox.checked = false;
+          row.classList.remove("not-empty", "is-comment");
+          this.saveCurrentState();
         }
-      });
+      };
 
-    hoursContainer.innerHTML = this.buildRowsHTML(date);
-    this.setupEventListeners();
+      time.onclick = () => {
+        if (this.movingFrom) {
+          if (this.movingFrom === hour) {
+            this.movingFrom = null;
+          } else if (!input.value && isVisuallyEmpty(comment.innerHTML)) {
+            this.moveData(this.movingFrom, hour);
+          } else {
+            this.movingFrom = hour;
+          }
+        } else if (input.value || !isVisuallyEmpty(comment.innerHTML)) {
+          this.movingFrom = hour;
+        }
+        this.render();
+      };
+
+      // Handle Paste
+      input.onpaste = (e) => {
+        const jsonData = e.clipboardData.getData("application/hawk-hour");
+        if (jsonData) {
+          try {
+            const data = JSON.parse(jsonData);
+            input.value = data.text;
+            comment.innerHTML = data.comment;
+            checkbox.checked = data.checkbox;
+            row.classList.toggle(
+              "not-empty",
+              input.value !== "" || !isVisuallyEmpty(comment.innerHTML),
+            );
+            row.classList.toggle(
+              "is-comment",
+              !isVisuallyEmpty(comment.innerHTML),
+            );
+            e.preventDefault();
+            this.saveCurrentState();
+          } catch (_err) {
+            // ignore invalid JSON
+          }
+        }
+      };
+
+      // Handle Cut/Copy
+      const handleCopy = (e) => {
+        if (
+          input.selectionStart === 0 &&
+          input.selectionEnd === input.value.length && input.value !== ""
+        ) {
+          const data = {
+            text: input.value,
+            comment: comment.innerHTML,
+            checkbox: checkbox.checked,
+          };
+          const externalText = data.comment
+            ? `${data.text}\n${data.comment.replace(/<[^>]*>/g, "")}`
+            : data.text;
+          e.clipboardData.setData("text/plain", externalText);
+          e.clipboardData.setData(
+            "application/hawk-hour",
+            JSON.stringify(data),
+          );
+          e.preventDefault();
+          if (e.type === "cut") {
+            input.value = "";
+            comment.innerHTML = "";
+            checkbox.checked = false;
+            row.classList.remove("not-empty", "is-comment");
+            this.saveCurrentState();
+          }
+        }
+      };
+      input.oncut = handleCopy;
+      input.oncopy = handleCopy;
+    });
   }
 }
 
-const dailyLogInstance = new DailyLog();
-
-export function init() {
-  dailyLogInstance.render(globalThis.selectedDate);
-}
+customElements.define("daily-log", DailyLog);
