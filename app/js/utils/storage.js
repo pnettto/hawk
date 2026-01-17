@@ -1,18 +1,8 @@
 import { LOCALSTORAGE_KEY } from "../global.js";
 import { formatDate } from "./date.js";
 
-const isLocalHost = ["localhost", "127.0.0.1"].includes(
-  globalThis.location?.hostname,
-);
-let apiUrl = isLocalHost ? "" : "https://hawk.pnettto.deno.net";
-
-// If in extension and HAWK_USE_LOCAL is set, point to local server
-if (
-  globalThis.location?.protocol === "chrome-extension:" &&
-  localStorage.getItem("HAWK_USE_LOCAL") === "true"
-) {
-  apiUrl = "http://localhost:8000";
-}
+const apiUrl = localStorage.getItem("API_URL") ||
+  "https://hawk.pnettto.deno.net";
 
 console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
 
