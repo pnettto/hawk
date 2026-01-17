@@ -9,6 +9,7 @@ import {
   getDayLog,
   getLogs,
   migrateLogs,
+  runFileMigration,
   setDayLog,
   setLogs,
 } from "./server/routeHandlers/app.ts";
@@ -50,6 +51,7 @@ app.post("/api/day", setDayLog);
 
 // Migration endpoint
 app.post("/api/migrate", migrateLogs);
+app.post("/api/migrate-file", runFileMigration);
 
 // Notes API
 app.get("/api/notes/collections", getCollections);

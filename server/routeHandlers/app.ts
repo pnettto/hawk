@@ -1,7 +1,34 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 
-// New per-day API
+// ... (imports)
+
+// New endpoint to run migration from local backup.json file
+export async function runFileMigration(c: Context) {
+  try {
+    const backupText = await Deno.readTextFile("./backup.json");
+    const logs = JSON.parse(backupText);
+    let count = 0;
+
+    for (const [dateStr, dayData] of Object.entries(logs)) {
+      // Save directly to KV, no HTTP overhead
+      await kv.set(["logs", dateStr], JSON.stringify(dayData));
+      count++;
+    }
+
+    console.log(`[FILE MIGRATE] ✓ Migrated ${count} days from backup.json`);
+    return c.text(
+      `Successfully migrated ${count} days from local backup.json`,
+      200,
+    );
+  } catch (e) {
+    console.error("File migration failed:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return c.text(`Migration failed: ${msg}`, 500);
+  }
+}
+
+// ... existing functions
 export async function getDayLog(c: Context) {
   const dateStr = c.req.query("date");
   if (!dateStr) return c.json({ error: "Missing date parameter" }, 400);
