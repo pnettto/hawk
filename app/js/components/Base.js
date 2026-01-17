@@ -37,14 +37,20 @@ export class Component extends HTMLElement {
   }
 
   connectedCallback() {
-    // 1. Inject Component-specific style
+    // 1. Inject global base.css
+    const linkEl = document.createElement("link");
+    linkEl.setAttribute("rel", "stylesheet");
+    linkEl.setAttribute("href", "/css/base.css");
+    this.shadowRoot.appendChild(linkEl);
+
+    // 2. Inject Component-specific style
     if (this.options.style) {
       const styleEl = document.createElement("style");
       styleEl.textContent = this.options.style;
       this.shadowRoot.appendChild(styleEl);
     }
 
-    // 2. Inject Base shared style (Spinner, etc.)
+    // 3. Inject Base shared style (Spinner, etc.)
     const baseStyleEl = document.createElement("style");
     baseStyleEl.textContent = Component.spinnerCSS;
     this.shadowRoot.appendChild(baseStyleEl);
@@ -126,7 +132,10 @@ export class Component extends HTMLElement {
 
     // 2. Clear current content (except style)
     Array.from(this.shadowRoot.children)
-      .filter((el) => el.tagName.toLowerCase() !== "style")
+      .filter((el) =>
+        el.tagName.toLowerCase() !== "style" &&
+        el.tagName.toLowerCase() !== "link"
+      )
       .forEach((el) => this.shadowRoot.removeChild(el));
 
     if (!content || !content.trim()) return;

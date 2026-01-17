@@ -46,12 +46,6 @@ nav {
     display: flex;
     gap: 1rem;
     margin-bottom: 2rem;
-    opacity: 0.3;
-    transition: opacity 0.3s;
-}
-
-nav:hover {
-    opacity: 1;
 }
 
 nav button {
@@ -135,11 +129,11 @@ class MainApp extends Component {
       currentPage === "app" ? "active" : ""
     }" id="nav-app">Journal</button>
             <button class="${
-      currentPage === "notes" ? "active" : ""
-    }" id="nav-notes">Notes</button>
-            <button class="${
       currentPage === "report" ? "active" : ""
     }" id="nav-report">Report</button>
+            <button class="${
+      currentPage === "notes" ? "active" : ""
+    }" id="nav-notes">Notes</button>
         </nav>
 
         <main id="journal-page" class="page-content ${

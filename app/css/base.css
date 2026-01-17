@@ -54,12 +54,16 @@ table {
 
 th, td {
   padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--glass);;
+  border-bottom: 1px solid var(--glass);
   text-align: left;
 }
 
 thead th {
-  border-bottom: 1px solid var(--accent);;
+  border-bottom: 1px solid var(--accent);
+}
+
+a {
+    color: var(--accent) !important;
 }
 
 .hidden {
