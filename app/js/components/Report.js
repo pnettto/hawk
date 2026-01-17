@@ -3,168 +3,314 @@ import { appStore } from "../utils/store.js";
 
 class Report extends Component {
   constructor() {
-    super();
+    super({
+      style: `
+      .controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        align-items: center;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 1.5rem;
+      }
+      .date-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05rem;
+      }
+      input[type="date"] {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        padding: 0.5rem;
+        border-radius: 6px;
+        color: var(--text);
+        font-family: inherit;
+      }
+      .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 1rem;
+      }
+      button {
+        background: var(--accent);
+        color: #000;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        opacity: 0.9;
+        transition: opacity 0.2s;
+      }
+      button:hover { opacity: 1; }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--text);
+      }
+      
+      /* HTML Report Styles */
+      .report-content {
+        line-height: 1.6;
+        color: var(--text);
+      }
+      .report-content h2 {
+        color: var(--accent);
+        font-size: 1.5rem;
+        margin-top: 2.5rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 0.5rem;
+      }
+      .report-content h2:first-child { margin-top: 0; }
+      
+      .report-content h3 {
+        font-size: 1.1rem;
+        color: var(--muted);
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05rem;
+      }
+      
+      .report-content ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      
+      .report-content li {
+        margin-bottom: 0.5rem;
+        padding-left: 1.5rem;
+        position: relative;
+      }
+      
+      /* Custom checkbox bullet */
+      .report-content li::before {
+        content: "•";
+        color: var(--muted);
+        position: absolute;
+        left: 0;
+      }
+      
+      .report-content blockquote {
+        margin: 0.5rem 0 0.5rem 0;
+        padding-left: 1rem;
+        border-left: 2px solid var(--line);
+        color: var(--muted);
+        font-style: italic;
+        font-size: 0.9rem;
+      }
+      
+      .report-content strong {
+        color: var(--accent);
+        font-weight: normal;
+      }
+      
+      .report-content hr {
+        border: none;
+        border-top: 1px dashed var(--line);
+        margin: 3rem 0;
+        opacity: 0.5;
+      }
+
+      .empty-notice {
+        text-align: center;
+        padding: 3rem;
+        color: var(--muted);
+        font-style: italic;
+      }
+    `,
+    });
     this.addStore(appStore);
+
+    // Default to last 7 days
+    const today = new Date();
+    const lastWeek = new Date();
+    lastWeek.setDate(today.getDate() - 6);
+
+    this.state = {
+      startDate: this.formatDateInput(lastWeek),
+      endDate: this.formatDateInput(today),
+      markdown: "",
+    };
   }
 
-  keydownHandler = (e) => {
-    if (Component.isTyping()) return;
+  formatDateInput(date) {
+    return date.toISOString().split("T")[0];
+  }
 
-    if (e.key.toLowerCase() === "r") {
-      this.createReport();
-    }
-  };
-
-  connectedCallback() {
+  async connectedCallback() {
     super.connectedCallback();
-    document.addEventListener("keydown", this.keydownHandler);
+    await this.refreshReport();
   }
 
-  disconnectedCallback() {
-    document.removeEventListener("keydown", this.keydownHandler);
+  async refreshReport() {
+    // 1. Ensure data is loaded
+    await this.loadDataForRange();
+
+    // 2. Generate
+    const markdown = this.generateMarkdown();
+    this.state.markdown = markdown;
+    this.render();
   }
 
-  generateMarkdown(data, startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  async loadDataForRange() {
+    const start = new Date(this.state.startDate);
+    const end = new Date(this.state.endDate);
 
-    const isDateInRange = (dateStr) => {
-      const d = new Date(dateStr);
-      return d >= start && d <= end;
-    };
-
-    const sortTimes = (a, b) => {
-      const getMinutes = (t) => {
-        if (t.includes("-")) {
-          const [h, m] = t.split("-").map(Number);
-          return h * 60 + m;
-        }
-        return Number(t) * 60;
-      };
-      return getMinutes(a) - getMinutes(b);
-    };
-
-    let md = `# ${startDate} → ${endDate}\n\n`;
-
-    Object.entries(data)
-      .filter(([date]) => isDateInRange(date))
-      .sort(([a], [b]) => new Date(a) - new Date(b))
-      .forEach(([date, day]) => {
-        md += `---\n\n## ${date}\n`;
-
-        if (day.mood) {
-          md += `**Mood:** ${day.mood}\n\n`;
-        }
-
-        const entries = Object.entries(day)
-          .filter(
-            ([key, value]) =>
-              key !== "notes" &&
-              key !== "notesMarkdown" &&
-              key !== "mood" &&
-              typeof value === "object" &&
-              value.text,
-          )
-          .sort(([a], [b]) => sortTimes(a, b));
-
-        if (entries.length) {
-          md += `### ${
-            entries.some(([, v]) => v.checked === false)
-              ? "Done / Planned"
-              : "Done"
-          }\n`;
-          entries.forEach(([time, item]) => {
-            const checkbox = item.checked === false ? "- [ ]" : "-";
-            md += `${checkbox} **${time}** — ${item.text}\n`;
-          });
-          md += `\n`;
-        }
-
-        if (day.notesMarkdown && day.notesMarkdown.trim()) {
-          md += `### Notes\n${day.notesMarkdown.trim()}\n\n`;
-        }
-      });
-    return md.trim();
-  }
-
-  async copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      console.log("✅ Markdown copied to clipboard");
-    } catch (err) {
-      console.error("❌ Failed to copy:", err);
+    // Create array of dates
+    const dates = [];
+    const current = new Date(start);
+    while (current <= end) {
+      dates.push(this.formatDateInput(current));
+      current.setDate(current.getDate() + 1);
     }
+
+    // Fetch missing days
+    await Promise.all(dates.map((dateStr) => appStore.refreshDay(dateStr)));
   }
 
-  getCurrentWeekRange() {
-    const now = new Date();
-    const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+  generateMarkdown() {
+    const { logs } = this.getState(); // from appStore
+    const start = new Date(this.state.startDate);
+    const end = new Date(this.state.endDate);
+    const dateRange = [];
 
-    // Start: last Sunday (today if Sunday)
-    const start = new Date(now);
-    start.setDate(now.getDate() - day);
-    start.setHours(0, 0, 0, 0);
+    // Get all dates in range
+    const current = new Date(start);
+    while (current <= end) {
+      dateRange.push(this.formatDateInput(current));
+      current.setDate(current.getDate() + 1);
+    }
 
-    // End: next Saturday (today if Saturday)
-    const end = new Date(now);
-    end.setDate(now.getDate() + (6 - day));
-    end.setHours(23, 59, 59, 999);
+    return dateRange.map((date) => {
+      const dayLog = logs[date];
+      if (!dayLog || Object.keys(dayLog).length === 0) return null;
 
-    const toLocalISODate = (d) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
+      let dayContent = `## ${date}\n\n`;
+      let hasContent = false;
 
-    return {
-      start: toLocalISODate(start),
-      end: toLocalISODate(end),
-    };
+      // 1. Mood
+      if (dayLog.mood) {
+        dayContent += `**Mood:** ${dayLog.mood}\n\n`;
+        hasContent = true;
+      }
+
+      // 2. Tasks / Hours
+      const entries = Object.entries(dayLog)
+        .filter(([hour, data]) => {
+          // Skip non-hour keys like mood/notes (if any exist in future)
+          if (!hour.includes("-") && isNaN(Number(hour))) return false;
+
+          // Skip empty slots
+          const hasText = data.text && data.text.trim().length > 0;
+          const hasComment = data.comment && data.comment.trim().length > 0;
+          return hasText || hasComment;
+        })
+        .sort((a, b) => {
+          const getMins = (t) => {
+            const [h, m] = t.split("-").map(Number);
+            return h * 60 + (m || 0);
+          };
+          return getMins(a[0]) - getMins(b[0]);
+        })
+        .map(([hour, data]) => {
+          const time = hour.replace("-30", ":30").replace(/-00|$/, ":00");
+          const checkbox = data.checked ? "[x]" : "[ ]";
+          let line = `- ${checkbox} **${time}** ${data.text || ""}`;
+
+          if (data.comment) {
+            // Indent comment
+            const commentLines = data.comment.split("\n").map((l) => `  > ${l}`)
+              .join("\n");
+            line += `\n${commentLines}`;
+          }
+          return line;
+        });
+
+      if (entries.length > 0) {
+        dayContent += entries.join("\n") + "\n\n";
+        hasContent = true;
+      }
+
+      // 3. Day-bound Notes
+      if (dayLog.notesMarkdown && dayLog.notesMarkdown.trim()) {
+        dayContent += `### Notes\n${dayLog.notesMarkdown.trim()}\n\n`;
+        hasContent = true;
+      }
+
+      return hasContent ? dayContent : null;
+    }).filter(Boolean).join("\n---\n\n");
+  }
+
+  handleInput(e) {
+    this.state[e.target.name] = e.target.value;
+    this.refreshReport();
+  }
+
+  async copyToClipboard() {
+    if (!this.state.markdown) return;
+    try {
+      await navigator.clipboard.writeText(this.state.markdown);
+      const btn = this.shadowRoot.getElementById("copy-btn");
+      const original = btn.textContent;
+      btn.textContent = "Copied!";
+      setTimeout(() => btn.textContent = original, 2000);
+    } catch (err) {
+      console.error("Failed to copy", err);
+    }
   }
 
   render() {
+    const { startDate, endDate, markdown } = this.state;
+
+    // Parse Markdown to HTML if available, otherwise fallback to plain text
+    const htmlContent = (markdown && globalThis.marked)
+      ? marked.parse(markdown)
+      : markdown;
+
     this.display(`
-            <div class="report-container">
-                <h2>Reports</h2>
-                <p>Generate a markdown report for the current week.</p>
-                <button id="copy-report">Copy Current Week Report (Markdown)</button>
-                <style>
-                    .report-container {
-                        text-align: center;
-                        padding: 2rem;
-                        background: var(--glass-dark);
-                        border-radius: 12px;
-                    }
-                    button {
-                        background: var(--accent);
-                        color: #000;
-                        border: none;
-                        padding: 1rem 2rem;
-                        border-radius: 8px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        margin-top: 1rem;
-                    }
-                    button:hover {
-                        opacity: 0.9;
-                    }
-                    h2 { color: var(--accent); }
-                    p { color: var(--muted); }
-                </style>
-            </div>
-        `);
+      <div class="report-container">
+        <div class="controls">
+          <div class="date-group">
+            <label>From</label>
+            <input type="date" name="startDate" value="${startDate}" id="start-date">
+          </div>
+          <div class="date-group">
+            <label>To</label>
+            <input type="date" name="endDate" value="${endDate}" id="end-date">
+          </div>
+          <div class="actions">
+            <button id="refresh-btn" class="secondary">Refresh</button>
+            <button id="copy-btn">Copy</button>
+          </div>
+        </div>
 
-    this.shadowRoot.getElementById("copy-report").onclick = () =>
-      this.createReport();
-  }
+        ${
+      markdown
+        ? `<div class="report-content">${htmlContent}</div>`
+        : `<div class="empty-notice">No logs found for this period</div>`
+    }
+      </div>
+    `);
 
-  createReport() {
-    const { logs } = this.getState();
-    const { start, end } = this.getCurrentWeekRange();
-    const markdown = this.generateMarkdown(logs, start, end);
-    this.copyToClipboard(markdown);
-    console.log(`✅ Copied markdown for week ${start} → ${end}`);
+    // Bind events
+    this.shadowRoot.getElementById("start-date").onchange = (e) =>
+      this.handleInput(e);
+    this.shadowRoot.getElementById("end-date").onchange = (e) =>
+      this.handleInput(e);
+    this.shadowRoot.getElementById("refresh-btn").onclick = () =>
+      this.refreshReport();
+    this.shadowRoot.getElementById("copy-btn").onclick = () =>
+      this.copyToClipboard();
   }
 }
 
