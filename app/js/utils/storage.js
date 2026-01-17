@@ -121,6 +121,7 @@ export async function saveForDate(dateStr, data) {
     });
   } catch (e) {
     console.error(`Failed to save log for ${dateStr}:`, e);
+    throw e;
   }
 }
 
@@ -199,6 +200,7 @@ export async function saveNote(note) {
     });
   } catch (e) {
     console.error("Failed to save note:", e);
+    throw e;
   }
 }
 
