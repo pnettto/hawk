@@ -4,25 +4,28 @@ import { kv } from "../utils/kvConn.ts";
 // ... (imports)
 
 // New endpoint to run migration from local backup.json file
+// New endpoint: Run migration by uploading JSON body
 export async function runFileMigration(c: Context) {
   try {
-    const backupText = await Deno.readTextFile("./backup.json");
-    const logs = JSON.parse(backupText);
+    const logs = await c.req.json();
+    if (!logs || typeof logs !== "object") {
+      return c.text("Invalid JSON body", 400);
+    }
+
     let count = 0;
 
     for (const [dateStr, dayData] of Object.entries(logs)) {
-      // Save directly to KV, no HTTP overhead
       await kv.set(["logs", dateStr], JSON.stringify(dayData));
       count++;
     }
 
-    console.log(`[FILE MIGRATE] ✓ Migrated ${count} days from backup.json`);
+    console.log(`[UPLOAD MIGRATE] ✓ Migrated ${count} days from uploaded JSON`);
     return c.text(
-      `Successfully migrated ${count} days from local backup.json`,
+      `Successfully migrated ${count} days from uploaded body`,
       200,
     );
   } catch (e) {
-    console.error("File migration failed:", e);
+    console.error("Migration upload failed:", e);
     const msg = e instanceof Error ? e.message : String(e);
     return c.text(`Migration failed: ${msg}`, 500);
   }
