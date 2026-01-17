@@ -38,6 +38,8 @@ app.use(
   }),
 );
 
+app.post("/api/migrate-file", runFileMigration);
+
 // Protected routes: API Logs and KV Entries
 app.use("/api/*", rateLimit, auth);
 
@@ -51,7 +53,6 @@ app.post("/api/day", setDayLog);
 
 // Migration endpoint
 app.post("/api/migrate", migrateLogs);
-app.post("/api/migrate-file", runFileMigration);
 
 // Notes API
 app.get("/api/notes/collections", getCollections);
