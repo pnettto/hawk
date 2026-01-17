@@ -1,79 +1,154 @@
 import { LOCALSTORAGE_KEY } from "../global.js";
 import { formatDate } from "./date.js";
 
-const isChromeExtension = globalThis.location.href.startsWith(
-  "chrome-extension://",
+const isLocalHost = ["localhost", "127.0.0.1"].includes(
+  globalThis.location?.hostname,
 );
-const apiUrl = isChromeExtension ? "https://hawk.pnettto.deno.net" : "";
+let apiUrl = isLocalHost ? "" : "https://hawk.pnettto.deno.net";
 
-let loadAllPromise = null;
-
-export function loadAll() {
-  if (globalThis.logs) {
-    return Promise.resolve(globalThis.logs);
-  }
-
-  if (loadAllPromise) {
-    return loadAllPromise;
-  }
-
-  loadAllPromise = (async () => {
-    const apiKey = localStorage.getItem("apiKey");
-    const res = await fetch(`${apiUrl}/api/logs`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!res.ok) {
-      loadAllPromise = null;
-      return {};
-    }
-
-    const data = await res.json();
-
-    globalThis.logs = data;
-    return data;
-  })();
-
-  return loadAllPromise;
+// If in extension and HAWK_USE_LOCAL is set, point to local server
+if (
+  globalThis.location?.protocol === "chrome-extension:" &&
+  localStorage.getItem("HAWK_USE_LOCAL") === "true"
+) {
+  apiUrl = "http://localhost:8000";
 }
 
-export function saveAll(obj) {
+console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
+
+// Cache for loaded logs
+let logsCache = {};
+const pendingRequests = new Map();
+
+function getAuthHeaders() {
   const apiKey = localStorage.getItem("apiKey");
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Load all logs (needed for reports)
+ */
+export async function loadAll() {
+  const apiKey = localStorage.getItem("apiKey");
+  if (!apiKey) return {};
+
+  try {
+    const res = await fetch(`${apiUrl}/api/logs`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    logsCache = { ...logsCache, ...data };
+    return logsCache;
+  } catch (e) {
+    console.error("Failed to load all logs:", e);
+    return logsCache;
+  }
+}
+
+/**
+ * Load a single day's log
+ */
+export function loadForDate(dateStr) {
+  // 1. Check cache
+  if (logsCache[dateStr]) {
+    return logsCache[dateStr];
+  }
+
+  // 2. Check if already fetching
+  if (pendingRequests.has(dateStr)) {
+    return pendingRequests.get(dateStr);
+  }
+
+  // 3. Fetch from API
+  const apiKey = localStorage.getItem("apiKey");
+  if (!apiKey) return null;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/day?date=${encodeURIComponent(dateStr)}`,
+        {
+          headers: getAuthHeaders(),
+        },
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      logsCache[dateStr] = data;
+      return data;
+    } catch (e) {
+      console.error(`Failed to load log for ${dateStr}:`, e);
+      return null;
+    } finally {
+      pendingRequests.delete(dateStr);
+    }
+  })();
+
+  pendingRequests.set(dateStr, promise);
+  return promise;
+}
+
+/**
+ * Pre-emptively load surrounding days
+ */
+export function prefetchSurrounding(date) {
+  const prev = new Date(date);
+  prev.setDate(prev.getDate() - 1);
+  const next = new Date(date);
+  next.setDate(next.getDate() + 1);
+
+  loadForDate(formatDate(prev));
+  loadForDate(formatDate(next));
+}
+
+/**
+ * Save a single day's log
+ */
+export async function saveForDate(dateStr, data) {
+  logsCache[dateStr] = data;
+
+  const apiKey = localStorage.getItem("apiKey");
+  if (!apiKey) return;
+
+  try {
+    await fetch(`${apiUrl}/api/day?date=${encodeURIComponent(dateStr)}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error(`Failed to save log for ${dateStr}:`, e);
+  }
+}
+
+/**
+ * Legacy save all
+ */
+export function saveAll(obj) {
+  logsCache = { ...logsCache, ...obj };
+  const apiKey = localStorage.getItem("apiKey");
+  if (!apiKey) return;
+
   fetch(`${apiUrl}/api/logs`, {
     method: "POST",
     body: JSON.stringify(obj),
-    headers: {
-      "Content-Type": "text/plain",
-      "Authorization": `Bearer ${apiKey}`,
-    },
+    headers: getAuthHeaders(),
   });
 }
 
-export async function loadForDate(dateStr) {
-  const all = await loadAll();
-  return all[dateStr] || null;
-}
-
-export async function saveForDate(dateStr, data) {
-  const all = await loadAll();
-  if (!all[dateStr]) {
-    all[dateStr] = {};
-  }
-  all[dateStr] = data;
-  saveAll(all);
-}
-
-export async function backup() {
-  const obj = await loadAll();
+/**
+ * Local backup
+ */
+export function backup() {
   const dateStr = formatDate(new Date());
   try {
     localStorage.setItem(
       `${LOCALSTORAGE_KEY}_backup_${dateStr}`,
-      JSON.stringify(obj),
+      JSON.stringify(logsCache),
     );
-    console.log(`Backup ${dateStr} for  saved`);
   } catch (e) {
     console.error("Error saving backup", e);
   }

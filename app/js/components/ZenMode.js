@@ -33,11 +33,19 @@ const style = /* css */ `
 }
 `;
 
+let quotesCache = null;
+
 async function loadQuotes() {
-  const res = await fetch("/data/quotes.csv");
-  const text = await res.text();
-  const lines = text.split(/\r?\n/);
-  return lines;
+  if (quotesCache) return quotesCache;
+  try {
+    const res = await fetch("/data/quotes.csv");
+    const text = await res.text();
+    quotesCache = text.split(/\r?\n/).filter((line) => line.trim());
+    return quotesCache;
+  } catch (e) {
+    console.error("Failed to load quotes:", e);
+    return [];
+  }
 }
 
 class ZenMode extends Component {
@@ -57,11 +65,7 @@ class ZenMode extends Component {
   }
 
   keydownHandler = (e) => {
-    const active = document.activeElement;
-    const isTyping = active.tagName === "INPUT" ||
-      active.tagName === "TEXTAREA" ||
-      active.isContentEditable;
-    if (isTyping) return;
+    if (Component.isTyping()) return;
 
     if (e.key.toLowerCase() === "z") {
       this.hidden ? this.enter() : this.leave();
@@ -128,13 +132,13 @@ class ZenMode extends Component {
   }
 
   computeShouldHideByTime() {
-    const { app } = this.getState();
-    if (!app?.selectedDate) return true;
+    const { selectedDate } = this.getState();
+    if (!selectedDate) return true;
 
     const todayStr = formatDate(new Date());
-    const selectedDateStr = formatDate(app.selectedDate);
+    const selectedDateStr = formatDate(selectedDate);
     const selectedIsToday = todayStr === selectedDateStr;
-    const h = app.selectedDate.getHours();
+    const h = selectedDate.getHours();
 
     // Hide between today's 08:00 and 18:00
     return selectedIsToday && (h >= 8 && h <= 18);

@@ -1,9 +1,81 @@
-class Shortcuts {
+import { Component } from "./Base.js";
+
+const style = /* css */ `
+.shortcuts-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    box-shadow: 0 8px 40px rgba(2, 6, 8, 0.8);
+    z-index: 1000;
+}
+
+.shortcuts-trigger {
+    position: fixed;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    padding: 0.5rem;
+    color: var(--accent);
+    cursor: pointer;
+    z-index: 900;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.hidden {
+    display: none !important;
+}
+`;
+
+class ShortcutsModal extends Component {
   constructor() {
-    this.shortcutsModal = undefined;
-    this.modalOverlay = undefined;
-    this.listenersInitialized = false;
+    super({ style });
     this.isVisible = false;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._onKeyDown = (e) => {
+      if (Component.isTyping()) return;
+
+      if (e.key === "?") this.toggle();
+      if (e.key === "Escape" && this.isVisible) this.toggle();
+    };
+    document.addEventListener("keydown", this._onKeyDown);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener("keydown", this._onKeyDown);
+  }
+
+  toggle() {
+    this.isVisible = !this.isVisible;
+    this.render();
   }
 
   getContent() {
@@ -26,71 +98,26 @@ class Shortcuts {
 `;
   }
 
-  getElements() {
-    return {
-      shortcutsModal: document.getElementById("shortcutsModal"),
-      modalOverlay: document.getElementById("shortcutsModalOverlay"),
-      shortcutsTrigger: document.getElementById("shortcutsTrigger"),
-    };
-  }
+  render() {
+    const content = `
+      <div class="shortcuts-trigger">?</div>
+      <div class="modal-overlay ${this.isVisible ? "" : "hidden"}"></div>
+      <div class="shortcuts-modal ${this.isVisible ? "" : "hidden"}">
+        ${
+      globalThis.marked
+        ? marked.parse(this.getContent())
+        : "<pre>" + this.getContent() + "</pre>"
+    }
+      </div>
+    `;
 
-  toggleVisibility() {
-    const { shortcutsModal, modalOverlay } = this.getElements();
+    this.display(content);
 
-    this.isVisible = !this.isVisible;
-    shortcutsModal.classList.toggle("hidden");
-    modalOverlay.classList.toggle("hidden");
-  }
-
-  setupListeners() {
-    if (this.listenersInitialized) return;
-
-    const { shortcutsModal, modalOverlay, shortcutsTrigger } = this
-      .getElements();
-
-    document.addEventListener("keydown", (event) => {
-      const active = document.activeElement;
-      const isTyping = active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable;
-      if (isTyping) return;
-
-      if (event.key === "?") {
-        this.toggleVisibility();
-      }
-    });
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const content = this.getContent();
-      shortcutsModal.innerHTML = marked.parse(content);
-    });
-
-    modalOverlay.addEventListener("click", () => {
-      this.toggleVisibility();
-    });
-
-    document.addEventListener("keydown", (event) => {
-      if (!this.isVisible) return;
-
-      if (event.key.toLocaleLowerCase() === "escape") {
-        this.toggleVisibility();
-      }
-    });
-
-    shortcutsTrigger.addEventListener("click", () => {
-      this.toggleVisibility();
-    });
-
-    this.listenersInitialized = true;
-  }
-
-  init() {
-    this.setupListeners();
+    this.shadowRoot.querySelector(".shortcuts-trigger").onclick = () =>
+      this.toggle();
+    this.shadowRoot.querySelector(".modal-overlay").onclick = () =>
+      this.toggle();
   }
 }
 
-const shortcuts = new Shortcuts();
-
-export function init() {
-  shortcuts.init();
-}
+customElements.define("shortcuts-modal", ShortcutsModal);

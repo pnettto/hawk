@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -9,88 +9,10 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main id="app" class="container">
-      <header class="app-header">
-        <div id="moodTracker" class="mood-tracker">
-          <span class="selected"></span>
-          <div class="options hidden">
-            <div class="options-container">
-              <span class="item">🎉</span>
-              <span class="item">🔥</span>
-              <span class="item">😁</span>
-              <span class="item">🙂</span>
-              <span class="item">😐</span>
-              <span class="item">🙁</span>
-              <span class="item">😭</span>
-              <span class="item">😴</span>
-              <span class="item">❌</span>
-            </div>
-          </div>
-        </div> 
+    <main-app></main-app>
 
-        <div class="date-control">
-          <button id="prevBtn" class="cal-arrow" aria-label="Previous day">◀</button>
-
-          <div class="date-container">
-            <button id="dateDisplay" class="date-display" aria-haspopup="dialog"></button>
-            
-            <div id="calendarModal" class="calendar-modal hidden">
-              <div class="calendar-content">
-                <div class="calendar-header">
-                  <button id="calPrevMonth" class="cal-arrow">◀</button>
-                  <div id="calMonth" class="cal-month"></div>
-                  <button id="calNextMonth" class="cal-arrow">▶</button>
-                </div>
-                <div id="calToday" class="cal-today">Today</div>
-                <div id="calDays" class="cal-days"></div>
-              </div>
-            </div>
-            <div id="calendarModalOverlay" class="modal-overlay hidden"></div>
-          </div>
-
-          <button id="nextBtn" class="cal-arrow" aria-label="Next day">▶</button>
-        </div>
-      </header>
-
-      <section id="hoursContainer" class="hours"></section>
-
-      <section class="notes">
-        <div id="notesInput" class="notes-input" contenteditable="true"></div>
-      </section>
-    </main>
-
-    <div id="shortcutsModal" class="shortcuts-modal hidden"></div>
-    <div id="shortcutsModalOverlay" class="modal-overlay hidden"></div>
-    <div id="shortcutsTrigger" class="shortcuts-trigger">?</div>
-
-    <div id="mirror" class="mirror hidden">
-      <video autoplay playsinline></video>
-      <div class="looking-good">Looking good! 😍</div>
-    </div>
-    
-    <zen-mode></zen-mode>
-    <report-maker></report-maker>
-    
-    <div id="authContainer" class="auth-container hidden">
-      <form class="auth-form">
-        <div>
-          <img src="images/logo.svg" class="logo" />
-        </div>
-        <input name="password" placeholder="Type in the password" type="password" required />
-        <button type="submit">Log in</button>
-        <p>
-          The correct password is needed to save the information, but you go in and test it out.
-        </p>
-        <a href="#" class="guest">I want to test it!</a>
-        <p>Author: <a href="https://pnetto.com">Pedro Netto</a></p>
-      </form>
-    </div>
-    
-    <div id="backupSaved" class="backup-saved hidden">Backup saved!</div>
-    
-    <script type="module" src="js/index.js"></script>
     <script src="js/libs/prism.min.js"></script>
     <script src="js/libs/marked.min.js"></script>
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/index.js"></script>
   </body>
 </html>

@@ -1,11 +1,11 @@
-import { loadLogs } from "./load.js";
+import { formatDate } from "./date.js";
 
 export class Store extends EventTarget {
   #state;
 
-  constructor() {
+  constructor(initialState = {}) {
     super();
-    this.#state = {};
+    this.#state = initialState;
   }
 
   getState() {
@@ -18,23 +18,70 @@ export class Store extends EventTarget {
   }
 }
 
-// Specialization that always writes into `app`
 export class AppStore extends Store {
-  constructor () {
-    super();
-    this.setState({});
+  constructor() {
+    super({
+      selectedDate: new Date(),
+      logs: {},
+      currentPage: "app", // 'app' or 'report' etc.
+      isAuth: !!localStorage.getItem("apiKey") ||
+        localStorage.getItem("guest") === "true",
+    });
   }
 
-  setState(partial) {
-    const prevApp = this.getState().app ?? {};
-    super.setState({ app: { ...prevApp, ...partial } });
+  async setSelectedDate(date) {
+    this.setState({ selectedDate: date });
+    const dateStr = formatDate(date);
+
+    // Load this day and prefetch surrounding
+    await this.refreshDay(dateStr);
+    import("./storage.js").then((m) => m.prefetchSurrounding(date));
+  }
+
+  async refreshDay(dateStr) {
+    const { loadForDate } = await import("./storage.js");
+    const data = await loadForDate(dateStr);
+    if (data) {
+      this.updateLogForDate(dateStr, data);
+    }
+  }
+
+  setLogs(logs) {
+    this.setState({ logs });
+  }
+
+  updateLogForDate(dateStr, data) {
+    const currentState = this.getState();
+    const newLogs = { ...currentState.logs, [dateStr]: data };
+    this.setState({ logs: newLogs });
+  }
+
+  setCurrentPage(page) {
+    this.setState({ currentPage: page });
+  }
+
+  setAuth(isAuth) {
+    this.setState({ isAuth });
   }
 }
 
 export const appStore = new AppStore();
 
-const loadAppData = async () => {
-  const logs = await loadLogs();
-  appStore.setState({ logs });
+// Initial load for current date, then load all in background for reports
+const initStore = async () => {
+  const dateStr = formatDate(appStore.getState().selectedDate);
+  await appStore.refreshDay(dateStr);
+
+  // Pre-fetch surrounding days immidiately
+  import("./storage.js").then((m) =>
+    m.prefetchSurrounding(appStore.getState().selectedDate)
+  );
 };
-loadAppData();
+
+initStore();
+
+// Refresh on window focus
+globalThis.addEventListener("focus", () => {
+  const dateStr = formatDate(appStore.getState().selectedDate);
+  appStore.refreshDay(dateStr);
+});

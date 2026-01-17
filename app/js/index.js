@@ -1,2 +1,12 @@
-import './components/ZenMode.js';
-import './components/Report.js';
+import "./components/Base.js";
+import "./components/ZenMode.js";
+import "./components/Report.js";
+import "./components/MoodTracker.js";
+import "./components/DatePicker.js";
+import "./components/DailyLog.js";
+import "./components/Notes.js";
+import "./components/Shortcuts.js";
+import "./components/Auth.js";
+import "./components/Mirror.js";
+import "./components/Backup.js";
+import "./components/MainApp.js";
