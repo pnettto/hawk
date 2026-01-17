@@ -247,10 +247,6 @@ const style = /* css */ `
     cursor: pointer;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
 `;
 
 class NotesApp extends Component {
@@ -264,10 +260,11 @@ class NotesApp extends Component {
     this.selectedNid = null;
     this.isEditing = false;
     this.isPanelPinned = false;
+    this.isSaving = false; // Reset state explicitly
 
-    // state for custom modal handling
+    // ... modal state ...
     this.modalState = {
-      type: null, // 'create-collection', 'delete-collection', 'delete-note'
+      type: null,
       targetId: null,
       inputValue: "",
     };
@@ -281,7 +278,13 @@ class NotesApp extends Component {
 
   async connectedCallback() {
     super.connectedCallback();
+    this.initSavingState(); // Inherited
     await this.loadCollections();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.teardownSavingState(); // Inherited
   }
 
   async loadCollections() {
@@ -437,23 +440,10 @@ class NotesApp extends Component {
     }, 0);
   }
 
-  // Utility: Debounce
-  debounce(func, wait) {
-    let timeout;
-    return (...args) => {
-      const later = () => {
-        clearTimeout(timeout);
-        func.apply(this, args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  }
-
-  // Use this for the actual API call
-  saveNoteDebounced = this.debounce((note) => {
-    storage.saveNote(note);
-    console.log("Note saved to storage (debounced)");
+  // Use inherited wrapper for debounced save
+  saveNoteDebounced = this.wrapDebouncedSave(async (note) => {
+    await storage.saveNote(note);
+    console.log("Note saved (debounced)");
   }, 500);
 
   handleNoteUpdate() {
@@ -572,6 +562,7 @@ class NotesApp extends Component {
 
     const content = `
         ${modalHtml}
+        ${this.savingIndicatorHTML}
         <div class="sidebar ${this.isPanelPinned ? "" : "collapsed"}">
             <div class="panel-section">
                 <div class="panel-header">
@@ -652,8 +643,17 @@ class NotesApp extends Component {
     // Editor Events
     const titleInput = this.shadowRoot.getElementById("note-title");
     if (titleInput) {
+      // Only attach if element exists to avoid null ref after modal open
       titleInput.oninput = () => this.handleNoteUpdate();
       titleInput.onblur = () => this.handleBlur();
+      // Restore focus if we are editing and not in a modal
+      if (
+        this.isEditing && !this.modalState.type &&
+        this.shadowRoot.activeElement !== titleInput &&
+        this.shadowRoot.activeElement?.id !== "note-content"
+      ) {
+        // Let the browser handle natural focus, but good for restoring
+      }
     }
 
     const contentInput = this.shadowRoot.getElementById("note-content");

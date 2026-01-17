@@ -37,11 +37,17 @@ export class Component extends HTMLElement {
   }
 
   connectedCallback() {
+    // 1. Inject Component-specific style
     if (this.options.style) {
       const styleEl = document.createElement("style");
       styleEl.textContent = this.options.style;
       this.shadowRoot.appendChild(styleEl);
     }
+
+    // 2. Inject Base shared style (Spinner, etc.)
+    const baseStyleEl = document.createElement("style");
+    baseStyleEl.textContent = Component.spinnerCSS;
+    this.shadowRoot.appendChild(baseStyleEl);
 
     this.render();
   }
@@ -184,6 +190,108 @@ export class Component extends HTMLElement {
         }
       }
     }
+  }
+
+  // Saving Indicator & Debounce
+  static get spinnerCSS() {
+    return /* css */ `
+    /* Saving Indicator */
+    .saving-indicator {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 1000;
+    }
+
+    .saving-indicator.visible {
+        opacity: 1;
+    }
+
+    .spinner {
+        width: 6px;
+        height: 6px;
+        background: var(--muted);
+        border-radius: 50%;
+        animation: pulse 1s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        50% { transform: scale(1.2); opacity: 1; }
+        100% { transform: scale(0.8); opacity: 0.5; }
+    }
+    `;
+  }
+
+  get savingIndicatorHTML() {
+    // return this.isSaving ? ... but CSS controls opacity anyway
+    return `
+      <div class="saving-indicator ${this.isSaving ? "visible" : ""}">
+        <div class="spinner"></div>
+      </div>
+    `;
+  }
+
+  initSavingState() {
+    this.isSaving = false;
+    this.handleBeforeUnload = (e) => {
+      if (this.isSaving) {
+        e.preventDefault();
+        e.returnValue =
+          "Your work is still saving. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    globalThis.addEventListener("beforeunload", this.handleBeforeUnload);
+  }
+
+  teardownSavingState() {
+    globalThis.removeEventListener("beforeunload", this.handleBeforeUnload);
+  }
+
+  setSaving(saving) {
+    this.isSaving = saving;
+    const indicators = this.shadowRoot.querySelectorAll(".saving-indicator");
+    indicators.forEach((el) => {
+      if (saving) el.classList.add("visible");
+      else el.classList.remove("visible");
+    });
+  }
+
+  debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+      const later = () => {
+        clearTimeout(timeout);
+        func.apply(this, args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  wrapDebouncedSave(savePromiseFactory, wait = 500) {
+    return this.debounce(async (...args) => {
+      this.setSaving(true);
+      const minTime = new Promise((resolve) => setTimeout(resolve, 800));
+      try {
+        await Promise.all([savePromiseFactory(...args), minTime]);
+        // console.log("Saved (debounced)");
+      } catch (err) {
+        console.error("Save failed", err);
+        alert("Failed to save. check console.");
+      } finally {
+        this.setSaving(false);
+      }
+    }, wait);
   }
 
   render() {

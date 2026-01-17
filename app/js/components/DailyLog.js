@@ -1,7 +1,7 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 import { formatDate } from "../utils/date.js";
-import { debounce } from "../utils/dom.js";
+
 import {
   HOURS_END as DEFAULT_END,
   HOURS_START as DEFAULT_START,
@@ -172,13 +172,19 @@ class DailyLog extends Component {
     this.showingAllHours = false;
     this.movingFrom = null;
     this.openComments = new Set();
+    // this.isSaving is managed by Base
 
-    this.debouncedSave = debounce(() => this.saveCurrentState(), 1000);
+    this.debouncedSave = this.wrapDebouncedSave(
+      () => this.saveCurrentState(),
+      1000,
+    );
   }
 
   connectedCallback() {
     super.connectedCallback();
+    this.initSavingState();
     this._onKeyDown = (e) => {
+      // ... no changes to key handler
       if (Component.isTyping()) return;
 
       if (e.key.toLowerCase() === "w") this.goUp();
@@ -190,6 +196,7 @@ class DailyLog extends Component {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.teardownSavingState();
     document.removeEventListener("keydown", this._onKeyDown);
   }
 
@@ -314,7 +321,9 @@ class DailyLog extends Component {
       });
     }
 
-    this.display(`<div class="hours">${rowsHtml}</div>`);
+    this.display(
+      `${this.savingIndicatorHTML}<div class="hours">${rowsHtml}</div>`,
+    );
 
     // Listeners
     this.shadowRoot.querySelectorAll(".hour-row").forEach((row) => {
