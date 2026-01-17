@@ -197,7 +197,7 @@ export class Component extends HTMLElement {
     return /* css */ `
     /* Saving Indicator */
     .saving-indicator {
-        position: absolute;
+        position: fixed;
         top: 2rem;
         right: 2rem;
         font-size: 0.8rem;
@@ -208,7 +208,7 @@ export class Component extends HTMLElement {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        z-index: 1000;
+        z-index: 9999;
     }
 
     .saving-indicator.visible {
@@ -228,20 +228,35 @@ export class Component extends HTMLElement {
         50% { transform: scale(1.2); opacity: 1; }
         100% { transform: scale(0.8); opacity: 0.5; }
     }
+
+    .saving-indicator.error {
+        background: rgba(255, 68, 68, 0.1);
+        border-color: #ff4444;
+        color: #ff4444;
+    }
     `;
   }
 
   get savingIndicatorHTML() {
-    // return this.isSaving ? ... but CSS controls opacity anyway
     return `
-      <div class="saving-indicator ${this.isSaving ? "visible" : ""}">
-        <div class="spinner"></div>
+      <div class="saving-indicator ${
+      this.isSaving || this.isSaveError ? "visible" : ""
+    } ${this.isSaveError ? "error" : ""}">
+        <div class="spinner" style="${
+      this.isSaveError ? "display:none" : ""
+    }"></div>
+        ${
+      this.isSaveError
+        ? '<span class="error-text" style="font-weight:bold">Could not be saved</span>'
+        : ""
+    }
       </div>
     `;
   }
 
   initSavingState() {
     this.isSaving = false;
+    this.isSaveError = false;
     this.handleBeforeUnload = (e) => {
       if (this.isSaving) {
         e.preventDefault();
@@ -259,10 +274,42 @@ export class Component extends HTMLElement {
 
   setSaving(saving) {
     this.isSaving = saving;
+    if (saving) this.isSaveError = false;
+
     const indicators = this.shadowRoot.querySelectorAll(".saving-indicator");
     indicators.forEach((el) => {
-      if (saving) el.classList.add("visible");
-      else el.classList.remove("visible");
+      if (saving) {
+        el.classList.add("visible");
+        el.classList.remove("error");
+        el.querySelector(".error-text")?.remove();
+        const spinner = el.querySelector(".spinner");
+        if (spinner) spinner.style.display = "";
+      } else {
+        if (!this.isSaveError) {
+          el.classList.remove("visible");
+        }
+      }
+    });
+  }
+
+  setSaveError() {
+    this.isSaveError = true;
+    this.isSaving = false;
+    const indicators = this.shadowRoot.querySelectorAll(".saving-indicator");
+    indicators.forEach((el) => {
+      el.classList.add("visible");
+      el.classList.add("error");
+
+      const spinner = el.querySelector(".spinner");
+      if (spinner) spinner.style.display = "none";
+
+      if (!el.querySelector(".error-text")) {
+        const span = document.createElement("span");
+        span.className = "error-text";
+        span.style.fontWeight = "bold";
+        span.textContent = "Could not be saved";
+        el.appendChild(span);
+      }
     });
   }
 
@@ -287,7 +334,7 @@ export class Component extends HTMLElement {
         // console.log("Saved (debounced)");
       } catch (err) {
         console.error("Save failed", err);
-        alert("Failed to save. check console.");
+        this.setSaveError();
       } finally {
         this.setSaving(false);
       }

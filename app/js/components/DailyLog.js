@@ -348,7 +348,7 @@ class DailyLog extends Component {
         row.classList.toggle("is-comment", !isVisuallyEmpty(comment.innerHTML));
         this.debouncedSave();
       };
-      checkbox.onchange = () => this.saveCurrentState();
+      checkbox.onchange = () => this.debouncedSave();
 
       row.querySelector(".hour-comment-switch").onclick = () => {
         if (this.openComments.has(hour)) this.openComments.delete(hour);
@@ -362,7 +362,7 @@ class DailyLog extends Component {
           comment.innerHTML = "";
           checkbox.checked = false;
           row.classList.remove("not-empty", "is-comment");
-          this.saveCurrentState();
+          this.debouncedSave();
         }
       };
 
@@ -399,7 +399,7 @@ class DailyLog extends Component {
               !isVisuallyEmpty(comment.innerHTML),
             );
             e.preventDefault();
-            this.saveCurrentState();
+            this.debouncedSave();
           } catch (_err) {
             // ignore invalid JSON
           }
@@ -431,7 +431,7 @@ class DailyLog extends Component {
             comment.innerHTML = "";
             checkbox.checked = false;
             row.classList.remove("not-empty", "is-comment");
-            this.saveCurrentState();
+            this.debouncedSave();
           }
         }
       };
