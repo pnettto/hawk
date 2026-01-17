@@ -27,7 +27,7 @@ class Report extends Component {
       }
       input[type="date"] {
         background: var(--bg);
-        border: 1px solid var(--line);
+        border: none;
         padding: 0.5rem;
         border-radius: 6px;
         color: var(--text);
