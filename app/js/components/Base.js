@@ -351,6 +351,6 @@ export class Component extends HTMLElement {
   }
 
   render() {
-    this.shadowRoot.innerHTML = "";
+    // Subclasses should override this or use display() to update content
   }
 }

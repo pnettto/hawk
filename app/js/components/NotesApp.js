@@ -1,6 +1,7 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 import * as storage from "../utils/storage.js";
+import "./RichEditor.js"; // Import the new component
 
 const style = /* css */ `
 :host {
@@ -80,6 +81,7 @@ const style = /* css */ `
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
+    overflow-y: auto;
 }
 
 #note-title {
@@ -93,35 +95,19 @@ const style = /* css */ `
     margin-bottom: 1.5rem;
     opacity: 0.95;
     font-family: inherit;
+    flex-shrink: 0;
 }
 
-#note-content {
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 1.1rem;
-    width: 100%;
-    height: 100%;
-    outline: none;
-    resize: none;
-    line-height: var(--lh);
-    font-family: inherit;
-    opacity: 0.85;
+#rich-editor-container {
+    /* Container grows with RichEditor */
+    position: relative;
 }
 
-.rendered-content {
-    line-height: var(--lh);
-    font-size: var(--small);
-    opacity: 0.85;
-    cursor: text;
-    min-height: 300px;
+/* Base styles for RichEditor are inside its shadow DOM, but we control container layout */
+rich-editor {
+    display: block;
 }
 
-.rendered-content h1, .rendered-content h2, .rendered-content h3 { 
-    font-size: var(--h2);
-    border-bottom: 1px solid var(--line); 
-    padding-bottom: 0.5rem; 
-}
 
 .btn-icon-tiny {
     background: none;
@@ -259,9 +245,8 @@ class NotesApp extends Component {
     this.selectedCid = null;
     this.notes = [];
     this.selectedNid = null;
-    this.isEditing = false;
     this.isPanelPinned = false;
-    this.isSaving = false; // Reset state explicitly
+    this.isSaving = false;
 
     // ... modal state ...
     this.modalState = {
@@ -271,8 +256,6 @@ class NotesApp extends Component {
     };
 
     // Bind handlers
-    this.toggleEdit = this.toggleEdit.bind(this);
-    this.handleBlur = this.handleBlur.bind(this);
     this.handleModalSubmit = this.handleModalSubmit.bind(this);
     this.closeModal = this.closeModal.bind(this);
   }
@@ -304,7 +287,6 @@ class NotesApp extends Component {
   }
 
   // --- Modal Actions ---
-
   promptCreateCollection() {
     this.modalState = {
       type: "create-collection",
@@ -369,7 +351,7 @@ class NotesApp extends Component {
     this.closeModal();
   }
 
-  // --- CRUD Operations (now routed through modal actions or direct updates) ---
+  // --- CRUD Operations ---
 
   async createNote() {
     if (!this.selectedCid) return;
@@ -384,7 +366,6 @@ class NotesApp extends Component {
     this.notes.unshift(newNote);
     await storage.saveNote(newNote);
     this.selectedNid = nid;
-    this.isEditing = true;
     this.render();
 
     this.focusElement("#note-title", true);
@@ -399,36 +380,15 @@ class NotesApp extends Component {
 
   selectNote(nid) {
     this.selectedNid = nid;
-    this.isEditing = false;
     this.isPanelPinned = false;
     this.render();
-  }
 
-  toggleEdit() {
-    this.isEditing = true;
-    this.render();
-    this.focusElement("#note-content");
-  }
-
-  handleBlur() {
-    // If a modal is open, do not cancel editing based on blur events
-    if (this.modalState.type) return;
-
-    setTimeout(() => {
-      const active = this.shadowRoot.activeElement;
-      // Also check if focus moved to a part of the modal
-      if (
-        active && (
-          active.id === "note-title" ||
-          active.id === "note-content" ||
-          active.classList.contains("modal-input") ||
-          active.tagName === "BUTTON"
-        )
-      ) return;
-
-      this.isEditing = false;
-      this.render();
-    }, 150);
+    // Set editor value after render
+    const note = this.notes.find((n) => n.id === nid);
+    const editor = this.shadowRoot.querySelector("rich-editor");
+    if (editor && note) {
+      editor.setValue(note.content);
+    }
   }
 
   focusElement(selector, select = false) {
@@ -447,24 +407,24 @@ class NotesApp extends Component {
     console.log("Note saved (debounced)");
   }, 500);
 
-  handleNoteUpdate() {
+  handleNoteUpdate(content) {
     const titleEl = this.shadowRoot.getElementById("note-title");
-    const contentEl = this.shadowRoot.getElementById("note-content");
-    if (!titleEl || !contentEl) return;
 
-    const title = titleEl.value;
-    const content = contentEl.value;
+    // If updating title
+    const title = titleEl ? titleEl.value : "";
 
     const note = this.notes.find((n) => n.id === this.selectedNid);
     if (note) {
-      note.title = title;
-      note.content = content;
+      if (titleEl) note.title = title;
+      if (content !== undefined) note.content = content; // If content passed
 
       // Update sidebar title in real-time immediately
-      const titleInSidebar = this.shadowRoot.querySelector(
-        `.note-item[data-nid="${this.selectedNid}"] .title-text`,
-      );
-      if (titleInSidebar) titleInSidebar.textContent = title || "Untitled";
+      if (titleEl) {
+        const titleInSidebar = this.shadowRoot.querySelector(
+          `.note-item[data-nid="${this.selectedNid}"] .title-text`,
+        );
+        if (titleInSidebar) titleInSidebar.textContent = title || "Untitled";
+      }
 
       // Trigger debounced save
       this.saveNoteDebounced(note);
@@ -473,9 +433,6 @@ class NotesApp extends Component {
 
   render() {
     const currentNote = this.notes.find((n) => n.id === this.selectedNid);
-    const renderedHtml = currentNote && globalThis.marked
-      ? globalThis.marked.parse(currentNote.content)
-      : (currentNote?.content || "");
 
     const collectionsHtml = this.collections.map((c) => `
         <div class="list-item ${
@@ -502,20 +459,9 @@ class NotesApp extends Component {
                    value="${currentNote.title}">
         </div>
         
-        ${
-        this.isEditing
-          ? `
-            <textarea id="note-content">${currentNote.content}</textarea>
-        `
-          : `
-            <div class="rendered-content">
-                ${
-            renderedHtml ||
-            '<span style="opacity:0.3">Focus your thoughts here...</span>'
-          }
-            </div>
-        `
-      }
+        <div id="rich-editor-container">
+            <rich-editor></rich-editor>
+        </div>
     `
       : `
         <div class="empty-state">
@@ -590,6 +536,7 @@ class NotesApp extends Component {
     this.display(content);
 
     // --- Events ---
+    // (Events kept mostly same, but rich-editor specific added)
 
     // Modal Events
     if (this.modalState.type) {
@@ -644,28 +591,19 @@ class NotesApp extends Component {
     // Editor Events
     const titleInput = this.shadowRoot.getElementById("note-title");
     if (titleInput) {
-      // Only attach if element exists to avoid null ref after modal open
       titleInput.oninput = () => this.handleNoteUpdate();
-      titleInput.onblur = () => this.handleBlur();
-      // Restore focus if we are editing and not in a modal
-      if (
-        this.isEditing && !this.modalState.type &&
-        this.shadowRoot.activeElement !== titleInput &&
-        this.shadowRoot.activeElement?.id !== "note-content"
-      ) {
-        // Let the browser handle natural focus, but good for restoring
-      }
     }
 
-    const contentInput = this.shadowRoot.getElementById("note-content");
-    if (contentInput) {
-      contentInput.oninput = () => this.handleNoteUpdate();
-      contentInput.onblur = () => this.handleBlur();
-    }
+    // Rich Editor Events
+    const richEditor = this.shadowRoot.querySelector("rich-editor");
+    if (richEditor && currentNote) {
+      // Init value
+      richEditor.setValue(currentNote.content);
 
-    const renderedDiv = this.shadowRoot.querySelector(".rendered-content");
-    if (renderedDiv) {
-      renderedDiv.onclick = () => this.toggleEdit();
+      // Listen for changes
+      richEditor.addEventListener("change", (e) => {
+        this.handleNoteUpdate(e.detail);
+      });
     }
   }
 }
