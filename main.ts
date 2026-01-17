@@ -8,8 +8,6 @@ import { rateLimit } from "./server/middleware/rateLimit.ts";
 import {
   getDayLog,
   getLogs,
-  migrateLogs,
-  runFileMigration,
   setDayLog,
   setLogs,
 } from "./server/routeHandlers/app.ts";
@@ -38,8 +36,6 @@ app.use(
   }),
 );
 
-app.post("/api/migrate-file", runFileMigration);
-
 // Protected routes: API Logs and KV Entries
 app.use("/api/*", rateLimit, auth);
 
@@ -50,9 +46,6 @@ app.post("/api/logs", setLogs);
 // Per-day API (new)
 app.get("/api/day", getDayLog);
 app.post("/api/day", setDayLog);
-
-// Migration endpoint
-app.post("/api/migrate", migrateLogs);
 
 // Notes API
 app.get("/api/notes/collections", getCollections);

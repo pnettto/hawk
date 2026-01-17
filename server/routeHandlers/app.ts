@@ -1,36 +1,6 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 
-// ... (imports)
-
-// New endpoint to run migration from local backup.json file
-// New endpoint: Run migration by uploading JSON body
-export async function runFileMigration(c: Context) {
-  try {
-    const logs = await c.req.json();
-    if (!logs || typeof logs !== "object") {
-      return c.text("Invalid JSON body", 400);
-    }
-
-    let count = 0;
-
-    for (const [dateStr, dayData] of Object.entries(logs)) {
-      await kv.set(["logs", dateStr], JSON.stringify(dayData));
-      count++;
-    }
-
-    console.log(`[UPLOAD MIGRATE] ✓ Migrated ${count} days from uploaded JSON`);
-    return c.text(
-      `Successfully migrated ${count} days from uploaded body`,
-      200,
-    );
-  } catch (e) {
-    console.error("Migration upload failed:", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    return c.text(`Migration failed: ${msg}`, 500);
-  }
-}
-
 // ... existing functions
 export async function getDayLog(c: Context) {
   const dateStr = c.req.query("date");
@@ -135,24 +105,4 @@ export async function setLogs(c: Context) {
   }
 
   return c.text("Logs saved", 200);
-}
-
-// Migration endpoint
-export async function migrateLogs(c: Context) {
-  const result = await kv.get<string>(["backup", "hawk_backup"]);
-  if (!result.value) return c.text("No legacy data to migrate", 200);
-
-  try {
-    const logs = JSON.parse(result.value);
-    let count = 0;
-    for (const [dateStr, dayData] of Object.entries(logs)) {
-      await kv.set(["logs", dateStr], JSON.stringify(dayData));
-      count++;
-    }
-    console.log(`[MIGRATE] ✓ Migrated ${count} days from legacy backup`);
-    return c.text(`Migrated ${count} days`, 200);
-  } catch (e) {
-    console.error("[MIGRATE] ✗ Failed:", e);
-    return c.text("Migration failed", 500);
-  }
 }
