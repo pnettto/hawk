@@ -10,14 +10,15 @@ Install locally in Chrome/Edge:
 4. Open a new tab to see the page.
 
 Note:
+
 - Data is stored in the extension's page `localStorage`
 
 ## Backlog
+
 - Add search: type a word to go to day (maybe you want to restore notes from that day, for example)
 - Report: mood stats in period, finished tasks in period, etc
 - Tabbed/Vertical switch: two ways of seeing the content (tabs on a sidebar?)
 - Save settings automatically for the next load
-- Migrate to Web Components
 - Save data in cloud storage (multi-device)
 - Auth
 - Auto backup
