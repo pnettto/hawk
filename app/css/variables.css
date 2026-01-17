@@ -7,4 +7,13 @@
     --glass: rgba(255, 255, 255, 0.12);
     --glass-dark: hsl(210deg 15% 15% / 80%);
     --text: hsl(210deg 10% 90%);
+
+    /* Typography */
+    --font-mono: 'JetBrains Mono', monospace;
+    --h1: 2.5rem;
+    --h2: 1.8rem;
+    --h3: 1.4rem;
+    --body: 1rem;
+    --small: 0.85rem;
+    --lh: 1.6;
 }
