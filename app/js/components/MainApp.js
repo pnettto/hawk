@@ -277,17 +277,27 @@ class MainApp extends Component {
     this.display(content);
 
     if (isAuth) {
-      this.shadowRoot.getElementById("nav-app").onclick = () =>
-        appStore.setCurrentPage("app");
-      this.shadowRoot.getElementById("nav-notes").onclick = () =>
-        appStore.setCurrentPage("notes");
-      this.shadowRoot.getElementById("nav-report").onclick = () =>
-        appStore.setCurrentPage("report");
+      this.shadowRoot.getElementById("nav-app").addEventListener(
+        "click",
+        () => appStore.setCurrentPage("app"),
+      );
+      this.shadowRoot.getElementById("nav-notes").addEventListener(
+        "click",
+        () => appStore.setCurrentPage("notes"),
+      );
+      this.shadowRoot.getElementById("nav-report").addEventListener(
+        "click",
+        () => appStore.setCurrentPage("report"),
+      );
 
-      this.shadowRoot.getElementById("tab-tasks").onclick = () =>
-        appStore.setJournalTab("tasks");
-      this.shadowRoot.getElementById("tab-notes").onclick = () =>
-        appStore.setJournalTab("notes");
+      this.shadowRoot.getElementById("tab-tasks").addEventListener(
+        "click",
+        () => appStore.setJournalTab("tasks"),
+      );
+      this.shadowRoot.getElementById("tab-notes").addEventListener(
+        "click",
+        () => appStore.setJournalTab("notes"),
+      );
     }
   }
 }

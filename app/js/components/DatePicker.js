@@ -252,21 +252,41 @@ class DatePicker extends Component {
     this.display(content);
 
     // Events
-    this.shadowRoot.getElementById("prevBtn").onclick = () => this.goPrev();
-    this.shadowRoot.getElementById("nextBtn").onclick = () => this.goNext();
-    this.shadowRoot.getElementById("dateDisplay").onclick = () =>
-      this.toggleCalendar();
+    this.shadowRoot.getElementById("prevBtn").addEventListener(
+      "click",
+      () => this.goPrev(),
+    );
+    this.shadowRoot.getElementById("nextBtn").addEventListener(
+      "click",
+      () => this.goNext(),
+    );
+    this.shadowRoot.getElementById("dateDisplay").addEventListener(
+      "click",
+      () => this.toggleCalendar(),
+    );
 
     if (this.showCalendar) {
-      this.shadowRoot.getElementById("calPrevMonth").onclick = () =>
-        this.changeMonth(-1);
-      this.shadowRoot.getElementById("calNextMonth").onclick = () =>
-        this.changeMonth(1);
-      this.shadowRoot.getElementById("calToday").onclick = () => this.goToday();
-      this.shadowRoot.querySelector(".modal-overlay").onclick = () =>
-        this.toggleCalendar();
+      this.shadowRoot.getElementById("calPrevMonth").addEventListener(
+        "click",
+        () => this.changeMonth(-1),
+      );
+      this.shadowRoot.getElementById("calNextMonth").addEventListener(
+        "click",
+        () => this.changeMonth(1),
+      );
+      this.shadowRoot.getElementById("calToday").addEventListener(
+        "click",
+        () => this.goToday(),
+      );
+      this.shadowRoot.querySelector(".modal-overlay").addEventListener(
+        "click",
+        () => this.toggleCalendar(),
+      );
       this.shadowRoot.querySelectorAll(".cal-day").forEach((btn) => {
-        btn.onclick = () => this.selectDate(new Date(btn.dataset.date));
+        btn.addEventListener(
+          "click",
+          () => this.selectDate(new Date(btn.dataset.date)),
+        );
       });
     }
   }

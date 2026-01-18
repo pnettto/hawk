@@ -124,10 +124,14 @@ class AuthOverlay extends Component {
 
     this.display(content);
 
-    this.shadowRoot.querySelector("form").onsubmit = (e) =>
-      this.handleSubmit(e);
-    this.shadowRoot.querySelector(".guest").onclick = (e) =>
-      this.handleGuest(e);
+    this.shadowRoot.querySelector("form").addEventListener(
+      "submit",
+      (e) => this.handleSubmit(e),
+    );
+    this.shadowRoot.querySelector(".guest").addEventListener(
+      "click",
+      (e) => this.handleGuest(e),
+    );
   }
 }
 

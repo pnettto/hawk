@@ -102,11 +102,14 @@ class MoodTracker extends Component {
     // Add event listeners after display
     const selectedEl = this.shadowRoot.querySelector(".selected");
     if (selectedEl) {
-      selectedEl.onclick = () => this.toggleOptions();
+      selectedEl.addEventListener("click", () => this.toggleOptions());
     }
 
     this.shadowRoot.querySelectorAll(".item").forEach((item) => {
-      item.onclick = (e) => this.selectMood(e.target.innerText);
+      item.addEventListener(
+        "click",
+        (e) => this.selectMood(e.target.innerText),
+      );
     });
   }
 }
