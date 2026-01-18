@@ -179,13 +179,19 @@ class Report extends Component {
       let dayContent = `## ${date} ${dayName}\n\n`;
       let hasContent = false;
 
-      // 1. Mood
+      // 1. Day-bound Notes
+      if (dayLog.notesMarkdown && dayLog.notesMarkdown.trim()) {
+        dayContent += `${dayLog.notesMarkdown.trim()}\n\n`;
+        hasContent = true;
+      }
+
+      // 2. Mood
       if (dayLog.mood) {
         dayContent += `**Mood:** ${dayLog.mood}\n\n`;
         hasContent = true;
       }
 
-      // 2. Tasks / Hours
+      // 3. Tasks / Hours
       const entries = Object.entries(dayLog)
         .filter(([hour, data]) => {
           // Skip non-hour keys like mood/notes (if any exist in future)

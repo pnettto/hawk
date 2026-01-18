@@ -5,12 +5,18 @@ import "./RichEditor.js"; // Import the new component
 
 const style = /* css */ `
 :host {
-    display: flex;
+    display: block;
     color: var(--text);
     font-family: var(--font-mono);
-    gap: 1.5rem;
     position: relative;
     font-size: var(--body);
+}
+
+@media (max-width: 1400px) {
+    :host {
+        display: flex;
+        gap: 1.5rem;
+    }
 }
 
 .sidebar {
@@ -18,13 +24,16 @@ const style = /* css */ `
     display: flex;
     flex-direction: column;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: absolute;
+    right: calc(100% + 4rem);
+    top: 0;
+    z-index: 10;
 }
 
 :host(.maximized) .sidebar {
     width: 0;
     opacity: 0;
     pointer-events: none;
-    margin-right: -1.5rem;
 }
 
 .panel-section {
@@ -279,7 +288,8 @@ class NotesApp extends Component {
 
   async loadNotes() {
     if (!this.selectedCid) return;
-    this.notes = await storage.getCollectionNotes(this.selectedCid);
+    const notes = await storage.getCollectionNotes(this.selectedCid);
+    this.notes = notes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     this.render();
   }
 
@@ -386,6 +396,7 @@ class NotesApp extends Component {
     if (editor && note) {
       editor.setValue(note.content);
     }
+    globalThis.scrollTo(0, 0);
   }
 
   focusElement(selector, select = false) {
