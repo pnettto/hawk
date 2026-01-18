@@ -8,6 +8,7 @@ import { rateLimit } from "./server/middleware/rateLimit.ts";
 import {
   getDayLog,
   getLogs,
+  getRangeLog,
   setDayLog,
   setLogs,
 } from "./server/routeHandlers/app.ts";
@@ -45,6 +46,7 @@ app.post("/api/logs", setLogs);
 
 // Per-day API (new)
 app.get("/api/day", getDayLog);
+app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
 
 // Notes API

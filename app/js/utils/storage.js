@@ -82,6 +82,32 @@ export function loadForDate(dateStr) {
 }
 
 /**
+ * Load a range of dates
+ */
+export async function loadForRange(start, end) {
+  const apiKey = localStorage.getItem("apiKey");
+  if (!apiKey) return {};
+
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/range?start=${encodeURIComponent(start)}&end=${
+        encodeURIComponent(end)
+      }`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    logsCache = { ...logsCache, ...data };
+    return data;
+  } catch (e) {
+    console.error(`Failed to load range ${start} to ${end}:`, e);
+    return {};
+  }
+}
+
+/**
  * Pre-emptively load surrounding days
  */
 export function prefetchSurrounding(date) {
