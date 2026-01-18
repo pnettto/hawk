@@ -240,6 +240,101 @@ rich-editor {
     cursor: pointer;
 }
 
+.inline-create {
+    padding: 0.4rem 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.inline-create input {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+}
+/* Undo Toast */
+.undo-toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    z-index: 1000;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.undo-toast span {
+    font-size: 0.9rem;
+}
+
+.undo-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+}
+
+.undo-btn:hover {
+    transform: scale(1.05);
+}
+
+.list-item.confirming {
+    background: rgba(255, 68, 68, 0.1) !important;
+    border: 1px solid rgba(255, 68, 68, 0.2);
+}
+
+.confirm-msg {
+    font-size: 0.8rem;
+    color: #ff4444;
+    font-weight: bold;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.confirm-btn-text {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0.8;
+}
+
+.confirm-btn-text:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.1);
+}
+
+.confirm-btn-text.yes {
+    color: #ff4444;
+    font-weight: 800;
+}
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
 `;
 
 class NotesApp extends Component {
@@ -255,16 +350,10 @@ class NotesApp extends Component {
     this.isPanelPinned = false;
     this.isSaving = false;
 
-    // ... modal state ...
-    this.modalState = {
-      type: null,
-      targetId: null,
-      inputValue: "",
-    };
-
-    // Bind handlers
-    this.handleModalSubmit = this.handleModalSubmit.bind(this);
-    this.closeModal = this.closeModal.bind(this);
+    this.isCreatingCollection = false;
+    this.confirmingDeleteCid = null;
+    // Undo state
+    this.pendingDeletes = new Map(); // id -> { timeout, originalNotes }
   }
 
   async connectedCallback() {
@@ -279,98 +368,151 @@ class NotesApp extends Component {
   }
 
   async loadCollections() {
-    // 1. Load collections and full index in parallel
+    console.log("[NotesApp] Loading collections and index...");
     const [collections, fullIndex] = await Promise.all([
       storage.getNotesCollections(),
       storage.getNotesIndex(),
     ]);
 
     this.collections = collections;
-    this.allNotes = fullIndex;
+    this.allNotes = Array.isArray(fullIndex) ? fullIndex : [];
+    console.log(
+      `[NotesApp] Loaded ${this.collections.length} collections, ${this.allNotes.length} notes in index.`,
+    );
 
     if (this.collections.length > 0 && !this.selectedCid) {
       this.selectedCid = this.collections[0].id;
     }
 
-    this.loadNotes();
-    this.render();
+    await this.loadNotes();
   }
 
-  loadNotes() {
+  async loadNotes() {
     if (!this.selectedCid) {
       this.notes = [];
-    } else {
-      this.notes = this.allNotes
-        .filter((n) => n.cid === this.selectedCid)
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      this.render();
+      return;
     }
+
+    // 1. Try local index first
+    let collectionNotes = this.allNotes.filter(
+      (n) => String(n.cid) === String(this.selectedCid),
+    );
+
+    // 2. Fallback: If local index is empty but we have collections, try fetching directly
+    // (This helps if /api/notes/index is not supported or was empty)
+    if (collectionNotes.length === 0) {
+      console.log(
+        `[NotesApp] Index empty for ${this.selectedCid}, falling back to direct fetch...`,
+      );
+      const fetched = await storage.getCollectionNotes(this.selectedCid);
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        // Merge into global index to avoid future fallbacks
+        fetched.forEach((fn) => {
+          if (!this.allNotes.find((an) => an.id === fn.id)) {
+            this.allNotes.push(fn);
+          }
+        });
+        collectionNotes = fetched;
+      }
+    }
+
+    this.notes = collectionNotes.sort((a, b) =>
+      (b.createdAt || 0) - (a.createdAt || 0)
+    );
     this.render();
   }
 
-  // --- Modal Actions ---
+  // --- Collection Actions ---
   promptCreateCollection() {
-    this.modalState = {
-      type: "create-collection",
-      targetId: null,
-      inputValue: "",
-    };
+    this.isCreatingCollection = true;
     this.render();
     setTimeout(() => {
-      const input = this.shadowRoot.getElementById("modal-input");
+      const input = this.shadowRoot.getElementById("inline-create-input");
       if (input) input.focus();
     }, 50);
   }
 
+  async submitCreateCollection() {
+    if (!this.isCreatingCollection) return;
+    this.isCreatingCollection = false;
+
+    const input = this.shadowRoot.getElementById("inline-create-input");
+    const name = input ? input.value.trim() : "";
+    if (name) {
+      const cid = crypto.randomUUID();
+      this.collections.push({ id: cid, name });
+      await storage.saveNotesCollections(this.collections);
+      this.selectedCid = cid;
+      await this.loadNotes();
+    }
+    this.render();
+  }
+
+  cancelCreateCollection() {
+    if (!this.isCreatingCollection) return;
+    this.isCreatingCollection = false;
+    this.render();
+  }
+
   promptDeleteCollection(id) {
-    this.modalState = {
-      type: "delete-collection",
-      targetId: id,
-      inputValue: "",
-    };
+    this.confirmingDeleteCid = id;
+    this.render();
+  }
+
+  async confirmDeleteCollection(id) {
+    await storage.deleteNotesCollection(id);
+    this.collections = this.collections.filter((c) => c.id !== id);
+    if (this.selectedCid === id) {
+      this.selectedCid = this.collections[0]?.id || null;
+      this.notes = [];
+      this.selectedNid = null;
+    }
+    this.confirmingDeleteCid = null;
+    this.render();
+  }
+
+  cancelDeleteCollection() {
+    this.confirmingDeleteCid = null;
     this.render();
   }
 
   promptDeleteNote(id) {
-    this.modalState = { type: "delete-note", targetId: id, inputValue: "" };
+    const note = this.allNotes.find((n) => n.id === id);
+    if (!note) return;
+
+    // Save state for undo
+    const originalAllNotes = [...this.allNotes];
+
+    // Optimistic UI update
+    this.allNotes = this.allNotes.filter((n) => n.id !== id);
+    if (this.selectedNid === id) this.selectedNid = null;
+    this.loadNotes();
+
+    // Set 10s timer
+    const timeout = setTimeout(async () => {
+      this.pendingDeletes.delete(id);
+      this.render();
+      try {
+        await storage.deleteNote(id);
+        console.log(`[NotesApp] Permanently deleted note: ${id}`);
+      } catch (err) {
+        console.error("[NotesApp] Delete failed:", err);
+      }
+    }, 10000);
+
+    this.pendingDeletes.set(id, { timeout, originalAllNotes });
     this.render();
   }
 
-  closeModal() {
-    this.modalState = { type: null, targetId: null, inputValue: "" };
-    this.render();
-  }
-
-  async handleModalSubmit() {
-    const { type, targetId } = this.modalState;
-
-    if (type === "create-collection") {
-      const input = this.shadowRoot.getElementById("modal-input");
-      const name = input ? input.value.trim() : "";
-      if (name) {
-        const cid = crypto.randomUUID();
-        this.collections.push({ id: cid, name });
-        await storage.saveNotesCollections(this.collections);
-        this.selectedCid = cid;
-        await this.loadNotes();
-      }
-    } else if (type === "delete-collection") {
-      await storage.deleteNotesCollection(targetId);
-      this.collections = this.collections.filter((c) => c.id !== targetId);
-      if (this.selectedCid === targetId) {
-        this.selectedCid = this.collections[0]?.id || null;
-        this.notes = [];
-        this.selectedNid = null;
-      }
-    } else if (type === "delete-note") {
-      await storage.deleteNote(targetId);
-      this.allNotes = this.allNotes.filter((n) => n.id !== targetId);
+  undoDelete(id) {
+    const pending = this.pendingDeletes.get(id);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      this.allNotes = pending.originalAllNotes;
+      this.pendingDeletes.delete(id);
       this.loadNotes();
-      if (this.selectedNid === targetId) {
-        this.selectedNid = null;
-      }
     }
-
-    this.closeModal();
   }
 
   // --- CRUD Operations ---
@@ -413,24 +555,19 @@ class NotesApp extends Component {
     const noteIndex = this.notes.findIndex((n) => n.id === nid);
     if (noteIndex === -1) return;
 
-    let note = this.notes[noteIndex];
+    const note = this.notes[noteIndex];
 
     // If content is missing, fetch full note
     if (note.content === undefined) {
       console.log(`[NotesApp] Fetching full content for note: ${nid}`);
       const fullNote = await storage.getNote(nid);
-      if (fullNote) {
+      if (fullNote && this.selectedNid === nid) {
         // Update local cache
         this.notes[noteIndex] = fullNote;
-        note = fullNote;
+        this.render(); // This will update the editor with real content
       }
     }
 
-    // Set editor value after ensuring we have content
-    const editor = this.shadowRoot.querySelector("rich-editor");
-    if (editor && note) {
-      editor.setValue(note.content || "");
-    }
     globalThis.scrollTo(0, 0);
   }
 
@@ -481,14 +618,27 @@ class NotesApp extends Component {
   render() {
     const currentNote = this.notes.find((n) => n.id === this.selectedNid);
 
-    const collectionsHtml = this.collections.map((c) => `
+    const collectionsHtml = this.collections.map((c) => {
+      if (this.confirmingDeleteCid === c.id) {
+        return `
+            <div class="list-item confirming">
+                <span class="confirm-msg">Delete?</span>
+                <div class="confirm-actions">
+                    <button class="confirm-btn-text yes" data-cid="${c.id}">Yes</button>
+                    <button class="confirm-btn-text no">No</button>
+                </div>
+            </div>
+        `;
+      }
+      return `
         <div class="list-item ${
-      c.id === this.selectedCid ? "active" : ""
-    }" data-cid="${c.id}">
+        c.id === this.selectedCid ? "active" : ""
+      }" data-cid="${c.id}">
             <span class="name-text">${c.name}</span>
             <button class="btn-icon-tiny delete-coll-btn" data-cid="${c.id}">×</button>
         </div>
-    `).join("");
+    `;
+    }).join("");
 
     const notesHtml = this.notes.map((n) => `
         <div class="list-item note-item ${
@@ -513,49 +663,32 @@ class NotesApp extends Component {
       : `
         <div class="empty-state">
             <span style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.2">✎</span>
-            ${
-        this.selectedCid
-          ? "Create a note to begin"
-          : "Choose or create a collection"
-      }
+            ${this.selectedCid ? "" : "Choose or create a collection"}
         </div>
     `;
 
-    // Modal Template
-    let modalHtml = "";
-    if (this.modalState.type) {
-      const isDelete = this.modalState.type.startsWith("delete");
-      const title = this.modalState.type === "create-collection"
-        ? "New Collection"
-        : this.modalState.type === "delete-collection"
-        ? "Delete Collection?"
-        : "Delete Note?";
+    const inlineCreateHtml = this.isCreatingCollection
+      ? `
+        <form id="inline-create-form" class="inline-create">
+            <input type="text" id="inline-create-input" placeholder="Collection Name...">
+        </form>
+    `
+      : "";
 
-      modalHtml = `
-            <div class="modal-overlay">
-                <div class="modal-content">
-                    <div class="modal-title">${title}</div>
-                    ${
-        this.modalState.type === "create-collection"
-          ? `<input type="text" id="modal-input" class="modal-input" placeholder="Collection Name" 
-                          onkeydown="if(event.key==='Enter') this.getRootNode().host.handleModalSubmit()">`
-          : `<p style="color:var(--muted)">Are you sure you want to delete this?</p>`
-      }
-                    <div class="modal-actions">
-                        <button class="btn-secondary" id="modal-cancel">Cancel</button>
-                        <button class="${
-        isDelete ? "btn-danger" : "btn-primary"
-      }" id="modal-confirm">
-                            ${isDelete ? "Delete" : "Create"}
-                        </button>
-                    </div>
-                </div>
+    // Undo Toasts
+    let undoHtml = "";
+    if (this.pendingDeletes.size > 0) {
+      const id = Array.from(this.pendingDeletes.keys())[0];
+      undoHtml = `
+            <div class="undo-toast">
+                <span>Note deleted</span>
+                <button class="undo-btn" data-nid="${id}">Undo</button>
             </div>
         `;
     }
 
     const content = `
-        ${modalHtml}
+        ${undoHtml}
         ${this.savingIndicatorHTML}
         <div class="sidebar ${this.isPanelPinned ? "" : "collapsed"}">
             <div class="panel-section">
@@ -563,6 +696,7 @@ class NotesApp extends Component {
                     <span>Library</span>
                     <button class="btn-icon-tiny" id="add-collection-btn">+</button>
                 </div>
+                ${inlineCreateHtml}
                 <div class="item-list">${collectionsHtml}</div>
             </div>
             
@@ -583,74 +717,105 @@ class NotesApp extends Component {
     this.display(content);
 
     // --- Events ---
-    // (Events kept mostly same, but rich-editor specific added)
-
-    // Modal Events
-    if (this.modalState.type) {
-      const cancel = this.shadowRoot.getElementById("modal-cancel");
-      const confirm = this.shadowRoot.getElementById("modal-confirm");
-      const overlay = this.shadowRoot.querySelector(".modal-overlay");
-
-      if (cancel) cancel.onclick = this.closeModal;
-      if (confirm) confirm.onclick = this.handleModalSubmit;
-      if (overlay) {
-        overlay.onclick = (e) => {
-          if (e.target === overlay) this.closeModal();
-        };
-      }
+    const inlineForm = this.shadowRoot.getElementById("inline-create-form");
+    if (inlineForm) {
+      const input = inlineForm.querySelector("input");
+      inlineForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.submitCreateCollection();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") this.cancelCreateCollection();
+      });
+      input.addEventListener("blur", () => {
+        // Only submit on blur if there's text, otherwise just cancel
+        if (input.value.trim()) this.submitCreateCollection();
+        else this.cancelCreateCollection();
+      });
     }
 
     // Sidebar Events
     this.shadowRoot.querySelectorAll(".list-item[data-cid]").forEach((el) => {
-      el.onclick = (e) => {
+      el.addEventListener("click", (e) => {
         if (e.target.classList.contains("delete-coll-btn")) return;
         this.selectCollection(el.dataset.cid);
-      };
+      });
+    });
+
+    this.shadowRoot.querySelectorAll(".confirm-btn-text.yes").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        () => this.confirmDeleteCollection(btn.dataset.cid),
+      );
+    });
+
+    this.shadowRoot.querySelectorAll(".confirm-btn-text.no").forEach((btn) => {
+      btn.addEventListener("click", () => this.cancelDeleteCollection());
     });
 
     this.shadowRoot.querySelectorAll(".delete-coll-btn").forEach((btn) => {
-      btn.onclick = (e) => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.promptDeleteCollection(btn.dataset.cid);
-      };
+      });
     });
 
     this.shadowRoot.querySelectorAll(".note-item[data-nid]").forEach((el) => {
-      el.onclick = (e) => {
+      el.addEventListener("click", (e) => {
         if (e.target.classList.contains("delete-note-btn")) return;
         this.selectNote(el.dataset.nid);
-      };
+      });
     });
 
     this.shadowRoot.querySelectorAll(".delete-note-btn").forEach((btn) => {
-      btn.onclick = (e) => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.promptDeleteNote(btn.dataset.nid);
-      };
+      });
+    });
+
+    this.shadowRoot.querySelectorAll(".undo-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this.undoDelete(btn.dataset.nid));
     });
 
     const addCollBtn = this.shadowRoot.getElementById("add-collection-btn");
-    if (addCollBtn) addCollBtn.onclick = () => this.promptCreateCollection();
+    if (addCollBtn) {
+      addCollBtn.addEventListener("click", () => this.promptCreateCollection());
+    }
 
     const addNoteBtn = this.shadowRoot.getElementById("add-note-btn");
-    if (addNoteBtn) addNoteBtn.onclick = () => this.createNote();
+    if (addNoteBtn) {
+      addNoteBtn.addEventListener("click", () => this.createNote());
+    }
 
     // Editor Events
     const titleInput = this.shadowRoot.getElementById("note-title");
     if (titleInput) {
-      titleInput.oninput = () => this.handleNoteUpdate();
+      titleInput.addEventListener("input", () => this.handleNoteUpdate());
     }
 
     // Rich Editor Events
     const richEditor = this.shadowRoot.querySelector("rich-editor");
     if (richEditor && currentNote) {
-      // Init value
-      richEditor.setValue(currentNote.content);
+      // Init/Update value only if needed
+      const targetVal = currentNote.content === undefined
+        ? "Loading..."
+        : currentNote.content;
+
+      // Use a property to track what we last set to avoid redundant setValue calls
+      if (richEditor._lastVal !== targetVal) {
+        richEditor.setValue(targetVal);
+        richEditor._lastVal = targetVal;
+      }
 
       // Listen for changes
-      richEditor.addEventListener("change", (e) => {
-        this.handleNoteUpdate(e.detail);
-      });
+      if (!richEditor._hasChangeListener) {
+        richEditor.addEventListener("change", (e) => {
+          richEditor._lastVal = e.detail; // Track current editor state
+          this.handleNoteUpdate(e.detail);
+        });
+        richEditor._hasChangeListener = true;
+      }
     }
   }
 }
