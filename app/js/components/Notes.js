@@ -26,6 +26,33 @@ class NotesInput extends Component {
 
   connectedCallback() {
     super.connectedCallback();
+
+    // Refresh on window focus
+    this._onFocus = async () => {
+      const { selectedDate } = this.getState();
+      const dateStr = formatDate(selectedDate);
+
+      // Force refresh from server
+      await appStore.refreshDay(dateStr, true);
+
+      // Update editor with fresh data
+      const { logs } = this.getState();
+      const data = logs[dateStr] || {};
+      const freshMarkdown = data.notesMarkdown || "";
+
+      this.notesMarkdown = freshMarkdown;
+      const richEditor = this.shadowRoot.querySelector("rich-editor");
+      if (richEditor) {
+        richEditor.setValue(freshMarkdown);
+      }
+    };
+
+    globalThis.addEventListener("focus", this._onFocus);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    globalThis.removeEventListener("focus", this._onFocus);
   }
 
   async saveCurrentState() {

@@ -402,13 +402,25 @@ class DailyLog extends Component {
         comment.classList.toggle("hidden");
       };
 
-      row.querySelector(".hour-comment-clear").onclick = () => {
+      row.querySelector(".hour-comment-clear").onclick = async () => {
         if (confirm("Clear this hour?")) {
+          // Clear UI
           input.value = "";
           comment.innerHTML = "";
           checkbox.checked = false;
           row.classList.remove("not-empty", "is-comment");
-          this.debouncedSave();
+
+          // Immediately update state
+          const { selectedDate, logs } = this.getState();
+          const dateStr = formatDate(selectedDate);
+          const dayLogs = { ...logs[dateStr] };
+
+          // Remove this hour's data
+          delete dayLogs[hour];
+
+          // Update store and save
+          appStore.updateLogForDate(dateStr, dayLogs);
+          await saveForDate(dateStr, dayLogs);
         }
       };
 

@@ -1,12 +1,12 @@
 :root {
-    --bg: hsl(210deg 15% 12%);
-    --panel: hsl(210deg 12% 18%);
-    --muted: hsl(210deg 10% 60%);
-    --accent: hsl(42deg 75% 55%);
-    --line: hsl(210deg 12% 22%);
+    --bg: #1a1d23;
+    --panel: #272b31;
+    --muted: #8c95a1;
+    --accent: #e6b84d;
+    --line: #2f3339;
     --glass: rgba(255, 255, 255, 0.12);
-    --glass-dark: hsl(210deg 15% 15% / 80%);
-    --text: hsl(210deg 10% 90%);
+    --glass-dark: rgba(28, 31, 36, 0.8);
+    --text: #dfe1e5;
 
     /* Typography */
     --font-mono: 'JetBrains Mono', monospace;

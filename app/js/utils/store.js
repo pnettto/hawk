@@ -38,14 +38,14 @@ export class AppStore extends Store {
     this.setState({ selectedDate: date });
     const dateStr = formatDate(date);
 
-    // Load this day and prefetch surrounding
-    await this.refreshDay(dateStr);
+    // Force fresh fetch when user changes date (bypassing preload cache)
+    await this.refreshDay(dateStr, true);
     import("./storage.js").then((m) => m.prefetchSurrounding(date));
   }
 
-  async refreshDay(dateStr) {
+  async refreshDay(dateStr, force = false) {
     const { loadForDate } = await import("./storage.js");
-    const data = await loadForDate(dateStr);
+    const data = await loadForDate(dateStr, force);
     if (data) {
       this.updateLogForDate(dateStr, data);
     }
@@ -98,5 +98,5 @@ initStore();
 // Refresh on window focus
 globalThis.addEventListener("focus", () => {
   const dateStr = formatDate(appStore.getState().selectedDate);
-  appStore.refreshDay(dateStr);
+  appStore.refreshDay(dateStr, true);
 });
