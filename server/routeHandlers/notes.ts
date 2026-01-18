@@ -1,6 +1,6 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
-import { marked } from "npm:marked";
+import { marked } from "marked";
 
 // Pre-load the HTML template
 let shareTemplate = "";
