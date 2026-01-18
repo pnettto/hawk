@@ -223,7 +223,7 @@ export class RichEditor extends Component {
 
     this.editor = new Editor({
       element: element,
-      autofocus: "end",
+      autofocus: "start",
       extensions: [
         StarterKit,
         Placeholder.configure({

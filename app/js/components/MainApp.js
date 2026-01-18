@@ -16,11 +16,9 @@ const style = /* css */ `
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
+    position: relative;
 }
 
-.container.wide {
-    max-width: 1200px;
-}
 
 .app-header {
     margin-bottom: 2rem;
@@ -145,7 +143,7 @@ class MainApp extends Component {
     const notesPage = this.shadowRoot.getElementById("notes-page");
     const container = this.shadowRoot.querySelector(".container");
     if (container) {
-      container.classList.toggle("wide", currentPage === "notes");
+      // No longer using .wide
     }
     if (journalPage) {
       journalPage.classList.toggle("hidden", currentPage !== "app");
@@ -169,9 +167,7 @@ class MainApp extends Component {
   fullRender(isAuth, currentPage) {
     const { journalTab } = this.getState();
     const content = `
-      <div class="container ${!isAuth ? "hidden" : ""} ${
-      currentPage === "notes" ? "wide" : ""
-    }">
+      <div class="container ${!isAuth ? "hidden" : ""}">
         <nav>
             <button class="${
       currentPage === "app" ? "active" : ""
@@ -193,11 +189,11 @@ class MainApp extends Component {
 
                 <div class="journal-tabs">
                     <button class="${
-      journalTab === "tasks" ? "active" : ""
-    }" id="tab-tasks">Tasks</button>
-                    <button class="${
       journalTab === "notes" ? "active" : ""
     }" id="tab-notes">Day Notes</button>
+                    <button class="${
+      journalTab === "tasks" ? "active" : ""
+    }" id="tab-tasks">Tasks</button>
                 </div>
             </header>
             

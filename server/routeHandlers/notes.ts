@@ -72,7 +72,7 @@ export async function saveNote(c: Context) {
   const indexRes = await kv.get<string[]>(["notes", "collection", cid]);
   const index = indexRes.value || [];
   if (!index.includes(id)) {
-    index.push(id);
+    index.unshift(id);
     await kv.set(["notes", "collection", cid], index);
   }
 
