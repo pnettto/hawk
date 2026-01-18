@@ -24,9 +24,14 @@ export class AppStore extends Store {
       selectedDate: new Date(),
       logs: {},
       currentPage: "app", // 'app' or 'report' etc.
+      journalTab: "tasks", // 'tasks' or 'notes'
       isAuth: !!localStorage.getItem("apiKey") ||
         localStorage.getItem("guest") === "true",
     });
+  }
+
+  setJournalTab(tab) {
+    this.setState({ journalTab: tab });
   }
 
   async setSelectedDate(date) {
