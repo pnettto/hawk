@@ -46,6 +46,16 @@ export class AppStore extends Store {
     }
   }
 
+  async refreshRange(start, end) {
+    const { loadForRange } = await import("./storage.js");
+    const data = await loadForRange(start, end);
+    if (data) {
+      const currentState = this.getState();
+      const newLogs = { ...currentState.logs, ...data };
+      this.setState({ logs: newLogs });
+    }
+  }
+
   setLogs(logs) {
     this.setState({ logs });
   }

@@ -156,19 +156,9 @@ class Report extends Component {
   }
 
   async loadDataForRange() {
-    const start = new Date(this.state.startDate);
-    const end = new Date(this.state.endDate);
-
-    // Create array of dates
-    const dates = [];
-    const current = new Date(start);
-    while (current <= end) {
-      dates.push(this.formatDateInput(current));
-      current.setDate(current.getDate() + 1);
-    }
-
-    // Fetch missing days
-    await Promise.all(dates.map((dateStr) => appStore.refreshDay(dateStr)));
+    const start = this.state.startDate;
+    const end = this.state.endDate;
+    await appStore.refreshRange(start, end);
   }
 
   generateMarkdown() {

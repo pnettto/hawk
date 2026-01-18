@@ -13,6 +13,35 @@ export async function getDayLog(c: Context) {
   return c.text(result.value, 200);
 }
 
+export async function getRangeLog(c: Context) {
+  const start = c.req.query("start");
+  const end = c.req.query("end");
+  if (!start || !end) {
+    return c.json({ error: "Missing start or end date" }, 400);
+  }
+
+  const logs: Record<string, unknown> = {};
+  // Use start and end to fetch the range from KV
+  const entries = kv.list({
+    start: ["logs", start],
+    end: ["logs", end + "\uffff"],
+  });
+
+  for await (const entry of entries) {
+    const dateStr = entry.key[1] as string;
+    try {
+      logs[dateStr] = typeof entry.value === "string"
+        ? JSON.parse(entry.value)
+        : entry.value;
+    } catch {
+      logs[dateStr] = entry.value;
+    }
+  }
+
+  console.log(`[GET /api/range] ✓ Retrieved ${Object.keys(logs).length} days`);
+  return c.json(logs, 200);
+}
+
 export async function setDayLog(c: Context) {
   const dateStr = c.req.query("date");
   if (!dateStr) return c.json({ error: "Missing date parameter" }, 400);
