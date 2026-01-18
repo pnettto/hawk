@@ -114,13 +114,6 @@ class Report extends Component {
         font-weight: normal;
       }
       
-      .report-content hr {
-        border: none;
-        border-top: 1px dashed var(--line);
-        margin: 3rem 0;
-        opacity: 0.5;
-      }
-
       .empty-notice {
         text-align: center;
         padding: 3rem;
@@ -248,7 +241,7 @@ class Report extends Component {
       }
 
       return hasContent ? dayContent : null;
-    }).filter(Boolean).join("\n---\n\n");
+    }).filter(Boolean).join("\n\n");
   }
 
   handleInput(e) {
