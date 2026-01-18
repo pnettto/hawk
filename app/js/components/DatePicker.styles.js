@@ -1,8 +1,11 @@
+/**
+ * Styles for the DatePicker component
+ */
+export const style = /* css */ `
 .date-control {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 18px;
+    gap: 12px;
 }
 
 .date-container {
@@ -19,13 +22,12 @@
     border-radius: 10px;
     cursor: pointer;
     font-weight: normal;
+    font-family: inherit;
+    font-size: 1rem;
 }
 
-.date-display:focus {
-    outline: none;
-}
+.date-display:focus { outline: none; }
 
-/* Calendar modal - positioned relative to date button */
 .calendar-modal {
     position: absolute;
     top: 0;
@@ -53,11 +55,12 @@
     flex: 1;
     text-align: center;
 }
+
 .cal-arrow {
     appearance: none;
     border: 0;
     background: transparent;
-    color: var(--muted);
+    color: var(--accent);
     font-size: 1.25rem;
     padding: 8px 10px;
     border-radius: 8px;
@@ -82,9 +85,7 @@
     transition: background-color .12s ease;
 }
 
-.cal-day:hover {
-    background-color: var(--glass);
-}
+.cal-day:hover { background-color: var(--glass); }
 
 .cal-day.other-month {
     color: var(--muted);
@@ -107,13 +108,15 @@
     margin: 0.5rem 0;
 }
 
-.cal-arrow {
-    appearance: none;
-    border: 0;
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     background: transparent;
-    color: var(--accent);
-    font-size: 1.25rem;
-    padding: 8px 10px;
-    border-radius: 8px;
-    cursor: pointer;
+    z-index: 999;
 }
+
+.hidden { display: none !important; }
+`;

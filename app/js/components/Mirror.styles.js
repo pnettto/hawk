@@ -1,5 +1,8 @@
+/**
+ * Styles for the MirrorMode component
+ */
+export const style = /* css */ `
 .mirror {
-    content: '';
     position: fixed;
     top: 0;
     left: 0;
@@ -10,11 +13,9 @@
 }
 
 .mirror video {
-    position: abolute;
-    top: 0;
-    left: 0;
     width: 100%;
     height: 100%;
+    object-fit: cover;
 }
 
 .mirror .looking-good {
@@ -26,4 +27,8 @@
     padding: 2rem;
     border-radius: 10px;
     font-size: 2rem;
+    color: white;
 }
+
+.hidden { display: none !important; }
+`;

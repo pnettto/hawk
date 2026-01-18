@@ -87,7 +87,7 @@ const initStore = async () => {
   const dateStr = formatDate(appStore.getState().selectedDate);
   await appStore.refreshDay(dateStr);
 
-  // Pre-fetch surrounding days immidiately
+  // Pre-fetch surrounding days immediately
   import("./storage.js").then((m) =>
     m.prefetchSurrounding(appStore.getState().selectedDate)
   );

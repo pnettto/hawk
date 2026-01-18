@@ -3,18 +3,8 @@ import { appStore } from "../utils/store.js";
 import { formatDate } from "../utils/date.js";
 import { debounce } from "../utils/dom.js";
 import { saveForDate } from "../utils/storage.js";
+import { style } from "./Notes.styles.js";
 import "./RichEditor.js";
-
-const style = /* css */ `
-.notes {
-  margin-top: 1rem;
-}
-
-rich-editor {
-  width: 100%;
-  min-height: 300px;
-}
-`;
 
 class NotesInput extends Component {
   constructor() {
