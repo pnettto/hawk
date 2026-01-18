@@ -68,6 +68,10 @@ class Report extends Component {
         margin-bottom: 1rem;
         border-bottom: 1px solid var(--line);
         padding-bottom: 0.5rem;
+        cursor: pointer;
+      }
+      .report-content h2:hover {
+        opacity: 0.8;
       }
       .report-content h2:first-child { margin-top: 0; }
       
@@ -88,16 +92,6 @@ class Report extends Component {
       
       .report-content li {
         margin-bottom: 0.5rem;
-        padding-left: 1.5rem;
-        position: relative;
-      }
-      
-      /* Custom checkbox bullet */
-      .report-content li::before {
-        content: "•";
-        color: var(--muted);
-        position: absolute;
-        left: 0;
       }
       
       .report-content blockquote {
@@ -178,7 +172,11 @@ class Report extends Component {
       const dayLog = logs[date];
       if (!dayLog || Object.keys(dayLog).length === 0) return null;
 
-      let dayContent = `## ${date}\n\n`;
+      // Get day of week
+      const d = new Date(date + "T12:00:00"); // Use noon to avoid timezone shifts
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+
+      let dayContent = `## ${date} ${dayName}\n\n`;
       let hasContent = false;
 
       // 1. Mood
@@ -294,6 +292,20 @@ class Report extends Component {
       this.refreshReport();
     this.shadowRoot.getElementById("copy-btn").onclick = () =>
       this.copyToClipboard();
+
+    const reportContent = this.shadowRoot.querySelector(".report-content");
+    if (reportContent) {
+      reportContent.onclick = (e) => {
+        const h2 = e.target.closest("h2");
+        if (h2) {
+          const dateStr = h2.textContent.split(" ")[0]; // YYYY-MM-DD
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            appStore.setSelectedDate(new Date(dateStr + "T12:00:00"));
+            appStore.setCurrentPage("app");
+          }
+        }
+      };
+    }
   }
 }
 
