@@ -28,7 +28,7 @@ const style = /* css */ `
 .hour-row {
   position: relative;
   display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 0.25rem;
   padding: 0.5rem;
@@ -36,7 +36,7 @@ const style = /* css */ `
 
 @media (max-width: 480px) {
   .hour-row {
-      grid-template-columns: 3.5rem minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr);
       padding: 0.4rem 0.2rem;
       gap: 0.1rem;
   }
