@@ -10,6 +10,12 @@ const style = /* css */ `
     box-sizing: border-box;
 }
 
+@media (max-width: 600px) {
+    :host {
+        padding: 1rem;
+    }
+}
+
 .container {
     display: flex;
     flex-direction: column;
@@ -18,7 +24,6 @@ const style = /* css */ `
     width: 100%;
     position: relative;
 }
-
 
 .app-header {
     margin-bottom: 2rem;
@@ -31,10 +36,26 @@ const style = /* css */ `
     padding-bottom: 0.5rem;
 }
 
+@media (max-width: 600px) {
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}
+
 .header-left {
     display: flex;
     align-items: center;
     gap: 1.5rem;
+}
+
+@media (max-width: 480px) {
+    .header-left {
+        gap: 1rem;
+        width: 100%;
+        justify-content: space-between;
+    }
 }
 
 .page-content {
@@ -56,6 +77,16 @@ nav {
     margin-bottom: 2rem;
 }
 
+@media (max-width: 600px) {
+    nav {
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        scrollbar-width: none;
+    }
+    nav::-webkit-scrollbar { display: none; }
+}
+
 nav button {
     background: none;
     border: none;
@@ -64,6 +95,7 @@ nav button {
     font-family: inherit;
     font-size: 0.8rem;
     padding: 0.5rem;
+    white-space: nowrap;
 }
 
 nav button.active {
@@ -74,6 +106,14 @@ nav button.active {
 .journal-tabs {
     display: flex;
     gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+    .journal-tabs {
+        gap: 1rem;
+        width: 100%;
+        justify-content: flex-start;
+    }
 }
 
 .journal-tabs button {
