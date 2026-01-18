@@ -385,6 +385,49 @@ rich-editor {
         font-size: 0.8rem;
     }
 }
+
+/* Dropdown Styles */
+.dropdown-nav {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.2s;
+}
+
+.dropdown-nav:focus {
+    border-color: var(--accent);
+}
+
+.dropdown-nav option {
+    background: var(--panel);
+    color: var(--text);
+}
+
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .mobile-only {
+        display: block;
+    }
+    .desktop-only {
+        display: none;
+    }
+}
 `;
 
 class NotesApp extends Component {
@@ -668,27 +711,11 @@ class NotesApp extends Component {
   render() {
     const currentNote = this.notes.find((n) => n.id === this.selectedNid);
 
-    const collectionsHtml = this.collections.map((c) => {
-      if (this.confirmingDeleteCid === c.id) {
-        return `
-            <div class="list-item confirming">
-                <span class="confirm-msg">Delete?</span>
-                <div class="confirm-actions">
-                    <button class="confirm-btn-text yes" data-cid="${c.id}">Yes</button>
-                    <button class="confirm-btn-text no">No</button>
-                </div>
-            </div>
-        `;
-      }
-      return `
-        <div class="list-item ${
-        c.id === this.selectedCid ? "active" : ""
-      }" data-cid="${c.id}">
-            <span class="name-text">${c.name}</span>
-            <button class="btn-icon-tiny delete-coll-btn" data-cid="${c.id}">×</button>
-        </div>
-    `;
-    }).join("");
+    const collectionsDropdownHtml = this.collections.map((c) => `
+        <option value="${c.id}" ${c.id === this.selectedCid ? "selected" : ""}>
+            ${c.name}
+        </option>
+    `).join("");
 
     const notesHtml = this.notes.map((n) => `
         <div class="list-item note-item ${
@@ -747,7 +774,26 @@ class NotesApp extends Component {
                     <button class="btn-icon-tiny" id="add-collection-btn">+</button>
                 </div>
                 ${inlineCreateHtml}
-                <div class="item-list">${collectionsHtml}</div>
+                <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                    <select class="dropdown-nav" id="collection-dropdown" style="flex:1">
+                        ${collectionsDropdownHtml}
+                    </select>
+                    <button class="btn-icon-tiny delete-coll-btn" data-cid="${this.selectedCid}">×</button>
+                </div>
+                
+                ${
+      this.confirmingDeleteCid
+        ? `
+                    <div class="list-item confirming" style="margin-top: 0.5rem">
+                        <span class="confirm-msg">Delete collection?</span>
+                        <div class="confirm-actions">
+                            <button class="confirm-btn-text yes" data-cid="${this.confirmingDeleteCid}">Yes</button>
+                            <button class="confirm-btn-text no">No</button>
+                        </div>
+                    </div>
+                `
+        : ""
+    }
             </div>
             
             <div class="panel-section" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
@@ -755,7 +801,29 @@ class NotesApp extends Component {
                     <span>Notes</span>
                     <button class="btn-icon-tiny" id="add-note-btn">+</button>
                 </div>
-                <div class="item-list">${notesHtml}</div>
+                <!-- Desktop List -->
+                <div class="item-list desktop-only">${notesHtml}</div>
+                
+                <!-- Mobile Dropdown -->
+                <div class="mobile-only">
+                    <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                        <select class="dropdown-nav" id="note-dropdown" style="flex:1">
+                            <option value="" ${
+      !this.selectedNid ? "selected" : ""
+    } disabled>Select a note...</option>
+                            ${
+      this.notes.map((n) => `
+                                <option value="${n.id}" ${
+        n.id === this.selectedNid ? "selected" : ""
+      }>
+                                    ${n.title || "Untitled"}
+                                </option>
+                            `).join("")
+    }
+                        </select>
+                        <button class="btn-icon-tiny delete-note-btn" data-nid="${this.selectedNid}">×</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -784,6 +852,21 @@ class NotesApp extends Component {
       });
     }
 
+    // Dropdown Navigation
+    const collDropdown = this.shadowRoot.getElementById("collection-dropdown");
+    if (collDropdown) {
+      collDropdown.addEventListener("change", (e) => {
+        this.selectCollection(e.target.value);
+      });
+    }
+
+    const noteDropdown = this.shadowRoot.getElementById("note-dropdown");
+    if (noteDropdown) {
+      noteDropdown.addEventListener("change", (e) => {
+        this.selectNote(e.target.value);
+      });
+    }
+
     // Sidebar Events
     this.shadowRoot.querySelectorAll(".list-item[data-cid]").forEach((el) => {
       el.addEventListener("click", (e) => {
@@ -806,7 +889,7 @@ class NotesApp extends Component {
     this.shadowRoot.querySelectorAll(".delete-coll-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.promptDeleteCollection(btn.dataset.cid);
+        this.promptDeleteCollection(btn.dataset.cid || this.selectedCid);
       });
     });
 
@@ -820,7 +903,7 @@ class NotesApp extends Component {
     this.shadowRoot.querySelectorAll(".delete-note-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.promptDeleteNote(btn.dataset.nid);
+        this.promptDeleteNote(btn.dataset.nid || this.selectedNid);
       });
     });
 
