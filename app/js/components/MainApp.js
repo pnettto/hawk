@@ -23,7 +23,17 @@ const style = /* css */ `
 .app-header {
     margin-bottom: 2rem;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.5rem;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
     gap: 1.5rem;
 }
 
@@ -64,9 +74,6 @@ nav button.active {
 .journal-tabs {
     display: flex;
     gap: 1.5rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 0.5rem;
 }
 
 .journal-tabs button {
@@ -184,8 +191,10 @@ class MainApp extends Component {
       currentPage === "app" ? "" : "hidden"
     }">
             <header class="app-header">
-                <mood-tracker></mood-tracker>
-                <date-picker></date-picker>
+                <div class="header-left">
+                    <mood-tracker></mood-tracker>
+                    <date-picker></date-picker>
+                </div>
 
                 <div class="journal-tabs">
                     <button class="${

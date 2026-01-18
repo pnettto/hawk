@@ -5,9 +5,8 @@ import { formatDate, prettyDisplay } from "../utils/date.js";
 const style = /* css */ `
 .date-control {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 18px;
+    gap: 12px;
 }
 
 .date-container {
