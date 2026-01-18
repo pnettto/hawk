@@ -6,8 +6,6 @@ import "./RichEditor.js"; // Import the new component
 const style = /* css */ `
 :host {
     display: flex;
-    height: 80vh;
-    overflow: hidden;
     color: var(--text);
     font-family: var(--font-mono);
     gap: 1.5rem;
@@ -81,7 +79,6 @@ const style = /* css */ `
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
-    overflow-y: auto;
 }
 
 #note-title {
