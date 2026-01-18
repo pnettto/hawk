@@ -368,11 +368,6 @@ rich-editor {
     transform: scale(1.05);
 }
 
-.list-item.confirming {
-    background: rgba(255, 68, 68, 0.1) !important;
-    border: 1px solid rgba(255, 68, 68, 0.2);
-}
-
 .confirm-msg {
     font-size: 0.8rem;
     color: #ff4444;
@@ -530,11 +525,57 @@ class NotesApp extends Component {
     super.connectedCallback();
     this.initSavingState(); // Inherited
     await this.loadCollections();
+
+    // Refresh on focus
+    this._onFocus = () => this.refreshData();
+    globalThis.addEventListener("focus", this._onFocus);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.teardownSavingState(); // Inherited
+    globalThis.removeEventListener("focus", this._onFocus);
+  }
+
+  async refreshData() {
+    console.log("[NotesApp] Refreshing data on focus...");
+
+    // 1. Refresh collections and index
+    const [collections, fullIndex] = await Promise.all([
+      storage.getNotesCollections(),
+      storage.getNotesIndex(),
+    ]);
+
+    this.collections = collections;
+    this.allNotes = Array.isArray(fullIndex) ? fullIndex : [];
+
+    // 2. Refresh current note content if selected
+    if (this.selectedNid) {
+      const fullNote = await storage.getNote(this.selectedNid);
+      if (fullNote) {
+        // Update in index/list
+        const idx = this.allNotes.findIndex((n) => n.id === this.selectedNid);
+        if (idx !== -1) {
+          this.allNotes[idx] = fullNote;
+        } else {
+          this.allNotes.push(fullNote);
+        }
+      }
+    }
+
+    // 3. Re-filter lists
+    if (this.selectedCid) {
+      // If the selected collection disappeared, reset
+      if (!this.collections.find((c) => c.id === this.selectedCid)) {
+        this.selectedCid = this.collections.length > 0
+          ? this.collections[0].id
+          : null;
+      }
+    } else if (this.collections.length > 0) {
+      this.selectedCid = this.collections[0].id;
+    }
+
+    this.loadNotes(); // Re-filters notes from allNotes and renders
   }
 
   async loadCollections() {
@@ -891,7 +932,6 @@ class NotesApp extends Component {
     `
       : `
         <div class="empty-state">
-            <span style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.2">✎</span>
             ${this.selectedCid ? "" : "Choose or create a collection"}
         </div>
     `;

@@ -42,9 +42,9 @@ export async function loadAll() {
 /**
  * Load a single day's log
  */
-export function loadForDate(dateStr) {
+export function loadForDate(dateStr, force = false) {
   // 1. Check cache
-  if (logsCache[dateStr]) {
+  if (!force && logsCache[dateStr]) {
     return logsCache[dateStr];
   }
 
