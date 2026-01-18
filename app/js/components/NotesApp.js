@@ -385,16 +385,32 @@ class NotesApp extends Component {
     this.loadNotes();
   }
 
-  selectNote(nid) {
+  async selectNote(nid) {
     this.selectedNid = nid;
     this.isPanelPinned = false;
     this.render();
 
-    // Set editor value after render
-    const note = this.notes.find((n) => n.id === nid);
+    // Find the note in our local metadata list
+    const noteIndex = this.notes.findIndex((n) => n.id === nid);
+    if (noteIndex === -1) return;
+
+    let note = this.notes[noteIndex];
+
+    // If content is missing, fetch full note
+    if (note.content === undefined) {
+      console.log(`[NotesApp] Fetching full content for note: ${nid}`);
+      const fullNote = await storage.getNote(nid);
+      if (fullNote) {
+        // Update local cache
+        this.notes[noteIndex] = fullNote;
+        note = fullNote;
+      }
+    }
+
+    // Set editor value after ensuring we have content
     const editor = this.shadowRoot.querySelector("rich-editor");
     if (editor && note) {
-      editor.setValue(note.content);
+      editor.setValue(note.content || "");
     }
     globalThis.scrollTo(0, 0);
   }

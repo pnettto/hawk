@@ -28,11 +28,25 @@ export async function getCollectionNotes(c: Context) {
 
   const notes = [];
   for (const nid of index.value) {
-    const note = await kv.get(["notes", "note", nid]);
-    if (note.value) notes.push(note.value);
+    const note = await kv.get<any>(["notes", "note", nid]);
+    if (note.value) {
+      // Exclude content for the list view
+      const { content: _content, ...metadata } = note.value;
+      notes.push(metadata);
+    }
   }
 
   return c.json(notes);
+}
+
+export async function getNote(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.json({ error: "Missing note ID" }, 400);
+
+  const note = await kv.get(["notes", "note", nid]);
+  if (!note.value) return c.json({ error: "Note not found" }, 404);
+
+  return c.json(note.value);
 }
 
 export async function deleteCollection(c: Context) {

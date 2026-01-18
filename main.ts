@@ -17,6 +17,7 @@ import {
   deleteNote,
   getCollectionNotes,
   getCollections,
+  getNote,
   saveCollections,
   saveNote,
 } from "./server/routeHandlers/notes.ts";
@@ -55,6 +56,7 @@ app.post("/api/notes/collections", saveCollections);
 app.delete("/api/notes/collections/:cid", deleteCollection);
 app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.post("/api/notes/notes", saveNote);
+app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", deleteNote);
 
 // KV Entries (existing)

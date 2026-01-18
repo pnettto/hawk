@@ -220,6 +220,18 @@ export async function saveNote(note) {
   }
 }
 
+export async function getNote(nid) {
+  try {
+    const res = await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to get note:", e);
+    return null;
+  }
+}
+
 export async function deleteNote(nid) {
   try {
     await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
