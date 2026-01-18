@@ -91,6 +91,15 @@ class ZenMode extends Component {
       this.quote = null;
     }
 
+    // Auto-activate Zen Mode between 6pm and 8am
+    const currentHour = new Date().getHours();
+    const isEveningOrNight = currentHour >= 18 || currentHour < 8;
+
+    if (isEveningOrNight) {
+      this.hidden = false;
+      this.forceShow = false; // Don't override time-based logic
+    }
+
     this.render();
   }
 
