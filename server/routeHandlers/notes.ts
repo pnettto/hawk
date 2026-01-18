@@ -71,10 +71,19 @@ export async function getNotesIndex(c: Context) {
   for (const coll of colls) {
     const res = await kv.get<unknown[]>(["notes", "collection", coll.id]);
     if (res.value) {
-      // Handle legacy format if encountered here too
       if (res.value.length > 0 && typeof res.value[0] === "string") {
-        // Skip or resolve - for index we just skip to keep it fast
-        // (Next getCollectionNotes call will fix it)
+        // Migrate collection index on the fly
+        const metadataList: NoteMetadata[] = [];
+        const ids = res.value as string[];
+        for (const nid of ids) {
+          const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
+          if (noteRes.value) {
+            const { id, cid, title, createdAt, updatedAt } = noteRes.value;
+            metadataList.push({ id, cid, title, createdAt, updatedAt });
+          }
+        }
+        await kv.set(["notes", "collection", coll.id], metadataList);
+        allMetadata.push(...metadataList);
       } else {
         allMetadata.push(...(res.value as NoteMetadata[]));
       }

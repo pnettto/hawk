@@ -227,7 +227,7 @@ export class RichEditor extends Component {
       extensions: [
         StarterKit,
         Placeholder.configure({
-          placeholder: "Write something amazing...",
+          placeholder: this.getAttribute("placeholder") || "Start writing...",
         }),
         Markdown,
         Link.configure({
