@@ -12,32 +12,6 @@ const style = /* css */ `
     font-size: var(--body);
 }
 
-@media (max-width: 1400px) {
-    :host {
-        display: flex;
-        gap: 2rem;
-    }
-    .sidebar {
-        position: static;
-        flex-shrink: 0;
-    }
-}
-
-@media (max-width: 900px) {
-    :host {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    .sidebar {
-        width: 100%;
-        position: static;
-        order: 2;
-    }
-    .editor-main {
-        order: 1;
-    }
-}
-
 .sidebar {
     width: 260px;
     display: flex;
@@ -123,13 +97,6 @@ const style = /* css */ `
     flex-shrink: 0;
 }
 
-@media (max-width: 600px) {
-    #note-title {
-        font-size: 1.8rem;
-        margin-bottom: 1rem;
-    }
-}
-
 #rich-editor-container {
     /* Container grows with RichEditor */
     position: relative;
@@ -151,12 +118,6 @@ rich-editor {
     border-radius: 6px;
     transition: all 0.2s;
     line-height: 1;
-}
-
-@media (max-width: 600px) {
-    .btn-icon-tiny {
-        padding: 10px 14px;
-    }
 }
 
 .btn-icon-tiny:hover {
@@ -310,14 +271,6 @@ rich-editor {
     max-width: 90vw;
 }
 
-@media (max-width: 480px) {
-    .undo-toast {
-        bottom: 1rem;
-        padding: 0.6rem 1rem;
-        font-size: 0.8rem;
-    }
-}
-
 .undo-toast span {
     white-space: nowrap;
     overflow: hidden;
@@ -380,6 +333,57 @@ rich-editor {
 @keyframes slideUp {
     from { transform: translate(-50%, 100%); opacity: 0; }
     to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* Responsiveness - Defined last to ensure priority */
+@media (max-width: 1400px) {
+    :host {
+        display: flex;
+        gap: 2rem;
+    }
+    .sidebar {
+        position: static;
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 900px) {
+    :host {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    .sidebar {
+        width: 100%;
+        position: static;
+        order: 1;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        display: flex !important;
+    }
+    .editor-main {
+        order: 2;
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    #note-title {
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+    .btn-icon-tiny {
+        padding: 10px 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .undo-toast {
+        bottom: 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.8rem;
+    }
 }
 `;
 
