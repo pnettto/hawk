@@ -15,7 +15,26 @@ const style = /* css */ `
 @media (max-width: 1400px) {
     :host {
         display: flex;
-        gap: 1.5rem;
+        gap: 2rem;
+    }
+    .sidebar {
+        position: static;
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 900px) {
+    :host {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .sidebar {
+        width: 100%;
+        position: static;
+        order: 2;
+    }
+    .editor-main {
+        order: 1;
     }
 }
 
@@ -104,6 +123,13 @@ const style = /* css */ `
     flex-shrink: 0;
 }
 
+@media (max-width: 600px) {
+    #note-title {
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+}
+
 #rich-editor-container {
     /* Container grows with RichEditor */
     position: relative;
@@ -120,11 +146,17 @@ rich-editor {
     border: none;
     color: var(--muted);
     cursor: pointer;
-    font-size: 1.1rem;
-    padding: 4px 8px;
+    font-size: 1.2rem;
+    padding: 8px 12px;
     border-radius: 6px;
     transition: all 0.2s;
     line-height: 1;
+}
+
+@media (max-width: 600px) {
+    .btn-icon-tiny {
+        padding: 10px 14px;
+    }
 }
 
 .btn-icon-tiny:hover {
@@ -155,6 +187,8 @@ rich-editor {
     color: var(--muted);
     font-style: italic;
     opacity: 0.5;
+    text-align: center;
+    padding: 2rem;
 }
 
 /* Modal */
@@ -178,7 +212,7 @@ rich-editor {
     border: 1px solid var(--line);
     border-radius: 12px;
     padding: 2rem;
-    width: 320px;
+    width: min(320px, 90vw);
     box-shadow: 0 10px 40px rgba(0,0,0,0.4);
     display: flex;
     flex-direction: column;
@@ -251,8 +285,8 @@ rich-editor {
     border: 1px solid var(--accent);
     border-radius: 6px;
     color: var(--text);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
     font-family: inherit;
     outline: none;
 }
@@ -268,14 +302,26 @@ rich-editor {
     border-radius: 12px;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1rem;
     z-index: 1000;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    width: max-content;
+    max-width: 90vw;
+}
+
+@media (max-width: 480px) {
+    .undo-toast {
+        bottom: 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.8rem;
+    }
 }
 
 .undo-toast span {
-    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .undo-btn {

@@ -38,6 +38,19 @@ class Report extends Component {
         display: flex;
         gap: 1rem;
       }
+      @media (max-width: 600px) {
+        .controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .actions {
+          margin-left: 0;
+          width: 100%;
+        }
+        button {
+          flex: 1;
+        }
+      }
       button {
         background: var(--accent);
         color: #000;

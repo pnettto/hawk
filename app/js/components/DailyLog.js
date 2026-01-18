@@ -34,6 +34,14 @@ const style = /* css */ `
   padding: 0.5rem;
 }
 
+@media (max-width: 480px) {
+  .hour-row {
+      grid-template-columns: 3.5rem minmax(0, 1fr);
+      padding: 0.4rem 0.2rem;
+      gap: 0.1rem;
+  }
+}
+
 .hour-row.not-empty {
   background-color: var(--glass-dark);
   border-radius: 0.25rem;
@@ -47,6 +55,13 @@ const style = /* css */ `
   cursor: pointer;
   user-select: none;
   opacity: 0.5;
+}
+
+@media (max-width: 480px) {
+    .hour-time {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.1rem;
+    }
 }
 
 .hour-row.moving-source .hour-time {
@@ -82,6 +97,14 @@ const style = /* css */ `
   cursor: pointer;
   opacity: 0.2;
   padding-top: 0.35rem;
+  min-width: 2rem;
+  min-height: 2rem;
+}
+
+@media (max-width: 480px) {
+    .hour-comment-switch {
+        padding: 0.5rem;
+    }
 }
 
 .hour-row.is-comment .hour-comment-switch {
@@ -94,6 +117,13 @@ const style = /* css */ `
   justify-content: center;
   padding: 0.8rem;
   padding-top: 0.5rem;
+  min-width: 2rem;
+}
+
+@media (max-width: 480px) {
+    .hour-checkbox-wrap {
+        padding: 0.6rem 0.4rem;
+    }
 }
 
 .hour-checkbox {
@@ -106,6 +136,13 @@ const style = /* css */ `
   cursor: pointer;
   position: relative;
   transition: all 0.18s ease;
+}
+
+@media (max-width: 480px) {
+    .hour-checkbox {
+        width: 0.9rem;
+        height: 0.9rem;
+    }
 }
 
 .hour-checkbox:checked {
@@ -123,6 +160,13 @@ const style = /* css */ `
   line-height: 1.9;
   outline: none;
   cursor: pointer;
+}
+
+@media (max-width: 480px) {
+    .hour-input {
+        padding: 0 0.25rem;
+        font-size: 0.95rem;
+    }
 }
 
 .hour-input:focus, .hour-comment:focus {
@@ -144,6 +188,8 @@ const style = /* css */ `
   border: none;
   cursor: pointer;
   opacity: 0.2;
+  min-width: 2rem;
+  min-height: 2rem;
 }
 
 .hour-comment-clear:hover {
