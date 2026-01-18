@@ -51,7 +51,6 @@ const style = /* css */ `
 }
 
 .list-item {
-    padding: 0.6rem 0.75rem;
     cursor: pointer;
     border-radius: 8px;
     margin-bottom: 2px;
@@ -63,12 +62,10 @@ const style = /* css */ `
 }
 
 .list-item:hover {
-    background: rgba(255,255,255,0.05);
     color: var(--text);
 }
 
 .list-item.active {
-    background: rgba(255,255,255,0.08);
     color: var(--accent);
 }
 
@@ -97,14 +94,92 @@ const style = /* css */ `
     flex-shrink: 0;
 }
 
-#rich-editor-container {
-    /* Container grows with RichEditor */
-    position: relative;
-}
-
-/* Base styles for RichEditor are inside its shadow DOM, but we control container layout */
 rich-editor {
     display: block;
+}
+
+.editor-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#note-title {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: var(--h1);
+    width: 100%;
+    outline: none;
+    font-weight: 800;
+    opacity: 0.95;
+    font-family: inherit;
+    flex-shrink: 1;
+    margin-bottom: 0;
+}
+
+.share-btn {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.share-btn:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: var(--accent);
+}
+
+.share-btn.active {
+    background: rgba(0, 255, 136, 0.1); /* Green tint */
+    border-color: #00ff88;
+    color: #00ff88;
+}
+
+.share-popover {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 1rem;
+    border-radius: 8px;
+    z-index: 100;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    width: 300px;
+    display: none;
+}
+
+.share-popover.visible {
+    display: block;
+}
+
+.share-link-input {
+    width: 100%;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--line);
+    padding: 0.5rem;
+    color: var(--text);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.share-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 
@@ -440,8 +515,10 @@ class NotesApp extends Component {
     this.allNotes = []; // Global index (metadata only)
     this.notes = []; // Filtered notes for current collection
     this.selectedNid = null;
+    this.selectedNid = null;
     this.isPanelPinned = false;
     this.isSaving = false;
+    this.showSharePopover = false;
 
     this.isCreatingCollection = false;
     this.confirmingDeleteCid = null;
@@ -708,6 +785,35 @@ class NotesApp extends Component {
     }
   }
 
+  async toggleShare(forceState) {
+    const note = this.notes.find((n) => n.id === this.selectedNid);
+    if (!note) return;
+
+    if (forceState !== undefined) {
+      note.isPublic = forceState;
+    } else {
+      note.isPublic = !note.isPublic;
+    }
+
+    // Save immediately (bypass debounce) to ensure link works
+    this.isSaving = true;
+    this.render();
+
+    try {
+      await storage.saveNote(note);
+    } catch (e) {
+      console.error("Failed to save share state", e);
+    } finally {
+      this.isSaving = false;
+      this.render();
+    }
+  }
+
+  toggleSharePopover() {
+    this.showSharePopover = !this.showSharePopover;
+    this.render();
+  }
+
   render() {
     const currentNote = this.notes.find((n) => n.id === this.selectedNid);
 
@@ -731,6 +837,52 @@ class NotesApp extends Component {
         <div class="editor-header">
             <input type="text" id="note-title" 
                    value="${currentNote.title}">
+            
+             <div style="position: relative;">
+                <button class="share-btn ${
+        currentNote.isPublic ? "active" : ""
+      }" id="share-toggle-btn">
+                    ${currentNote.isPublic ? "Public" : "Share"}
+                </button>
+                
+                <div class="share-popover ${
+        this.showSharePopover ? "visible" : ""
+      }">
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--text);">
+                        ${
+        currentNote.isPublic
+          ? "Anyone with the link can view this note."
+          : "Make this note public to share it."
+      }
+                    </p>
+                    
+                    ${
+        currentNote.isPublic
+          ? `
+                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <label style="grid-column: 1 / -1; font-size: 0.75rem; color: var(--muted); margin-bottom: -0.25rem;">Public Page</label>
+                            <input type="text" id="share-link-input-page" class="share-link-input" readonly 
+                                value="${location.origin}/shared/${currentNote.id}">
+                            <button class="btn-primary" id="copy-share-link" style="font-size: 0.75rem; white-space: nowrap;">Copy</button>
+                            
+                            <label style="grid-column: 1 / -1; font-size: 0.75rem; color: var(--muted); margin-bottom: -0.25rem; margin-top: 0.5rem;">API Endpoint</label>
+                            <input type="text" id="share-link-input-api" class="share-link-input" readonly 
+                                value="${location.origin}/api/public/notes/${currentNote.id}">
+                            <button class="btn-primary" id="copy-api-link" style="font-size: 0.75rem; white-space: nowrap;">Copy</button>
+                        </div>
+                        
+                        <div class="share-actions" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line);">
+                            <button class="btn-secondary" id="unshare-btn" style="font-size: 0.75rem; width: 100%;">Disable Sharing (Make Private)</button>
+                        </div>
+                    `
+          : `
+                        <div class="share-actions">
+                            <button class="btn-primary" id="enable-share-btn" style="width: 100%; font-size: 0.8rem;">Enable Public Link</button>
+                        </div>
+                    `
+      }
+                </div>
+            </div>
         </div>
         
         <div id="rich-editor-container">
@@ -926,6 +1078,56 @@ class NotesApp extends Component {
     if (titleInput) {
       titleInput.addEventListener("input", () => this.handleNoteUpdate());
     }
+
+    const shareToggleBtn = this.shadowRoot.getElementById("share-toggle-btn");
+    if (shareToggleBtn) {
+      shareToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleSharePopover();
+      });
+    }
+
+    // Close popover when clicking outside
+    this.shadowRoot.addEventListener("click", (e) => {
+      if (
+        this.showSharePopover && !e.target.closest(".share-popover") &&
+        !e.target.closest("#share-toggle-btn")
+      ) {
+        this.showSharePopover = false;
+        this.render();
+      }
+    });
+
+    const enableShareBtn = this.shadowRoot.getElementById("enable-share-btn");
+    if (enableShareBtn) {
+      enableShareBtn.addEventListener("click", () => this.toggleShare(true));
+    }
+
+    const unshareBtn = this.shadowRoot.getElementById("unshare-btn");
+    if (unshareBtn) {
+      unshareBtn.addEventListener("click", () => this.toggleShare(false));
+    }
+
+    const copyPairs = [
+      { btnId: "copy-share-link", inputId: "share-link-input-page" },
+      { btnId: "copy-api-link", inputId: "share-link-input-api" },
+    ];
+
+    copyPairs.forEach(({ btnId, inputId }) => {
+      const btn = this.shadowRoot.getElementById(btnId);
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const input = this.shadowRoot.getElementById(inputId);
+          if (input) {
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            const originalText = btn.textContent;
+            btn.textContent = "Copied!";
+            setTimeout(() => btn.textContent = originalText, 2000);
+          }
+        });
+      }
+    });
 
     // Rich Editor Events
     const richEditor = this.shadowRoot.querySelector("rich-editor");

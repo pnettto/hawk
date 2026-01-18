@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Note</title>
+    <!-- Assets -->
+    <link rel="icon" type="image/svg" href="/images/favicon.svg">
+    <link rel="stylesheet" href="https://use.typekit.net/pmu6sig.css">
+    <link rel="stylesheet" href="/styles.css" />
+
+    <style>
+      /* Specific overrides for the viewer context */
+      body {
+        display: flex;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 2rem;
+      }
+
+      .viewer-container {
+        width: 100%;
+        max-width: 900px;
+      }
+
+      h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-top: 0;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--line);
+        color: var(--accent);
+      }
+
+      .meta {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 2rem;
+        border-top: 1px solid var(--line);
+        padding-top: 1rem;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .error {
+        color: #ff4444;
+        text-align: center;
+        margin-top: 2rem;
+      }
+
+      .loading {
+        text-align: center;
+        color: var(--muted);
+        margin-top: 4rem;
+      }
+
+      /* Tiptap Content Styles - Adapted from RichEditor */
+      .tiptap {
+        font-size: var(--body);
+        line-height: var(--lh);
+        color: var(--text);
+        white-space: pre-wrap;
+        outline: none;
+      }
+
+      .tiptap p {
+        margin: 0.5rem 0;
+      }
+      .tiptap blockquote {
+        border-left: 2px solid var(--accent);
+        margin-left: 0;
+        padding-left: 1rem;
+        font-style: italic;
+      }
+      .tiptap code {
+        background: var(--glass);
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+      }
+      .tiptap pre {
+        background: var(--bg);
+        padding: 1rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1rem 0;
+        border: 1px solid var(--line);
+      }
+      .tiptap pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+      }
+      .tiptap ul, .tiptap ol {
+        padding-left: 1.5rem;
+      }
+      .tiptap li {
+        margin-bottom: 0.25rem;
+      }
+      .tiptap img {
+        max-width: 100%;
+        border-radius: 8px;
+        margin: 1rem 0;
+        display: block;
+      }
+      .tiptap hr {
+        border: none;
+        border-top: 1px solid var(--line);
+        margin: 2rem 0;
+      }
+
+      /* Note links should look like links but not be clickable/underlined in same way if they don't work? 
+         Actually for valid public viewing, internal links likely won't work unless we handle them.
+         For now, let them look like text or dead links. */
+      .internal-note-link {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px dotted var(--accent);
+        opacity: 0.7;
+        cursor: default;
+      }
+
+      /* Disable interaction for view-only */
+      .tiptap {
+        pointer-events: none;
+      }
+      .tiptap a {
+        pointer-events: auto;
+      }
+      .tiptap .internal-note-link {
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="viewer-container" id="content">
+      <div class="loading">Loading note...</div>
+    </div>
+
+    <script type="module">
+      import { formatDate } from "/js/utils/date.js";
+
+      // Constants
+      const API_URL = location.origin;
+
+      // 1. Get Note ID from URL params (e.g. /share.html?id=...)
+      const params = new URLSearchParams(window.location.search);
+      const nid = params.get("id");
+      const container = document.getElementById("content");
+
+      async function init() {
+        if (!nid) {
+          showError("Invalid link.");
+          return;
+        }
+
+        try {
+          // 2. Fetch Public Note
+          const res = await fetch(`${API_URL}/api/public/notes/${nid}`);
+          if (!res.ok) {
+            throw new Error(
+              res.status === 401
+                ? "This note is private."
+                : "Note not found.",
+            );
+          }
+          const note = await res.json();
+          render(note);
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      function showError(msg) {
+        container.innerHTML = `<div class="error">
+                <h3>Error</h3>
+                <p>${msg}</p>
+            </div>`;
+      }
+
+      function render(note) {
+        container.innerHTML = `
+                <h1 title="${note.title}">${
+          note.title || "Untitled"
+        }</h1>
+                <div id="editor-mount"></div>
+                <div class="meta">
+                    <span>${formatDate(new Date(note.createdAt))}</span>
+                    <span>Hawk Notes &bull; Public View</span>
+                </div>
+            `;
+
+        const { Editor, StarterKit, Markdown, Link, Image, Youtube } =
+          window.Tiptap;
+
+        new Editor({
+          element: document.getElementById("editor-mount"),
+          editable: false, // Read-only
+          extensions: [
+            StarterKit,
+            Markdown,
+            Link.configure({ openOnClick: true, autolink: true }),
+            Image.configure({ inline: false, allowBase64: true }),
+            Youtube,
+          ],
+          content: note.content || "", // Markdown content
+        });
+      }
+
+      init();
+    </script>
+  </body>
+</html>

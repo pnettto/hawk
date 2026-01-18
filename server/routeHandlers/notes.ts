@@ -1,5 +1,14 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
+import { marked } from "npm:marked";
+
+// Pre-load the HTML template
+let shareTemplate = "";
+try {
+  shareTemplate = await Deno.readTextFile("./app/share_template.html");
+} catch (e) {
+  console.error("Failed to load share template:", e);
+}
 
 // Collections storage: ["notes", "collections"] -> Collection[]
 // Each Collection: { id: string, name: string }
@@ -61,6 +70,73 @@ export async function getNote(c: Context) {
   if (!note.value) return c.json({ error: "Note not found" }, 404);
 
   return c.json(note.value);
+}
+
+export async function getPublicNote(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.json({ error: "Missing note ID" }, 400);
+
+  const note = await kv.get<{ isPublic?: boolean }>(["notes", "note", nid]);
+  if (!note.value) return c.json({ error: "Note not found" }, 404);
+
+  if (note.value.isPublic !== true) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  return c.json(note.value);
+}
+
+export async function getSharedNotePage(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.text("Note not found", 404);
+
+  const noteRes = await kv.get<
+    { isPublic?: boolean; title: string; content: string; createdAt: number }
+  >(["notes", "note", nid]);
+  if (!noteRes.value || noteRes.value.isPublic !== true) {
+    return c.text("Note not found or private", 404);
+  }
+
+  const note = noteRes.value;
+  const htmlContent = marked.parse(note.content || "");
+  const dateStr = new Date(note.createdAt).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  // Inject into template
+  // We need to replace the client-side logic with static content
+  let html = shareTemplate;
+
+  // 1. Inject Title
+  html = html.replace(
+    /<title>.*<\/title>/,
+    `<title>${note.title || "Shared Note"}</title>`,
+  );
+
+  // 2. Inject Content into the container, removing the loading spinner
+  // We also replace the entire viewer-container content to remove the client-side script dependency
+  // But wait, the template has <div id="content">...</div>. Let's just inject into it.
+
+  const renderedBody = `
+        <h1 title="${note.title}">${note.title || "Untitled"}</h1>
+        <div class="tiptap">${htmlContent}</div>
+        <div class="meta">
+            <span>${dateStr}</span>
+            <span>Hawk</span>
+        </div>
+  `;
+
+  html = html.replace(
+    /<div class="viewer-container" id="content">[\s\S]*?<\/div>/,
+    `<div class="viewer-container" id="content">${renderedBody}</div>`,
+  );
+
+  // 3. Remove the client-side script
+  html = html.replace(/<script type="module">[\s\S]*?<\/script>/, "");
+
+  return c.html(html);
 }
 
 export async function getNotesIndex(c: Context) {

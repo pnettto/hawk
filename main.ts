@@ -19,6 +19,8 @@ import {
   getCollections,
   getNote,
   getNotesIndex,
+  getPublicNote,
+  getSharedNotePage,
   saveCollections,
   saveNote,
 } from "./server/routeHandlers/notes.ts";
@@ -39,8 +41,19 @@ app.use(
   }),
 );
 
-// Protected routes: API Logs and KV Entries
-app.use("/api/*", rateLimit, auth);
+// Protected routes: API Logs and KV Entries (EXCEPT public notes)
+app.use(
+  "/api/*",
+  rateLimit,
+  async (c, next) => {
+    // Skip auth for public routes
+    if (c.req.path.startsWith("/api/public/")) {
+      await next();
+      return;
+    }
+    await auth(c, next);
+  },
+);
 
 // API Logs (backwards compatible)
 app.get("/api/logs", getLogs);
@@ -59,7 +72,14 @@ app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.get("/api/notes/index", getNotesIndex);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
+app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", deleteNote);
+
+// Public Note API
+app.get("/api/public/notes/:nid", getPublicNote);
+
+// Public Note View (SSR Page)
+app.get("/shared/:nid", getSharedNotePage);
 
 // KV Entries (existing)
 app.get("/api/entries", listEntries);
