@@ -249,7 +249,8 @@ class NotesApp extends Component {
 
     this.collections = [];
     this.selectedCid = null;
-    this.notes = [];
+    this.allNotes = []; // Global index (metadata only)
+    this.notes = []; // Filtered notes for current collection
     this.selectedNid = null;
     this.isPanelPinned = false;
     this.isSaving = false;
@@ -278,18 +279,31 @@ class NotesApp extends Component {
   }
 
   async loadCollections() {
-    this.collections = await storage.getNotesCollections();
+    // 1. Load collections and full index in parallel
+    const [collections, fullIndex] = await Promise.all([
+      storage.getNotesCollections(),
+      storage.getNotesIndex(),
+    ]);
+
+    this.collections = collections;
+    this.allNotes = fullIndex;
+
     if (this.collections.length > 0 && !this.selectedCid) {
       this.selectedCid = this.collections[0].id;
-      await this.loadNotes();
     }
+
+    this.loadNotes();
     this.render();
   }
 
-  async loadNotes() {
-    if (!this.selectedCid) return;
-    const notes = await storage.getCollectionNotes(this.selectedCid);
-    this.notes = notes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  loadNotes() {
+    if (!this.selectedCid) {
+      this.notes = [];
+    } else {
+      this.notes = this.allNotes
+        .filter((n) => n.cid === this.selectedCid)
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
     this.render();
   }
 
@@ -349,7 +363,8 @@ class NotesApp extends Component {
       }
     } else if (type === "delete-note") {
       await storage.deleteNote(targetId);
-      this.notes = this.notes.filter((n) => n.id !== targetId);
+      this.allNotes = this.allNotes.filter((n) => n.id !== targetId);
+      this.loadNotes();
       if (this.selectedNid === targetId) {
         this.selectedNid = null;
       }
@@ -370,7 +385,11 @@ class NotesApp extends Component {
       content: "",
       createdAt: Date.now(),
     };
-    this.notes.unshift(newNote);
+    const metadata = { ...newNote };
+    delete metadata.content;
+    this.allNotes.unshift(metadata);
+    this.loadNotes();
+
     await storage.saveNote(newNote);
     this.selectedNid = nid;
     this.render();
@@ -448,6 +467,10 @@ class NotesApp extends Component {
           `.note-item[data-nid="${this.selectedNid}"] .title-text`,
         );
         if (titleInSidebar) titleInSidebar.textContent = title || "Untitled";
+
+        // Sync local index
+        const idx = this.allNotes.findIndex((n) => n.id === this.selectedNid);
+        if (idx > -1) this.allNotes[idx].title = title || "Untitled";
       }
 
       // Trigger debounced save

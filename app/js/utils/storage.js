@@ -172,6 +172,18 @@ export async function getNotesCollections() {
   }
 }
 
+export async function getNotesIndex() {
+  try {
+    const res = await fetch(`${apiUrl}/api/notes/index`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to get notes index:", e);
+    return [];
+  }
+}
+
 export async function saveNotesCollections(collections) {
   try {
     await fetch(`${apiUrl}/api/notes/collections`, {
