@@ -72,7 +72,6 @@ app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.get("/api/notes/index", getNotesIndex);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
-app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", deleteNote);
 
 // Public Note API
