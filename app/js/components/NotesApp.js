@@ -18,10 +18,10 @@ class NotesApp extends Component {
     this.isSaving = false;
     this.showSharePopover = false;
 
-    this.isCreatingCollection = false;
     this.confirmingDeleteCid = null;
     this.showTrash = false;
     this.trashNotes = [];
+    this.inFlightOps = new Set(); // IDs currently being trashed/restored
   }
 
   async connectedCallback() {
@@ -56,8 +56,9 @@ class NotesApp extends Component {
     const localMap = new Map(this.allNotes.map((n) => [n.id, n]));
 
     serverIndex.forEach((serverNote) => {
-      // If we are showing trash, we might want to skip merging into normal list or handle differently
-      // But for now let's just merge metadata and filter later in loadNotes
+      // Logic: If there's an in-flight move for this note, IGNORE server update
+      // so it doesn't "resurrect" while the request is still finishing.
+      if (this.inFlightOps.has(serverNote.id)) return;
 
       const local = localMap.get(serverNote.id);
       if (local) {
@@ -132,31 +133,29 @@ class NotesApp extends Component {
       return;
     }
 
-    if (this.showTrash) {
-      this.trashNotes = await storage.getTrash(this.selectedCid);
-      this.trashNotes.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
-    } else {
-      // 1. Try local index first
-      let collectionNotes = this.allNotes.filter(
-        (n) => String(n.cid) === String(this.selectedCid) && !n.deletedAt,
-      );
+    // 1. Derive both lists from allNotes metadata index
+    this.notes = this.allNotes
+      .filter((n) => String(n.cid) === String(this.selectedCid) && !n.deletedAt)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-      // 2. Fallback: If local index is empty but we have collections, try fetching directly
-      if (collectionNotes.length === 0) {
-        const fetched = await storage.getCollectionNotes(this.selectedCid);
-        if (Array.isArray(fetched) && fetched.length > 0) {
-          fetched.forEach((fn) => {
-            if (!this.allNotes.find((an) => an.id === fn.id)) {
-              this.allNotes.push(fn);
-            }
-          });
-          collectionNotes = fetched;
-        }
+    this.trashNotes = this.allNotes
+      .filter((n) =>
+        String(n.cid) === String(this.selectedCid) && !!n.deletedAt
+      )
+      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+
+    // 2. Fallback: If active notes are missing but we expect some, try fetching
+    if (this.notes.length === 0 && !this.showTrash) {
+      const fetched = await storage.getCollectionNotes(this.selectedCid);
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        fetched.forEach((fn) => {
+          if (!this.allNotes.find((an) => an.id === fn.id)) {
+            this.allNotes.push(fn);
+          }
+        });
+        this.loadNotes(); // Re-derive
+        return;
       }
-
-      this.notes = collectionNotes.sort((a, b) =>
-        (b.createdAt || 0) - (a.createdAt || 0)
-      );
     }
 
     this.render();
@@ -220,36 +219,73 @@ class NotesApp extends Component {
     const note = this.allNotes.find((n) => n.id === id);
     if (!note) return;
 
-    // Call server to trash
-    await storage.deleteNote(id, note.cid);
-
-    // Update local state
+    // 1. Optimistic Update
+    const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
     const local = this.allNotes.find((n) => n.id === id);
     if (local) local.deletedAt = Date.now();
+    this.inFlightOps.add(id);
 
     if (this.selectedNid === id) this.selectedNid = null;
-    await this.loadNotes();
+    this.loadNotes(); // Instant derived UI update
+
+    // 2. Perform server action in background
+    storage.deleteNote(id, note.cid).then(() => {
+      this.inFlightOps.delete(id);
+    }).catch(async (e) => {
+      console.error("Failed to trash note:", e);
+      this.inFlightOps.delete(id);
+      this.allNotes = originalAllNotes;
+      this.loadNotes();
+      alert("Failed to delete note. Please try again.");
+    });
   }
 
   async restoreNote(id) {
-    await storage.restoreNote(id);
+    const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
+
+    // Optimistic Update
     const local = this.allNotes.find((n) => n.id === id);
     if (local) delete local.deletedAt;
-    await this.loadNotes();
+    this.inFlightOps.add(id);
+
+    this.loadNotes(); // Instant derived UI update
+
+    // Background server call
+    storage.restoreNote(id).then(() => {
+      this.inFlightOps.delete(id);
+    }).catch(async (e) => {
+      console.error("Failed to restore note:", e);
+      this.inFlightOps.delete(id);
+      this.allNotes = originalAllNotes;
+      this.loadNotes();
+      alert("Failed to restore note. Please try again.");
+    });
   }
 
   async emptyTrash() {
     if (!confirm("Permanently delete all notes in trash?")) return;
-    await storage.emptyTrash(this.selectedCid);
+
+    const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
     this.allNotes = this.allNotes.filter((n) =>
       !(n.cid === this.selectedCid && n.deletedAt)
     );
+
     await this.loadNotes();
+
+    try {
+      await storage.emptyTrash(this.selectedCid);
+    } catch (e) {
+      console.error("Failed to empty trash:", e);
+      this.allNotes = originalAllNotes;
+      await this.loadNotes();
+      alert("Failed to empty trash. Please try again.");
+    }
   }
 
   toggleTrash() {
     this.showTrash = !this.showTrash;
-    this.loadNotes();
+    this.render(); // Show empty list or cached list immediately
+    this.loadNotes(); // Then fetch/sync
   }
 
   // --- CRUD Operations ---
