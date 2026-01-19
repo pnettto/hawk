@@ -7,10 +7,8 @@ import { rateLimit } from "./server/middleware/rateLimit.ts";
 
 import {
   getDayLog,
-  getLogs,
   getRangeLog,
   setDayLog,
-  setLogs,
 } from "./server/routeHandlers/app.ts";
 import {
   deleteCollection,
@@ -69,10 +67,6 @@ app.use(
     await auth(c, next);
   },
 );
-
-// API Logs (backwards compatible)
-app.get("/api/logs", getLogs);
-app.post("/api/logs", setLogs);
 
 // Per-day API (new)
 app.get("/api/day", getDayLog);

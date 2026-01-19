@@ -23,9 +23,6 @@ class AuthOverlay extends Component {
       });
 
       if (res.ok) {
-        // Clear legacy storage if any
-        localStorage.removeItem("apiKey");
-        localStorage.removeItem("authTimestamp");
         appStore.setState({ isAuth: true, isGuest: false });
       } else {
         console.warn("Invalid password, logging in as guest...");

@@ -93,7 +93,6 @@ export class AppStore extends Store {
   async logout() {
     const { logout: storageLogout } = await import("./storage.js");
     await storageLogout();
-    localStorage.removeItem("guest");
     this.setState({ isAuth: false, isGuest: false });
   }
 }

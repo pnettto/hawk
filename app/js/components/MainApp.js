@@ -149,7 +149,6 @@ class MainApp extends Component {
         <shortcuts-modal></shortcuts-modal>
         <mirror-mode></mirror-mode>
         <zen-mode></zen-mode>
-        <backup-toast></backup-toast>
       </div>
       <auth-overlay></auth-overlay>
     `;

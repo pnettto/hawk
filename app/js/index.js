@@ -9,5 +9,4 @@ import "./components/NotesApp.js";
 import "./components/Shortcuts.js";
 import "./components/Auth.js";
 import "./components/Mirror.js";
-import "./components/Backup.js";
 import "./components/MainApp.js";

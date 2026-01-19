@@ -1,4 +1,4 @@
-import { API_URL, LOCALSTORAGE_KEY } from "../global.js";
+import { API_URL } from "../global.js";
 import { formatDate } from "./date.js";
 
 const apiUrl = API_URL;
@@ -35,24 +35,6 @@ export async function logout() {
     });
   } catch (e) {
     console.error("Logout failed:", e);
-  }
-}
-
-/**
- * Load all logs (needed for reports)
- */
-export async function loadAll() {
-  try {
-    const res = await fetch(`${apiUrl}/api/logs`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return {};
-    const data = await res.json();
-    logsCache = { ...logsCache, ...data };
-    return logsCache;
-  } catch (e) {
-    console.error("Failed to load all logs:", e);
-    return logsCache;
   }
 }
 
@@ -153,19 +135,6 @@ export async function saveForDate(dateStr, data) {
     console.error(`Failed to save log for ${dateStr}:`, e);
     throw e;
   }
-}
-
-/**
- * Legacy save all
- */
-export function saveAll(obj) {
-  logsCache = { ...logsCache, ...obj };
-
-  fetch(`${apiUrl}/api/logs`, {
-    method: "POST",
-    body: JSON.stringify(obj),
-    headers: getAuthHeaders(),
-  });
 }
 
 /**
@@ -318,20 +287,5 @@ export async function emptyTrash(cid) {
     });
   } catch (e) {
     console.error("Failed to empty trash:", e);
-  }
-}
-
-/**
- * Local backup
- */
-export function backup() {
-  const dateStr = formatDate(new Date());
-  try {
-    localStorage.setItem(
-      `${LOCALSTORAGE_KEY}_backup_${dateStr}`,
-      JSON.stringify(logsCache),
-    );
-  } catch (e) {
-    console.error("Error saving backup", e);
   }
 }
