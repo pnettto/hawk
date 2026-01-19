@@ -1,8 +1,7 @@
-import { LOCALSTORAGE_KEY } from "../global.js";
+import { API_URL, LOCALSTORAGE_KEY } from "../global.js";
 import { formatDate } from "./date.js";
 
-const apiUrl = localStorage.getItem("API_URL") ||
-  "https://hawk.pnettto.deno.net";
+const apiUrl = API_URL;
 
 console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
 
@@ -10,24 +9,28 @@ console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
 let logsCache = {};
 const pendingRequests = new Map();
 
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(";").shift();
-}
-
 function getAuthHeaders() {
-  const apiKey = getCookie("hawk_token");
   return {
-    Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
   };
+}
+
+export async function authCheck() {
+  try {
+    const res = await fetch(`${apiUrl}/api/auth-check`, {
+      headers: getAuthHeaders(),
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("Auth check failed:", e);
+    return false;
+  }
 }
 
 export async function logout() {
   try {
     await fetch(`${apiUrl}/api/logout`, {
-      method: "POST",
+      method: "GET",
       headers: getAuthHeaders(),
     });
   } catch (e) {
@@ -39,9 +42,6 @@ export async function logout() {
  * Load all logs (needed for reports)
  */
 export async function loadAll() {
-  const apiKey = getCookie("hawk_token");
-  if (!apiKey) return {};
-
   try {
     const res = await fetch(`${apiUrl}/api/logs`, {
       headers: getAuthHeaders(),
@@ -71,9 +71,6 @@ export function loadForDate(dateStr, force = false) {
   }
 
   // 3. Fetch from API
-  const apiKey = getCookie("hawk_token");
-  if (!apiKey) return null;
-
   const promise = (async () => {
     try {
       const res = await fetch(
@@ -102,9 +99,6 @@ export function loadForDate(dateStr, force = false) {
  * Load a range of dates
  */
 export async function loadForRange(start, end) {
-  const apiKey = getCookie("hawk_token");
-  if (!apiKey) return {};
-
   try {
     const res = await fetch(
       `${apiUrl}/api/range?start=${encodeURIComponent(start)}&end=${
@@ -143,15 +137,18 @@ export function prefetchSurrounding(date) {
 export async function saveForDate(dateStr, data) {
   logsCache[dateStr] = data;
 
-  const apiKey = getCookie("hawk_token");
-  if (!apiKey) return;
-
   try {
-    await fetch(`${apiUrl}/api/day?date=${encodeURIComponent(dateStr)}`, {
-      method: "POST",
-      body: JSON.stringify(data),
-      headers: getAuthHeaders(),
-    });
+    const res = await fetch(
+      `${apiUrl}/api/day?date=${encodeURIComponent(dateStr)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: getAuthHeaders(),
+      },
+    );
+    if (!res.ok && res.status === 401) {
+      import("./store.js").then((m) => m.appStore.setAuth(false));
+    }
   } catch (e) {
     console.error(`Failed to save log for ${dateStr}:`, e);
     throw e;
@@ -163,8 +160,6 @@ export async function saveForDate(dateStr, data) {
  */
 export function saveAll(obj) {
   logsCache = { ...logsCache, ...obj };
-  const apiKey = getCookie("hawk_token");
-  if (!apiKey) return;
 
   fetch(`${apiUrl}/api/logs`, {
     method: "POST",
@@ -182,6 +177,7 @@ export async function getNotesCollections() {
     const res = await fetch(`${apiUrl}/api/notes/collections`, {
       headers: getAuthHeaders(),
     });
+    if (!res.ok && res.status === 401) return [];
     return await res.json();
   } catch (e) {
     console.error("Failed to get collections:", e);
@@ -194,6 +190,7 @@ export async function getNotesIndex() {
     const res = await fetch(`${apiUrl}/api/notes/index`, {
       headers: getAuthHeaders(),
     });
+    if (!res.ok && res.status === 401) return [];
     return await res.json();
   } catch (e) {
     console.error("Failed to get notes index:", e);
@@ -229,6 +226,7 @@ export async function getCollectionNotes(cid) {
     const res = await fetch(`${apiUrl}/api/notes/collections/${cid}/notes`, {
       headers: getAuthHeaders(),
     });
+    if (!res.ok && res.status === 401) return [];
     return await res.json();
   } catch (e) {
     console.error("Failed to get notes:", e);
@@ -238,11 +236,14 @@ export async function getCollectionNotes(cid) {
 
 export async function saveNote(note) {
   try {
-    await fetch(`${apiUrl}/api/notes/notes`, {
+    const res = await fetch(`${apiUrl}/api/notes/notes`, {
       method: "POST",
       body: JSON.stringify(note),
       headers: getAuthHeaders(),
     });
+    if (!res.ok && res.status === 401) {
+      import("./store.js").then((m) => m.appStore.setAuth(false));
+    }
   } catch (e) {
     console.error("Failed to save note:", e);
     throw e;
@@ -254,6 +255,7 @@ export async function getNote(nid) {
     const res = await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
       headers: getAuthHeaders(),
     });
+    if (!res.ok) return null;
     return await res.json();
   } catch (e) {
     console.error("Failed to get note:", e);
@@ -300,6 +302,7 @@ export async function getTrash(cid) {
     const res = await fetch(`${apiUrl}/api/notes/collections/${cid}/trash`, {
       headers: getAuthHeaders(),
     });
+    if (!res.ok) return [];
     return await res.json();
   } catch (e) {
     console.error("Failed to get trash:", e);

@@ -9,7 +9,13 @@ class MainApp extends Component {
   }
 
   render() {
-    const { currentPage, isAuth } = this.getState();
+    const { currentPage, isAuth, isCheckingAuth } = this.getState();
+
+    // 0. Wait for initial check
+    if (isCheckingAuth) {
+      this.display("");
+      return;
+    }
 
     // 1. Initial full render or auth change
     if (this._lastAuth !== isAuth) {
@@ -81,7 +87,7 @@ class MainApp extends Component {
   }
 
   fullRender(isAuth, currentPage) {
-    const { journalTab } = this.getState();
+    const { journalTab, isGuest } = this.getState();
     const content = `
       <div class="container ${!isAuth ? "hidden" : ""}">
         <nav>
@@ -94,7 +100,11 @@ class MainApp extends Component {
             <button class="${
       currentPage === "notes" ? "active" : ""
     }" id="nav-notes">Notes</button>
-            <!-- <button id="nav-logout" style="margin-left: auto;">Logout</button> -->
+            ${
+      isAuth && !isGuest
+        ? '<button id="nav-logout" style="margin-left: auto;">Logout</button>'
+        : ""
+    }
         </nav>
 
         <main id="journal-page" class="page-content ${
