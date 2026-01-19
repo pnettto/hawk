@@ -319,7 +319,7 @@ class NotesApp extends Component {
     const newNote = {
       id: nid,
       cid: this.selectedCid,
-      title: "Untitled Note",
+      title: "Untitled",
       content: "",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -551,13 +551,13 @@ class NotesApp extends Component {
                     <span>Library</span>
                     <button class="btn-icon-tiny" id="add-collection-btn" title="New Collection">+</button>
                 </div>
-                ${inlineCreateHtml}
                 <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
                     <select class="dropdown-nav" id="collection-dropdown" style="flex:1">
                         ${collectionsDropdownHtml}
                     </select>
                     <button class="btn-icon-tiny delete-coll-btn" data-cid="${this.selectedCid}">×</button>
                 </div>
+                ${inlineCreateHtml}
                 
                 ${
       this.confirmingDeleteCid

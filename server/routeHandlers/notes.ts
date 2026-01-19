@@ -187,7 +187,7 @@ export async function saveNote(c: Context) {
   const metadata: NoteMetadata = {
     id,
     cid,
-    title: title || "Untitled Note",
+    title: title || "Untitled",
     createdAt: createdAt || existingNote?.createdAt || timestamp,
     updatedAt: timestamp,
   };
@@ -224,7 +224,7 @@ export async function trashNote(c: Context) {
     note = {
       id: nid,
       cid: bodyCid,
-      title: "Untitled Note",
+      title: "Untitled",
       createdAt: Date.now(),
       updatedAt: Date.now(),
       deletedAt: Date.now(),
