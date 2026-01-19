@@ -61,10 +61,9 @@ app.use(
       path === "/api/login" ||
       path === "/api/logout"
     ) {
-      await next();
-      return;
+      return await next();
     }
-    await auth(c, next);
+    return await auth(c, next);
   },
 );
 

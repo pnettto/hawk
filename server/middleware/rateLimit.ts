@@ -29,6 +29,6 @@ export const rateLimit = async (c: Context, next: Next) => {
 
   await kv.set(key, { count: record.value.count + 1, ts: record.value.ts });
   console.log(`[RATE_LIMIT] ${ip}: ${record.value.count + 1}/${RATE_LIMIT}`);
-  
-  await next();
+
+  return await next();
 };

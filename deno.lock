@@ -205,11 +205,6 @@
     "dependencies": [
       "npm:hono@^4.11.1",
       "npm:marked@^17.0.1"
-    ],
-    "packageJson": {
-      "dependencies": [
-        "npm:marked@^17.0.1"
-      ]
-    }
+    ]
   }
 }

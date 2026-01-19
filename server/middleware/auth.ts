@@ -21,7 +21,7 @@ export const auth = async (c: Context, next: Next) => {
     : cookieToken;
 
   if (token === API_KEY) {
-    await next();
+    return await next();
   } else {
     return c.json({ error: "Unauthorized" }, 401);
   }
