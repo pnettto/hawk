@@ -20,30 +20,25 @@ export class Store extends EventTarget {
 
 export class AppStore extends Store {
   constructor() {
-    // Helper to get cookie
-    const getCookie = (name) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(";").shift();
-    };
-
-    const apiKey = getCookie("hawk_token");
-    const guest = localStorage.getItem("guest") === "true";
-    const isAuth = guest || !!apiKey;
-
-    // Gradual cleanup of old storage if we found a cookie
-    if (apiKey) {
-      localStorage.removeItem("apiKey");
-      localStorage.removeItem("authTimestamp");
-    }
-
     super({
       selectedDate: new Date(),
       logs: {},
       currentPage: "app", // 'app' or 'report' etc.
       journalTab: "tasks", // 'tasks' or 'notes'
-      isAuth,
+      isAuth: false,
+      isGuest: false,
+      isCheckingAuth: true,
     });
+  }
+
+  async checkSession() {
+    const { authCheck } = await import("./storage.js");
+    const isAuth = await authCheck();
+    if (isAuth) {
+      this.setState({ isAuth: true, isGuest: false, isCheckingAuth: false });
+    } else {
+      this.setState({ isAuth: false, isGuest: false, isCheckingAuth: false });
+    }
   }
 
   setJournalTab(tab) {
@@ -92,14 +87,14 @@ export class AppStore extends Store {
   }
 
   setAuth(isAuth) {
-    this.setState({ isAuth });
+    this.setState({ isAuth, isGuest: false });
   }
 
   async logout() {
     const { logout: storageLogout } = await import("./storage.js");
     await storageLogout();
     localStorage.removeItem("guest");
-    this.setAuth(false);
+    this.setState({ isAuth: false, isGuest: false });
   }
 }
 
@@ -107,6 +102,7 @@ export const appStore = new AppStore();
 
 // Initial load for current date, then load all in background for reports
 const initStore = async () => {
+  await appStore.checkSession();
   const dateStr = formatDate(appStore.getState().selectedDate);
   await appStore.refreshDay(dateStr);
 

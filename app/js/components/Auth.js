@@ -1,17 +1,7 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 import { style } from "./Auth.styles.js";
-
-async function createHash(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join(
-    "",
-  );
-  return hashHex;
-}
+import { API_URL } from "../global.js";
 
 class AuthOverlay extends Component {
   constructor() {
@@ -25,31 +15,37 @@ class AuthOverlay extends Component {
       .value.trim();
     if (!password) return;
 
-    const key = await createHash(password);
+    try {
+      const res = await fetch(`${API_URL}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
 
-    // Set cookie with 30 day expiry
-    const maxAge = 30 * 24 * 60 * 60;
-    const isSecure = location.protocol === "https:";
-    document.cookie =
-      `hawk_token=${key}; Max-Age=${maxAge}; Path=/; SameSite=Strict${
-        isSecure ? "; Secure" : ""
-      }`;
-
-    localStorage.removeItem("apiKey"); // Clean up old storage
-    localStorage.removeItem("authTimestamp");
-
-    appStore.setAuth(true);
+      if (res.ok) {
+        // Clear legacy storage if any
+        localStorage.removeItem("apiKey");
+        localStorage.removeItem("authTimestamp");
+        appStore.setState({ isAuth: true, isGuest: false });
+      } else {
+        console.warn("Invalid password, logging in as guest...");
+        this.handleGuest(e);
+      }
+    } catch (e) {
+      console.error("Login failed:", e);
+      this.handleGuest(e);
+    }
   }
 
   handleGuest(e) {
-    e.preventDefault();
-    localStorage.setItem("guest", "true");
-    appStore.setAuth(true);
+    if (e) e.preventDefault();
+    // Transient guest mode - not saved to localStorage
+    appStore.setState({ isAuth: true, isGuest: true });
   }
 
   render() {
-    const { isAuth } = this.getState();
-    if (isAuth) {
+    const { isAuth, isCheckingAuth } = this.getState();
+    if (isCheckingAuth || isAuth) {
       this.display("");
       return;
     }
@@ -65,7 +61,7 @@ class AuthOverlay extends Component {
           <p>
             The correct password is needed to save the information, but you can go in and test it out.
           </p>
-          <a href="#" class="guest">I want to test it!</a>
+          <a href="#" class="guest">Let me test it</a>
           <p>Author: <a href="https://pnetto.com" style="color: inherit;">Pedro Netto</a></p>
         </form>
       </div>

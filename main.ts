@@ -33,9 +33,14 @@ import {
   listEntries,
   setEntry,
 } from "./server/routeHandlers/kv.ts";
-import { logout } from "./server/routeHandlers/auth.ts";
+import { authCheck, login, logout } from "./server/routeHandlers/auth.ts";
 
 const app = new Hono();
+
+app.onError((err, c) => {
+  console.error(`[CRASH] ${err.message}`);
+  return c.json({ error: err.message, stack: err.stack }, 500);
+});
 
 app.use(
   "/api/*",
@@ -51,8 +56,13 @@ app.use(
   "/api/*",
   rateLimit,
   async (c, next) => {
-    // Skip auth for public routes
-    if (c.req.path.startsWith("/api/public/")) {
+    const path = c.req.path;
+    // Skip auth for public, login, and logout routes
+    if (
+      path.startsWith("/api/public/") ||
+      path === "/api/login" ||
+      path === "/api/logout"
+    ) {
       await next();
       return;
     }
@@ -70,7 +80,9 @@ app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
 
 // Auth API
-app.post("/api/logout", logout);
+app.post("/api/login", login);
+app.get("/api/logout", logout);
+app.get("/api/auth-check", authCheck);
 
 // Notes API
 app.get("/api/notes/collections", getCollections);
