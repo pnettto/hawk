@@ -194,7 +194,7 @@ export async function getNotesIndex(c: Context) {
       }
     }
   }
-  return c.json(allMetadata.filter((n) => !n.deletedAt));
+  return c.json(allMetadata);
 }
 
 export async function deleteCollection(c: Context) {
