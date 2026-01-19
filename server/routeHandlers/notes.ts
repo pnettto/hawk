@@ -41,53 +41,20 @@ export async function getCollectionNotes(c: Context) {
   const cid = c.req.param("cid");
   if (!cid) return c.json({ error: "Missing collection ID" }, 400);
 
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
   if (!indexRes.value) return c.json([]);
 
-  // Transition: If index is strings (IDs), we must fetch them once to build metadata
-  if (indexRes.value.length > 0 && typeof indexRes.value[0] === "string") {
-    const ids = indexRes.value as string[];
-    const metadataPromises = ids.map(async (nid) => {
-      const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-      return noteRes.value;
-    });
-    const results = await Promise.all(metadataPromises);
-    const metadataList = results.filter((r): r is NoteMetadata => r !== null);
-    // Update index to new format
-    await kv.set(["notes", "collection", cid], metadataList);
-    return c.json(metadataList.filter((n: NoteMetadata) => !n.deletedAt));
-  }
-
-  return c.json(
-    (indexRes.value as NoteMetadata[]).filter((n) => !n.deletedAt),
-  );
+  return c.json(indexRes.value.filter((n) => !n.deletedAt));
 }
 
 export async function getTrash(c: Context) {
   const cid = c.req.param("cid");
   if (!cid) return c.json({ error: "Missing CID" }, 400);
 
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
   if (!indexRes.value) return c.json([]);
 
-  const index = indexRes.value;
-
-  // Migration for Trash view
-  if (index.length > 0 && typeof index[0] === "string") {
-    const ids = index as string[];
-    const metadataPromises = ids.map(async (nid) => {
-      const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-      return noteRes.value;
-    });
-    const results = await Promise.all(metadataPromises);
-    const metadataList = results.filter((r): r is NoteMetadata => r !== null);
-    await kv.set(["notes", "collection", cid], metadataList);
-    return c.json(metadataList.filter((n: NoteMetadata) => !!n.deletedAt));
-  }
-
-  return c.json(
-    (index as NoteMetadata[]).filter((n: NoteMetadata) => !!n.deletedAt),
-  );
+  return c.json(indexRes.value.filter((n) => !!n.deletedAt));
 }
 
 export async function getNote(c: Context) {
@@ -173,25 +140,9 @@ export async function getNotesIndex(c: Context) {
 
   const allMetadata: NoteMetadata[] = [];
   for (const coll of colls) {
-    const res = await kv.get<unknown[]>(["notes", "collection", coll.id]);
+    const res = await kv.get<NoteMetadata[]>(["notes", "collection", coll.id]);
     if (res.value) {
-      if (res.value.length > 0 && typeof res.value[0] === "string") {
-        // Migrate collection index on the fly
-        const ids = res.value as string[];
-        const metadataPromises = ids.map(async (nid) => {
-          const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-          return noteRes.value;
-        });
-        const results = await Promise.all(metadataPromises);
-        const metadataList = results.filter((r): r is NoteMetadata =>
-          r !== null
-        );
-
-        await kv.set(["notes", "collection", coll.id], metadataList);
-        allMetadata.push(...metadataList);
-      } else {
-        allMetadata.push(...(res.value as NoteMetadata[]));
-      }
+      allMetadata.push(...res.value);
     }
   }
   return c.json(allMetadata);
@@ -209,11 +160,10 @@ export async function deleteCollection(c: Context) {
   const filtered = collections.filter((item) => item.id !== cid);
   await kv.set(["notes", "collections"], filtered);
 
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
   if (indexRes.value) {
     for (const item of indexRes.value) {
-      const nid = typeof item === "string" ? item : (item as NoteMetadata).id;
-      await kv.delete(["notes", "note", nid]);
+      await kv.delete(["notes", "note", item.id]);
     }
   }
   await kv.delete(["notes", "collection", cid]);
@@ -243,28 +193,14 @@ export async function saveNote(c: Context) {
   };
   if (existingNote?.deletedAt) metadata.deletedAt = existingNote.deletedAt;
 
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
-  let index = (indexRes.value || []) as (string | NoteMetadata)[];
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
+  const index = indexRes.value || [];
 
-  // Transform legacy index if needed
-  if (index.length > 0 && typeof index[0] === "string") {
-    const ids = index as string[];
-    const metadataPromises = ids
-      .filter((nid) => nid !== id)
-      .map(async (nid) => {
-        const nRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-        return nRes.value;
-      });
-
-    const results = await Promise.all(metadataPromises);
-    index = results.filter((r): r is NoteMetadata => r !== null);
-  }
-
-  const existingIdx = (index as NoteMetadata[]).findIndex((m) => m.id === id);
+  const existingIdx = index.findIndex((m) => m.id === id);
   if (existingIdx > -1) {
-    (index as NoteMetadata[])[existingIdx] = metadata;
+    index[existingIdx] = metadata;
   } else {
-    (index as NoteMetadata[]).unshift(metadata);
+    index.unshift(metadata);
   }
 
   await kv.set(["notes", "collection", cid], index);
@@ -301,23 +237,11 @@ export async function trashNote(c: Context) {
 
   // Update index metadata
   const { cid } = note;
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
-  let index = (indexRes.value || []) as (string | NoteMetadata)[];
-
-  // Logic to handle legacy index migration
-  if (index.length > 0 && typeof index[0] === "string") {
-    const ids = index as string[];
-    const metadataPromises = ids.map(async (tnid) => {
-      const nRes = await kv.get<NoteMetadata>(["notes", "note", tnid]);
-      return nRes.value;
-    });
-    const results = await Promise.all(metadataPromises);
-    index = results.filter((r): r is NoteMetadata => r !== null);
-    await kv.set(["notes", "collection", cid], index);
-  }
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
+  const index = indexRes.value || [];
 
   let found = false;
-  const newIndex = (index as NoteMetadata[]).map((m) => {
+  const newIndex = index.map((m) => {
     if (m.id === nid) {
       found = true;
       return { ...m, deletedAt: note!.deletedAt };
@@ -348,21 +272,10 @@ export async function restoreNote(c: Context) {
 
   // Restore in index
   const { cid } = note;
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
-  let index = (indexRes.value || []) as (string | NoteMetadata)[];
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
+  const index = indexRes.value || [];
 
-  if (index.length > 0 && typeof index[0] === "string") {
-    const ids = index as string[];
-    const metadataPromises = ids.map(async (tnid) => {
-      const nRes = await kv.get<NoteMetadata>(["notes", "note", tnid]);
-      return nRes.value;
-    });
-    const results = await Promise.all(metadataPromises);
-    index = results.filter((r): r is NoteMetadata => r !== null);
-    await kv.set(["notes", "collection", cid], index);
-  }
-
-  const newIndex = (index as NoteMetadata[]).map((m) => {
+  const newIndex = index.map((m) => {
     if (m.id === nid) {
       const { deletedAt: _, ...rest } = m;
       return rest as NoteMetadata;
@@ -378,28 +291,12 @@ export async function emptyTrash(c: Context) {
   const cid = c.req.param("cid");
   if (!cid) return c.json({ error: "Missing CID" }, 400);
 
-  const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
   if (!indexRes.value) return c.json({ success: true });
 
-  let index = indexRes.value;
-
-  // Migration for empty trash
-  if (index.length > 0 && typeof index[0] === "string") {
-    const ids = index as string[];
-    const metadataPromises = ids.map(async (nid) => {
-      const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-      return noteRes.value;
-    });
-    const results = await Promise.all(metadataPromises);
-    index = results.filter((r): r is NoteMetadata => r !== null);
-  }
-
-  const trashed = (index as NoteMetadata[]).filter((n: NoteMetadata) =>
-    !!n.deletedAt
-  );
-  const active = (index as NoteMetadata[]).filter((n: NoteMetadata) =>
-    !n.deletedAt
-  );
+  const index = indexRes.value;
+  const trashed = index.filter((n: NoteMetadata) => !!n.deletedAt);
+  const active = index.filter((n: NoteMetadata) => !n.deletedAt);
 
   for (const n of trashed) {
     await kv.delete(["notes", "note", n.id]);
@@ -421,22 +318,9 @@ export async function permanentlyDeleteNote(c: Context) {
     await kv.delete(["notes", "note", nid]);
 
     // Remove from index
-    const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+    const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
     if (indexRes.value) {
-      let index = indexRes.value;
-
-      // Legacy migration logic (shared)
-      if (index.length > 0 && typeof index[0] === "string") {
-        const ids = index as string[];
-        const metadataPromises = ids.map(async (tnid) => {
-          const nRes = await kv.get<NoteMetadata>(["notes", "note", tnid]);
-          return nRes.value;
-        });
-        const results = await Promise.all(metadataPromises);
-        index = results.filter((r): r is NoteMetadata => r !== null);
-      }
-
-      const newIndex = (index as NoteMetadata[]).filter((m) => m.id !== nid);
+      const newIndex = indexRes.value.filter((m) => m.id !== nid);
       await kv.set(["notes", "collection", cid], newIndex);
     }
   }
