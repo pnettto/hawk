@@ -19,15 +19,16 @@ export async function login(c: Context) {
 
   // Check against plain API_KEY or hashed API_KEY
   if (hashedInput === API_KEY || password === API_KEY) {
-    const cookieValue = hashedInput === API_KEY ? hashedInput : password;
-    setCookie(c, "hawk_token", cookieValue, {
+    const tokenValue = hashedInput === API_KEY ? hashedInput : password;
+    // Set cookie for browser-based access if needed, but return token for extensions
+    setCookie(c, "hawk_token", tokenValue, {
       path: "/",
       httpOnly: true,
       secure: true,
       sameSite: "Strict",
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
-    return c.json({ success: true });
+    return c.json({ success: true, token: tokenValue });
   }
 
   return c.json({ error: "Invalid password" }, 401);

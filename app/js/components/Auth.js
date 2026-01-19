@@ -23,6 +23,9 @@ class AuthOverlay extends Component {
       });
 
       if (res.ok) {
+        const { token } = await res.json();
+        const { saveToken } = await import("../utils/storage.js");
+        if (token) saveToken(token);
         appStore.setState({ isAuth: true, isGuest: false });
       } else {
         console.warn("Invalid password, logging in as guest...");
