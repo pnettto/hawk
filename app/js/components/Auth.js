@@ -26,8 +26,18 @@ class AuthOverlay extends Component {
     if (!password) return;
 
     const key = await createHash(password);
-    localStorage.setItem("apiKey", key);
-    localStorage.setItem("authTimestamp", Date.now().toString());
+
+    // Set cookie with 30 day expiry
+    const maxAge = 30 * 24 * 60 * 60;
+    const isSecure = location.protocol === "https:";
+    document.cookie =
+      `hawk_token=${key}; Max-Age=${maxAge}; Path=/; SameSite=Strict${
+        isSecure ? "; Secure" : ""
+      }`;
+
+    localStorage.removeItem("apiKey"); // Clean up old storage
+    localStorage.removeItem("authTimestamp");
+
     appStore.setAuth(true);
   }
 

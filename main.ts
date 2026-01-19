@@ -33,6 +33,7 @@ import {
   listEntries,
   setEntry,
 } from "./server/routeHandlers/kv.ts";
+import { logout } from "./server/routeHandlers/auth.ts";
 
 const app = new Hono();
 
@@ -67,6 +68,9 @@ app.post("/api/logs", setLogs);
 app.get("/api/day", getDayLog);
 app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
+
+// Auth API
+app.post("/api/logout", logout);
 
 // Notes API
 app.get("/api/notes/collections", getCollections);
