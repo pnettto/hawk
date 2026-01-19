@@ -20,13 +20,35 @@ export class Store extends EventTarget {
 
 export class AppStore extends Store {
   constructor() {
+    const apiKey = localStorage.getItem("apiKey");
+    const guest = localStorage.getItem("guest") === "true";
+    let isAuth = false;
+
+    if (guest) {
+      isAuth = true;
+    } else if (apiKey) {
+      const authTimestamp = localStorage.getItem("authTimestamp");
+      if (!authTimestamp) {
+        isAuth = true;
+      } else {
+        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        if (now - parseInt(authTimestamp) > thirtyDays) {
+          localStorage.removeItem("apiKey");
+          localStorage.removeItem("authTimestamp");
+          isAuth = false;
+        } else {
+          isAuth = true;
+        }
+      }
+    }
+
     super({
       selectedDate: new Date(),
       logs: {},
       currentPage: "app", // 'app' or 'report' etc.
       journalTab: "tasks", // 'tasks' or 'notes'
-      isAuth: !!localStorage.getItem("apiKey") ||
-        localStorage.getItem("guest") === "true",
+      isAuth,
     });
   }
 
