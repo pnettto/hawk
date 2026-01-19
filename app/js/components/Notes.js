@@ -69,7 +69,7 @@ class NotesInput extends Component {
     if (!this.shadowRoot.querySelector(".notes")) {
       this.display(`
           <section class="notes">
-              <rich-editor></rich-editor>
+              <rich-editor autofocus></rich-editor>
           </section>
       `);
 

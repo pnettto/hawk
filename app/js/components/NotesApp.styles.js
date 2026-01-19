@@ -177,13 +177,12 @@ rich-editor { display: block; }
     color: var(--text);
 }
 
-.delete-btn {
+.item-list .delete-note-btn {
     opacity: 0;
-    font-size: var(--h3);
 }
 
-.list-item:hover .delete-btn { opacity: 0.5; }
-.list-item:hover .delete-btn:hover { opacity: 1; color: #ff4444; }
+.item-list .list-item:hover .delete-note-btn { opacity: 0.5; }
+.item-list .list-item:hover .delete-note-btn:hover { opacity: 1; color: #ff4444; }
 
 .empty-state {
     flex: 1;

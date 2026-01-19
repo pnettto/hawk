@@ -50,7 +50,28 @@ class NotesApp extends Component {
     ]);
 
     this.collections = collections;
-    this.allNotes = Array.isArray(fullIndex) ? fullIndex : [];
+
+    // Merge logic: Keep local optimistic notes and update others
+    const serverIndex = Array.isArray(fullIndex) ? fullIndex : [];
+    const localMap = new Map(this.allNotes.map((n) => [n.id, n]));
+
+    serverIndex.forEach((serverNote) => {
+      // Don't resurrect notes that we are currently deleting locally
+      if (this.pendingDeletes.has(serverNote.id)) return;
+
+      const local = localMap.get(serverNote.id);
+      if (local) {
+        // If server is newer, or if it's the same but we want to refresh metadata
+        if ((serverNote.updatedAt || 0) >= (local.updatedAt || 0)) {
+          // Merge metadata from server, but keep local content if server's is missing
+          localMap.set(serverNote.id, { ...local, ...serverNote });
+        }
+      } else {
+        localMap.set(serverNote.id, serverNote);
+      }
+    });
+
+    this.allNotes = Array.from(localMap.values());
 
     // 2. Refresh current note content if selected
     if (this.selectedNid) {
@@ -59,7 +80,9 @@ class NotesApp extends Component {
         // Update in index/list
         const idx = this.allNotes.findIndex((n) => n.id === this.selectedNid);
         if (idx !== -1) {
-          this.allNotes[idx] = fullNote;
+          // Keep content if it was already richer locally (e.g. just typed)
+          const existing = this.allNotes[idx];
+          this.allNotes[idx] = { ...fullNote, ...existing, id: fullNote.id };
         } else {
           this.allNotes.push(fullNote);
         }
@@ -213,7 +236,7 @@ class NotesApp extends Component {
       } catch (err) {
         console.error("[NotesApp] Delete failed:", err);
       }
-    }, 10000);
+    }, 5000);
 
     this.pendingDeletes.set(id, { timeout, originalAllNotes });
     this.render();
@@ -231,8 +254,9 @@ class NotesApp extends Component {
 
   // --- CRUD Operations ---
 
-  async createNote() {
+  createNote() {
     if (!this.selectedCid) return;
+
     const nid = crypto.randomUUID();
     const newNote = {
       id: nid,
@@ -240,17 +264,18 @@ class NotesApp extends Component {
       title: "Untitled Note",
       content: "",
       createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
-    const metadata = { ...newNote };
-    delete metadata.content;
-    this.allNotes.unshift(metadata);
-    this.loadNotes();
 
-    await storage.saveNote(newNote);
+    // 1. Optimistic UI update: Immediate selection and display
+    this.allNotes.unshift(newNote); // Keep full object in allNotes for now
     this.selectedNid = nid;
-    this.render();
+    this.loadNotes(); // This calls render()
 
     this.focusElement("#note-title", true);
+
+    // 2. Trigger debounced save (handles creation on server)
+    this.saveNoteDebounced(newNote);
   }
 
   selectCollection(cid) {
@@ -286,13 +311,16 @@ class NotesApp extends Component {
   }
 
   focusElement(selector, select = false) {
-    setTimeout(() => {
-      const el = this.shadowRoot.querySelector(selector);
-      if (el) {
-        el.focus();
-        if (select && el.select) el.select();
-      }
-    }, 0);
+    // Use requestAnimationFrame to wait for the next frame where DOM might be updated
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = this.shadowRoot.querySelector(selector);
+        if (el) {
+          el.focus();
+          if (select && el.select) el.select();
+        }
+      }, 50); // 50ms buffer to ensure Tiptap and other sub-components finished mounting
+    });
   }
 
   // Use inherited wrapper for debounced save
