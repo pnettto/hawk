@@ -22,6 +22,7 @@ import {
   getPublicNote,
   getSharedNotePage,
   getTrash,
+  permanentlyDeleteNote,
   restoreNote,
   saveCollections,
   saveNote,
@@ -75,6 +76,7 @@ app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.get("/api/notes/index", getNotesIndex);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
+app.delete("/api/notes/notes/:nid", permanentlyDeleteNote);
 
 // Trash Bin API
 app.post("/api/notes/notes/:nid/trash", trashNote);

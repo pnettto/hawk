@@ -256,6 +256,17 @@ export async function deleteNote(nid, cid) {
   }
 }
 
+export async function permanentlyDeleteNote(nid) {
+  try {
+    await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to permanently delete note:", e);
+  }
+}
+
 export async function restoreNote(nid) {
   try {
     await fetch(`${apiUrl}/api/notes/notes/${nid}/restore`, {
