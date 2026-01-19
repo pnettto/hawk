@@ -20,8 +20,8 @@ class NotesApp extends Component {
 
     this.isCreatingCollection = false;
     this.confirmingDeleteCid = null;
-    // Undo state
-    this.pendingDeletes = new Map(); // id -> { timeout, originalNotes }
+    this.showTrash = false;
+    this.trashNotes = [];
   }
 
   async connectedCallback() {
@@ -56,8 +56,8 @@ class NotesApp extends Component {
     const localMap = new Map(this.allNotes.map((n) => [n.id, n]));
 
     serverIndex.forEach((serverNote) => {
-      // Don't resurrect notes that we are currently deleting locally
-      if (this.pendingDeletes.has(serverNote.id)) return;
+      // If we are showing trash, we might want to skip merging into normal list or handle differently
+      // But for now let's just merge metadata and filter later in loadNotes
 
       const local = localMap.get(serverNote.id);
       if (local) {
@@ -127,36 +127,38 @@ class NotesApp extends Component {
   async loadNotes() {
     if (!this.selectedCid) {
       this.notes = [];
+      this.trashNotes = [];
       this.render();
       return;
     }
 
-    // 1. Try local index first
-    let collectionNotes = this.allNotes.filter(
-      (n) => String(n.cid) === String(this.selectedCid),
-    );
-
-    // 2. Fallback: If local index is empty but we have collections, try fetching directly
-    // (This helps if /api/notes/index is not supported or was empty)
-    if (collectionNotes.length === 0) {
-      console.log(
-        `[NotesApp] Index empty for ${this.selectedCid}, falling back to direct fetch...`,
+    if (this.showTrash) {
+      this.trashNotes = await storage.getTrash(this.selectedCid);
+      this.trashNotes.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+    } else {
+      // 1. Try local index first
+      let collectionNotes = this.allNotes.filter(
+        (n) => String(n.cid) === String(this.selectedCid) && !n.deletedAt,
       );
-      const fetched = await storage.getCollectionNotes(this.selectedCid);
-      if (Array.isArray(fetched) && fetched.length > 0) {
-        // Merge into global index to avoid future fallbacks
-        fetched.forEach((fn) => {
-          if (!this.allNotes.find((an) => an.id === fn.id)) {
-            this.allNotes.push(fn);
-          }
-        });
-        collectionNotes = fetched;
+
+      // 2. Fallback: If local index is empty but we have collections, try fetching directly
+      if (collectionNotes.length === 0) {
+        const fetched = await storage.getCollectionNotes(this.selectedCid);
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          fetched.forEach((fn) => {
+            if (!this.allNotes.find((an) => an.id === fn.id)) {
+              this.allNotes.push(fn);
+            }
+          });
+          collectionNotes = fetched;
+        }
       }
+
+      this.notes = collectionNotes.sort((a, b) =>
+        (b.createdAt || 0) - (a.createdAt || 0)
+      );
     }
 
-    this.notes = collectionNotes.sort((a, b) =>
-      (b.createdAt || 0) - (a.createdAt || 0)
-    );
     this.render();
   }
 
@@ -214,42 +216,40 @@ class NotesApp extends Component {
     this.render();
   }
 
-  promptDeleteNote(id) {
+  async promptDeleteNote(id) {
     const note = this.allNotes.find((n) => n.id === id);
     if (!note) return;
 
-    // Save state for undo
-    const originalAllNotes = [...this.allNotes];
+    // Call server to trash
+    await storage.deleteNote(id, note.cid);
 
-    // Optimistic UI update
-    this.allNotes = this.allNotes.filter((n) => n.id !== id);
+    // Update local state
+    const local = this.allNotes.find((n) => n.id === id);
+    if (local) local.deletedAt = Date.now();
+
     if (this.selectedNid === id) this.selectedNid = null;
-    this.loadNotes();
-
-    // Set 10s timer
-    const timeout = setTimeout(async () => {
-      this.pendingDeletes.delete(id);
-      this.render();
-      try {
-        await storage.deleteNote(id);
-        console.log(`[NotesApp] Permanently deleted note: ${id}`);
-      } catch (err) {
-        console.error("[NotesApp] Delete failed:", err);
-      }
-    }, 5000);
-
-    this.pendingDeletes.set(id, { timeout, originalAllNotes });
-    this.render();
+    await this.loadNotes();
   }
 
-  undoDelete(id) {
-    const pending = this.pendingDeletes.get(id);
-    if (pending) {
-      clearTimeout(pending.timeout);
-      this.allNotes = pending.originalAllNotes;
-      this.pendingDeletes.delete(id);
-      this.loadNotes();
-    }
+  async restoreNote(id) {
+    await storage.restoreNote(id);
+    const local = this.allNotes.find((n) => n.id === id);
+    if (local) delete local.deletedAt;
+    await this.loadNotes();
+  }
+
+  async emptyTrash() {
+    if (!confirm("Permanently delete all notes in trash?")) return;
+    await storage.emptyTrash(this.selectedCid);
+    this.allNotes = this.allNotes.filter((n) =>
+      !(n.cid === this.selectedCid && n.deletedAt)
+    );
+    await this.loadNotes();
+  }
+
+  toggleTrash() {
+    this.showTrash = !this.showTrash;
+    this.loadNotes();
   }
 
   // --- CRUD Operations ---
@@ -404,6 +404,13 @@ class NotesApp extends Component {
         </div>
     `).join("");
 
+    const trashHtml = this.trashNotes.map((n) => `
+        <div class="list-item trash-item" data-nid="${n.id}">
+            <span class="title-text">${n.title || "Untitled"}</span>
+            <button class="btn-icon-tiny restore-note-btn" data-nid="${n.id}" title="Restore">↺</button>
+        </div>
+    `).join("");
+
     const editorHtml = currentNote
       ? `
         <div class="editor-header">
@@ -475,26 +482,13 @@ class NotesApp extends Component {
     `
       : "";
 
-    // Undo Toasts
-    let undoHtml = "";
-    if (this.pendingDeletes.size > 0) {
-      const id = Array.from(this.pendingDeletes.keys())[0];
-      undoHtml = `
-            <div class="undo-toast">
-                <span>Note deleted</span>
-                <button class="undo-btn" data-nid="${id}">Undo</button>
-            </div>
-        `;
-    }
-
     const content = `
-        ${undoHtml}
         ${this.savingIndicatorHTML}
         <div class="sidebar ${this.isPanelPinned ? "" : "collapsed"}">
             <div class="panel-section">
                 <div class="panel-header">
                     <span>Library</span>
-                    <button class="btn-icon-tiny" id="add-collection-btn">+</button>
+                    <button class="btn-icon-tiny" id="add-collection-btn" title="New Collection">+</button>
                 </div>
                 ${inlineCreateHtml}
                 <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
@@ -521,31 +515,51 @@ class NotesApp extends Component {
             
             <div class="panel-section" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
                 <div class="panel-header">
-                    <span>Notes</span>
-                    <button class="btn-icon-tiny" id="add-note-btn">+</button>
+                    <span>${this.showTrash ? "Trash" : "Notes"}</span>
+                    <div style="display: flex; gap: 0.25rem;">
+                         ${
+      this.showTrash
+        ? `<button class="btn-icon-tiny" id="empty-trash-btn" title="Empty Trash">🧹</button>`
+        : `<button class="btn-icon-tiny" id="add-note-btn" title="New Note">+</button>`
+    }
+                        <button class="btn-icon-tiny ${
+      this.showTrash ? "active" : ""
+    }" id="toggle-trash-btn" title="View Trash">🗑️</button>
+                    </div>
                 </div>
                 <!-- Desktop List -->
-                <div class="item-list desktop-only">${notesHtml}</div>
+                <div class="item-list desktop-only">
+                    ${this.showTrash ? trashHtml : notesHtml}
+                    ${
+      this.showTrash && this.trashNotes.length === 0
+        ? '<div class="empty-state" style="padding: 1rem; font-size: 0.8rem;">Trash is empty</div>'
+        : ""
+    }
+                </div>
                 
                 <!-- Mobile Dropdown -->
                 <div class="mobile-only">
+                    ${
+      this.showTrash ? `<div class="item-list">${trashHtml}</div>` : `
                     <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
                         <select class="dropdown-nav" id="note-dropdown" style="flex:1">
                             <option value="" ${
-      !this.selectedNid ? "selected" : ""
-    } disabled>Select a note...</option>
+        !this.selectedNid ? "selected" : ""
+      } disabled>Select a note...</option>
                             ${
-      this.notes.map((n) => `
+        this.notes.map((n) => `
                                 <option value="${n.id}" ${
-        n.id === this.selectedNid ? "selected" : ""
-      }>
+          n.id === this.selectedNid ? "selected" : ""
+        }>
                                     ${n.title || "Untitled"}
                                 </option>
                             `).join("")
-    }
+      }
                         </select>
                         <button class="btn-icon-tiny delete-note-btn" data-nid="${this.selectedNid}">×</button>
                     </div>
+                    `
+    }
                 </div>
             </div>
         </div>
@@ -630,9 +644,22 @@ class NotesApp extends Component {
       });
     });
 
-    this.shadowRoot.querySelectorAll(".undo-btn").forEach((btn) => {
-      btn.addEventListener("click", () => this.undoDelete(btn.dataset.nid));
+    this.shadowRoot.querySelectorAll(".restore-note-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.restoreNote(btn.dataset.nid);
+      });
     });
+
+    const toggleTrashBtn = this.shadowRoot.getElementById("toggle-trash-btn");
+    if (toggleTrashBtn) {
+      toggleTrashBtn.addEventListener("click", () => this.toggleTrash());
+    }
+
+    const emptyTrashBtn = this.shadowRoot.getElementById("empty-trash-btn");
+    if (emptyTrashBtn) {
+      emptyTrashBtn.addEventListener("click", () => this.emptyTrash());
+    }
 
     const addCollBtn = this.shadowRoot.getElementById("add-collection-btn");
     if (addCollBtn) {

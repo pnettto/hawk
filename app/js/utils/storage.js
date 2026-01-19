@@ -244,14 +244,49 @@ export async function getNote(nid) {
   }
 }
 
-export async function deleteNote(nid) {
+export async function deleteNote(nid, cid) {
   try {
-    await fetch(`${apiUrl}/api/notes/notes/${nid}`, {
+    await fetch(`${apiUrl}/api/notes/notes/${nid}/trash`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ cid }),
+    });
+  } catch (e) {
+    console.error("Failed to trash note:", e);
+  }
+}
+
+export async function restoreNote(nid) {
+  try {
+    await fetch(`${apiUrl}/api/notes/notes/${nid}/restore`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Failed to restore note:", e);
+  }
+}
+
+export async function getTrash(cid) {
+  try {
+    const res = await fetch(`${apiUrl}/api/notes/collections/${cid}/trash`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to get trash:", e);
+    return [];
+  }
+}
+
+export async function emptyTrash(cid) {
+  try {
+    await fetch(`${apiUrl}/api/notes/collections/${cid}/trash`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
   } catch (e) {
-    console.error("Failed to delete note:", e);
+    console.error("Failed to empty trash:", e);
   }
 }
 
