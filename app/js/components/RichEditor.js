@@ -97,7 +97,7 @@ export class RichEditor extends Component {
 
     this.editor = new Editor({
       element: element,
-      autofocus: "start",
+      autofocus: this.hasAttribute("autofocus") ? "start" : false,
       extensions: [
         StarterKit,
         Placeholder.configure({

@@ -149,15 +149,16 @@ export async function getNotesIndex(c: Context) {
     if (res.value) {
       if (res.value.length > 0 && typeof res.value[0] === "string") {
         // Migrate collection index on the fly
-        const metadataList: NoteMetadata[] = [];
         const ids = res.value as string[];
-        for (const nid of ids) {
+        const metadataPromises = ids.map(async (nid) => {
           const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-          if (noteRes.value) {
-            const { id, cid, title, createdAt, updatedAt } = noteRes.value;
-            metadataList.push({ id, cid, title, createdAt, updatedAt });
-          }
-        }
+          return noteRes.value;
+        });
+        const results = await Promise.all(metadataPromises);
+        const metadataList = results.filter((r): r is NoteMetadata =>
+          r !== null
+        );
+
         await kv.set(["notes", "collection", coll.id], metadataList);
         allMetadata.push(...metadataList);
       } else {
@@ -215,23 +216,20 @@ export async function saveNote(c: Context) {
   // Transform legacy index if needed
   if (index.length > 0 && typeof index[0] === "string") {
     const ids = index as string[];
-    const newIndex: NoteMetadata[] = [];
-    for (const nid of ids) {
-      if (nid === id) continue; // Will be added/updated later
-      const nRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-      if (nRes.value) {
-        const { id, cid, title, createdAt, updatedAt } = nRes.value;
-        newIndex.push({ id, cid, title, createdAt, updatedAt });
-      }
-    }
-    index = newIndex;
+    const metadataPromises = ids
+      .filter((nid) => nid !== id)
+      .map(async (nid) => {
+        const nRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
+        return nRes.value;
+      });
+
+    const results = await Promise.all(metadataPromises);
+    index = results.filter((r): r is NoteMetadata => r !== null);
   }
 
-  const existingIdx = index.findIndex((m) =>
-    (typeof m === "string" ? m : m.id) === id
-  );
+  const existingIdx = (index as NoteMetadata[]).findIndex((m) => m.id === id);
   if (existingIdx > -1) {
-    index[existingIdx] = metadata;
+    (index as NoteMetadata[])[existingIdx] = metadata;
   } else {
     (index as NoteMetadata[]).unshift(metadata);
   }
