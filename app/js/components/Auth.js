@@ -27,6 +27,7 @@ class AuthOverlay extends Component {
 
     const key = await createHash(password);
     localStorage.setItem("apiKey", key);
+    localStorage.setItem("authTimestamp", Date.now().toString());
     appStore.setAuth(true);
   }
 
