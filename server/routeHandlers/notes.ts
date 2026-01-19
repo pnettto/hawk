@@ -408,3 +408,38 @@ export async function emptyTrash(c: Context) {
   await kv.set(["notes", "collection", cid], active);
   return c.json({ success: true });
 }
+
+export async function permanentlyDeleteNote(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.json({ error: "Missing ID" }, 400);
+
+  const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
+  const note = noteRes.value;
+
+  if (note) {
+    const { cid } = note;
+    await kv.delete(["notes", "note", nid]);
+
+    // Remove from index
+    const indexRes = await kv.get<unknown[]>(["notes", "collection", cid]);
+    if (indexRes.value) {
+      let index = indexRes.value;
+
+      // Legacy migration logic (shared)
+      if (index.length > 0 && typeof index[0] === "string") {
+        const ids = index as string[];
+        const metadataPromises = ids.map(async (tnid) => {
+          const nRes = await kv.get<NoteMetadata>(["notes", "note", tnid]);
+          return nRes.value;
+        });
+        const results = await Promise.all(metadataPromises);
+        index = results.filter((r): r is NoteMetadata => r !== null);
+      }
+
+      const newIndex = (index as NoteMetadata[]).filter((m) => m.id !== nid);
+      await kv.set(["notes", "collection", cid], newIndex);
+    }
+  }
+
+  return c.json({ success: true });
+}

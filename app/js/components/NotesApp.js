@@ -215,7 +215,7 @@ class NotesApp extends Component {
     this.render();
   }
 
-  async promptDeleteNote(id) {
+  promptDeleteNote(id) {
     const note = this.allNotes.find((n) => n.id === id);
     if (!note) return;
 
@@ -235,12 +235,12 @@ class NotesApp extends Component {
       console.error("Failed to trash note:", e);
       this.inFlightOps.delete(id);
       this.allNotes = originalAllNotes;
-      this.loadNotes();
+      await this.loadNotes();
       alert("Failed to delete note. Please try again.");
     });
   }
 
-  async restoreNote(id) {
+  restoreNote(id) {
     const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
 
     // Optimistic Update
@@ -257,8 +257,30 @@ class NotesApp extends Component {
       console.error("Failed to restore note:", e);
       this.inFlightOps.delete(id);
       this.allNotes = originalAllNotes;
-      this.loadNotes();
+      await this.loadNotes();
       alert("Failed to restore note. Please try again.");
+    });
+  }
+
+  permanentlyDeleteNote(id) {
+    if (!confirm("Permanently delete this note? This cannot be undone.")) {
+      return;
+    }
+
+    const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
+    this.allNotes = this.allNotes.filter((n) => n.id !== id);
+    this.inFlightOps.add(id);
+
+    this.loadNotes();
+
+    storage.permanentlyDeleteNote(id).then(() => {
+      this.inFlightOps.delete(id);
+    }).catch(async (e) => {
+      console.error("Failed to permanently delete note:", e);
+      this.inFlightOps.delete(id);
+      this.allNotes = originalAllNotes;
+      await this.loadNotes();
+      alert("Failed to delete note. Please try again.");
     });
   }
 
@@ -443,7 +465,10 @@ class NotesApp extends Component {
     const trashHtml = this.trashNotes.map((n) => `
         <div class="list-item trash-item" data-nid="${n.id}">
             <span class="title-text">${n.title || "Untitled"}</span>
-            <button class="btn-icon-tiny restore-note-btn" data-nid="${n.id}" title="Restore">↺</button>
+            <div style="display: flex; gap: 0.25rem;">
+                <button class="btn-icon-tiny restore-note-btn" data-nid="${n.id}" title="Restore">↺</button>
+                <button class="btn-icon-tiny permanently-delete-btn" data-nid="${n.id}" title="Delete Permanently" style="color: #ff4444">×</button>
+            </div>
         </div>
     `).join("");
 
@@ -686,6 +711,15 @@ class NotesApp extends Component {
         this.restoreNote(btn.dataset.nid);
       });
     });
+
+    this.shadowRoot.querySelectorAll(".permanently-delete-btn").forEach(
+      (btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.permanentlyDeleteNote(btn.dataset.nid);
+        });
+      },
+    );
 
     const toggleTrashBtn = this.shadowRoot.getElementById("toggle-trash-btn");
     if (toggleTrashBtn) {
