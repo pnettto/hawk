@@ -94,6 +94,7 @@ class MainApp extends Component {
             <button class="${
       currentPage === "notes" ? "active" : ""
     }" id="nav-notes">Notes</button>
+            <!-- <button id="nav-logout" style="margin-left: auto;">Logout</button> -->
         </nav>
 
         <main id="journal-page" class="page-content ${
@@ -166,6 +167,10 @@ class MainApp extends Component {
       this.shadowRoot.getElementById("tab-notes").addEventListener(
         "click",
         () => appStore.setJournalTab("notes"),
+      );
+      this.shadowRoot.getElementById("nav-logout").addEventListener(
+        "click",
+        () => appStore.logout(),
       );
     }
   }

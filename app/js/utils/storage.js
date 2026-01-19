@@ -10,19 +10,36 @@ console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
 let logsCache = {};
 const pendingRequests = new Map();
 
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+}
+
 function getAuthHeaders() {
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   return {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
   };
 }
 
+export async function logout() {
+  try {
+    await fetch(`${apiUrl}/api/logout`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.error("Logout failed:", e);
+  }
+}
+
 /**
  * Load all logs (needed for reports)
  */
 export async function loadAll() {
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   if (!apiKey) return {};
 
   try {
@@ -54,7 +71,7 @@ export function loadForDate(dateStr, force = false) {
   }
 
   // 3. Fetch from API
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   if (!apiKey) return null;
 
   const promise = (async () => {
@@ -85,7 +102,7 @@ export function loadForDate(dateStr, force = false) {
  * Load a range of dates
  */
 export async function loadForRange(start, end) {
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   if (!apiKey) return {};
 
   try {
@@ -126,7 +143,7 @@ export function prefetchSurrounding(date) {
 export async function saveForDate(dateStr, data) {
   logsCache[dateStr] = data;
 
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   if (!apiKey) return;
 
   try {
@@ -146,7 +163,7 @@ export async function saveForDate(dateStr, data) {
  */
 export function saveAll(obj) {
   logsCache = { ...logsCache, ...obj };
-  const apiKey = localStorage.getItem("apiKey");
+  const apiKey = getCookie("hawk_token");
   if (!apiKey) return;
 
   fetch(`${apiUrl}/api/logs`, {
