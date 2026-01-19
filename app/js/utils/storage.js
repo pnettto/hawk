@@ -9,10 +9,29 @@ console.log(`[Storage] API Root: ${apiUrl || "(relative local)"}`);
 let logsCache = {};
 const pendingRequests = new Map();
 
+const STORAGE_KEY = "hawk_token";
+
+export function saveToken(token) {
+  localStorage.setItem(STORAGE_KEY, token);
+}
+
+export function removeToken() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function getToken() {
+  return localStorage.getItem(STORAGE_KEY);
+}
+
 function getAuthHeaders() {
-  return {
+  const token = getToken();
+  const headers = {
     "Content-Type": "application/json",
   };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export async function authCheck() {
@@ -29,6 +48,7 @@ export async function authCheck() {
 
 export async function logout() {
   try {
+    removeToken();
     await fetch(`${apiUrl}/api/logout`, {
       method: "GET",
       headers: getAuthHeaders(),
