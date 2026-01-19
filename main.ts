@@ -14,15 +14,18 @@ import {
 } from "./server/routeHandlers/app.ts";
 import {
   deleteCollection,
-  deleteNote,
+  emptyTrash,
   getCollectionNotes,
   getCollections,
   getNote,
   getNotesIndex,
   getPublicNote,
   getSharedNotePage,
+  getTrash,
+  restoreNote,
   saveCollections,
   saveNote,
+  trashNote,
 } from "./server/routeHandlers/notes.ts";
 import {
   deleteEntry,
@@ -72,7 +75,12 @@ app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.get("/api/notes/index", getNotesIndex);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
-app.delete("/api/notes/notes/:nid", deleteNote);
+
+// Trash Bin API
+app.post("/api/notes/notes/:nid/trash", trashNote);
+app.post("/api/notes/notes/:nid/restore", restoreNote);
+app.get("/api/notes/collections/:cid/trash", getTrash);
+app.delete("/api/notes/collections/:cid/trash", emptyTrash);
 
 // Public Note API
 app.get("/api/public/notes/:nid", getPublicNote);
