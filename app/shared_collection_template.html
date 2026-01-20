@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Collection</title>
+    <!-- Assets -->
+    <link rel="icon" type="image/svg" href="/images/favicon.svg">
+    <link rel="stylesheet" href="https://use.typekit.net/pmu6sig.css">
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/js/libs/tiptap-bundle.min.js"></script>
+
+    <style>
+      /* Specific overrides for the collection viewer context */
+      body {
+        display: flex;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .collection-sidebar {
+        width: 250px;
+        border-right: 1px solid var(--line);
+        padding: 1.5rem 0;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .collection-header {
+        padding: 0 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .collection-header h2 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.2rem;
+      }
+
+      .collection-header p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .notes-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .notes-list li {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-left: 3px solid transparent;
+        font-size: 0.9rem;
+      }
+
+      .notes-list li:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .notes-list li.active {
+        background: var(--bg);
+      }
+
+      .collection-content {
+        flex: 1;
+        padding: 2rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .content-area {
+        max-width: 900px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .note-view {
+        display: none;
+      }
+
+      .note-view.active {
+        display: block;
+      }
+
+      .note-view h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-top: 0;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--line);
+        color: var(--accent);
+      }
+
+      .note-meta {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+      }
+
+      /* Tiptap Content Styles */
+      .tiptap {
+        font-size: var(--body);
+        line-height: var(--lh);
+        color: var(--text);
+        outline: none;
+      }
+
+      .tiptap p {
+        margin: 0.5rem 0;
+      }
+      .tiptap blockquote {
+        border-left: 2px solid var(--accent);
+        margin-left: 0;
+        padding-left: 1rem;
+        font-style: italic;
+      }
+      .tiptap code {
+        background: var(--glass);
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+      }
+      .tiptap pre {
+        background: var(--bg);
+        padding: 1rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1rem 0;
+        border: 1px solid var(--line);
+      }
+      .tiptap pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+      }
+      .tiptap ul, .tiptap ol {
+        padding-left: 1.5rem;
+      }
+      .tiptap li {
+        margin-bottom: 0.25rem;
+      }
+      .tiptap img {
+        max-width: 100%;
+        border-radius: 8px;
+        margin: 1rem 0;
+        display: block;
+      }
+      .tiptap hr {
+        border: none;
+        border-top: 1px solid var(--line);
+        margin: 2rem 0;
+      }
+      .tiptap a {
+        color: var(--accent);
+        text-decoration: underline;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: var(--muted);
+        padding: 2rem;
+      }
+
+      .loading {
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .error {
+        color: #ff4444;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      .mobile-note-selector {
+        display: none;
+      }
+
+      @media (max-width: 768px) {
+        .collection-sidebar {
+          display: none;
+        }
+        
+        .collection-content {
+          padding: 1rem;
+        }
+
+        .mobile-note-selector {
+          display: block;
+          margin-bottom: 2rem;
+        }
+
+        .mobile-note-selector select {
+          width: 100%;
+          padding: 0.75rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--line);
+          color: var(--text);
+          border-radius: 6px;
+          font-family: inherit;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+
+        .mobile-note-selector select:focus {
+          outline: none;
+          border-color: var(--accent);
+        }
+      }
+    </style>
+    </style>
+  </head>
+  <body>
+    <aside class="collection-sidebar" id="sidebar">
+      <div class="collection-header">
+        <h2 id="collection-name">Loading...</h2>
+        <p id="notes-count"></p>
+      </div>
+      <ul class="notes-list" id="notes-list"></ul>
+    </aside>
+
+    <main class="collection-content">
+      <div class="mobile-note-selector">
+        <select id="mobile-note-select">
+          <option value="">Select a note...</option>
+        </select>
+      </div>
+      <div class="content-area" id="content">
+        <div class="empty-state">Select a note to view</div>
+      </div>
+    </main>
+
+    <script type="module">
+      const API_URL = location.origin;
+      const collectionId = new URLSearchParams(window.location.search).get("id") || 
+                           window.location.pathname.split('/').pop();
+
+      let collection = null;
+      let notes = [];
+      let selectedNoteId = null;
+
+      async function init() {
+        try {
+          const res = await fetch(`${API_URL}/api/public/collections/${collectionId}`);
+          if (!res.ok) throw new Error("Collection not found or private");
+          
+          const data = await res.json();
+          collection = data.collection;
+          notes = data.notes;
+
+          renderSidebar();
+          if (notes.length > 0) {
+            loadNote(notes[0].id);
+          }
+        } catch (e) {
+          document.getElementById("content").innerHTML = `<div class="error"><h3>Error</h3><p>${e.message}</p></div>`;
+        }
+      }
+
+      function renderSidebar() {
+        document.getElementById("collection-name").textContent = collection.name || "Untitled Collection";
+        document.getElementById("notes-count").textContent = `${notes.length} note${notes.length !== 1 ? "s" : ""}`;
+
+        const notesList = document.getElementById("notes-list");
+        notesList.innerHTML = notes
+          .map((note) => `
+            <li data-note-id="${note.id}" class="note-item">
+              ${note.title || "Untitled"}
+            </li>
+          `)
+          .join("");
+
+        notesList.querySelectorAll(".note-item").forEach((item) => {
+          item.addEventListener("click", () => {
+            loadNote(item.dataset.noteId);
+          });
+        });
+
+        // Also populate mobile selector
+        const mobileSelect = document.getElementById("mobile-note-select");
+        mobileSelect.innerHTML = '<option value="">Select a note...</option>' +
+          notes.map((note) => `
+            <option value="${note.id}">
+              ${note.title || "Untitled"}
+            </option>
+          `).join("");
+
+        mobileSelect.addEventListener("change", (e) => {
+          if (e.target.value) {
+            loadNote(e.target.value);
+          }
+        });
+      }
+
+      function updateSidebarActive(noteId) {
+        document.querySelectorAll(".note-item").forEach((item) => {
+          item.classList.remove("active");
+        });
+        const activeItem = document.querySelector(`[data-note-id="${noteId}"]`);
+        if (activeItem) {
+          activeItem.classList.add("active");
+        }
+      }
+
+      async function loadNote(noteId) {
+        selectedNoteId = noteId;
+        const note = notes.find((n) => n.id === noteId);
+        if (!note) return;
+
+        try {
+          const res = await fetch(`${API_URL}/api/public/notes/${noteId}`);
+          if (!res.ok) throw new Error("Note not found");
+          
+          const fullNote = await res.json();
+          // Use the global marked function
+          const htmlContent = window.marked ? window.marked.parse(fullNote.content || "") : fullNote.content;
+          const dateStr = new Date(fullNote.createdAt).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+
+          const content = document.getElementById("content");
+          content.innerHTML = `
+            <div class="note-view active">
+              <h1>${note.title || "Untitled"}</h1>
+              <div class="tiptap">${htmlContent}</div>
+              <div class="note-meta">
+                <span>${dateStr}</span>
+              </div>
+            </div>
+          `;
+
+          updateSidebarActive(noteId);
+        } catch (e) {
+          const content = document.getElementById("content");
+          content.innerHTML = `<div class="error"><h3>Error</h3><p>${e.message}</p></div>`;
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>

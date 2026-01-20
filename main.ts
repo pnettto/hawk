@@ -17,7 +17,9 @@ import {
   getCollections,
   getNote,
   getNotesIndex,
+  getPublicCollection,
   getPublicNote,
+  getSharedCollectionPage,
   getSharedNotePage,
   getTrash,
   permanentlyDeleteNote,
@@ -95,9 +97,11 @@ app.delete("/api/notes/collections/:cid/trash", emptyTrash);
 
 // Public Note API
 app.get("/api/public/notes/:nid", getPublicNote);
+app.get("/api/public/collections/:cid", getPublicCollection);
 
 // Public Note View (SSR Page)
 app.get("/shared/:nid", getSharedNotePage);
+app.get("/shared/collection/:cid", getSharedCollectionPage);
 
 // KV Entries (existing)
 app.get("/api/entries", listEntries);

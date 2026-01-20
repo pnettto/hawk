@@ -17,6 +17,7 @@ class NotesApp extends Component {
     this.isPanelPinned = false;
     this.isSaving = false;
     this.showSharePopover = false;
+    this.showCollectionSharePopover = false;
 
     this.confirmingDeleteCid = null;
     this.showTrash = false;
@@ -444,6 +445,35 @@ class NotesApp extends Component {
     this.render();
   }
 
+  toggleCollectionSharePopover() {
+    this.showCollectionSharePopover = !this.showCollectionSharePopover;
+    this.render();
+  }
+
+  async toggleCollectionShare(forceState) {
+    const collection = this.collections.find((c) => c.id === this.selectedCid);
+    if (!collection) return;
+
+    if (forceState !== undefined) {
+      collection.isPublic = forceState;
+    } else {
+      collection.isPublic = !collection.isPublic;
+    }
+
+    // Save immediately
+    this.isSaving = true;
+    this.render();
+
+    try {
+      await storage.saveNotesCollections(this.collections);
+    } catch (e) {
+      console.error("Failed to save collection share state", e);
+    } finally {
+      this.isSaving = false;
+      this.render();
+    }
+  }
+
   render() {
     const currentNote = this.notes.find((n) => n.id === this.selectedNid);
 
@@ -555,6 +585,45 @@ class NotesApp extends Component {
                     <select class="dropdown-nav" id="collection-dropdown" style="flex:1">
                         ${collectionsDropdownHtml}
                     </select>
+                    ${this.selectedCid ? `
+                    <div style="position: relative;">
+                        <button class="share-btn ${
+        this.collections.find(c => c.id === this.selectedCid)?.isPublic ? "active" : ""
+      }" id="collection-share-toggle-btn" title="Share collection">
+                            📤
+                        </button>
+                        <div class="share-popover ${
+        this.showCollectionSharePopover ? "visible" : ""
+      }" style="width: 220px;">
+                            <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--text);">
+                                ${
+        this.collections.find(c => c.id === this.selectedCid)?.isPublic
+          ? "Anyone with the link can view this collection."
+          : "Make this collection public to share it."
+      }
+                            </p>
+                            ${
+        this.collections.find(c => c.id === this.selectedCid)?.isPublic
+          ? `
+                                <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <label style="grid-column: 1 / -1; font-size: 0.75rem; color: var(--muted); margin-bottom: -0.25rem;">Public Link</label>
+                                    <input type="text" id="collection-share-link-input" class="share-link-input" readonly 
+                                        value="${location.origin}/shared/collection/${this.selectedCid}">
+                                    <button class="btn-primary" id="copy-collection-share-link" style="font-size: 0.75rem; white-space: nowrap;">Copy</button>
+                                </div>
+                                <div class="share-actions" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line);">
+                                    <button class="btn-secondary" id="collection-unshare-btn" style="font-size: 0.75rem; width: 100%;">Make Private</button>
+                                </div>
+                            `
+          : `
+                                <div class="share-actions">
+                                    <button class="btn-primary" id="collection-enable-share-btn" style="width: 100%; font-size: 0.8rem;">Share Collection</button>
+                                </div>
+                            `
+      }
+                        </div>
+                    </div>
+                    ` : ""}
                     <button class="btn-icon-tiny delete-coll-btn" data-cid="${this.selectedCid}">×</button>
                     <button class="btn-icon-tiny" id="add-collection-btn" title="New Collection">+</button>
                     </div>
@@ -765,6 +834,13 @@ class NotesApp extends Component {
         this.showSharePopover = false;
         this.render();
       }
+      if (
+        this.showCollectionSharePopover && !e.target.closest(".share-popover") &&
+        !e.target.closest("#collection-share-toggle-btn")
+      ) {
+        this.showCollectionSharePopover = false;
+        this.render();
+      }
     });
 
     const enableShareBtn = this.shadowRoot.getElementById("enable-share-btn");
@@ -775,6 +851,56 @@ class NotesApp extends Component {
     const unshareBtn = this.shadowRoot.getElementById("unshare-btn");
     if (unshareBtn) {
       unshareBtn.addEventListener("click", () => this.toggleShare(false));
+    }
+
+    // Collection Share Events
+    const collectionShareToggleBtn = this.shadowRoot.getElementById(
+      "collection-share-toggle-btn",
+    );
+    if (collectionShareToggleBtn) {
+      collectionShareToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleCollectionSharePopover();
+      });
+    }
+
+    const collectionEnableShareBtn = this.shadowRoot.getElementById(
+      "collection-enable-share-btn",
+    );
+    if (collectionEnableShareBtn) {
+      collectionEnableShareBtn.addEventListener("click", () =>
+        this.toggleCollectionShare(true)
+      );
+    }
+
+    const collectionUnshareBtn = this.shadowRoot.getElementById(
+      "collection-unshare-btn",
+    );
+    if (collectionUnshareBtn) {
+      collectionUnshareBtn.addEventListener("click", () =>
+        this.toggleCollectionShare(false)
+      );
+    }
+
+    const copyCollectionShareLinkBtn = this.shadowRoot.getElementById(
+      "copy-collection-share-link",
+    );
+    if (copyCollectionShareLinkBtn) {
+      copyCollectionShareLinkBtn.addEventListener("click", () => {
+        const input = this.shadowRoot.getElementById(
+          "collection-share-link-input",
+        );
+        if (input) {
+          input.select();
+          navigator.clipboard.writeText(input.value);
+          const originalText = copyCollectionShareLinkBtn.textContent;
+          copyCollectionShareLinkBtn.textContent = "Copied!";
+          setTimeout(
+            () => (copyCollectionShareLinkBtn.textContent = originalText),
+            2000,
+          );
+        }
+      });
     }
 
     const copyPairs = [
