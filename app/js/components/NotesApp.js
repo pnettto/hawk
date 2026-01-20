@@ -29,81 +29,15 @@ class NotesApp extends Component {
     super.connectedCallback();
     this.initSavingState(); // Inherited
     await this.loadCollections();
-
-    // Refresh on focus
-    this._onFocus = () => this.refreshData();
-    globalThis.addEventListener("focus", this._onFocus);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.teardownSavingState(); // Inherited
-    globalThis.removeEventListener("focus", this._onFocus);
   }
 
   async refreshData() {
-    console.log("[NotesApp] Refreshing data on focus...");
-
-    // 1. Refresh collections and index
-    const [collections, fullIndex] = await Promise.all([
-      storage.getNotesCollections(),
-      storage.getNotesIndex(),
-    ]);
-
-    this.collections = collections;
-
-    // Merge logic: Keep local optimistic notes and update others
-    const serverIndex = Array.isArray(fullIndex) ? fullIndex : [];
-    const localMap = new Map(this.allNotes.map((n) => [n.id, n]));
-
-    serverIndex.forEach((serverNote) => {
-      // Logic: If there's an in-flight move for this note, IGNORE server update
-      // so it doesn't "resurrect" while the request is still finishing.
-      if (this.inFlightOps.has(serverNote.id)) return;
-
-      const local = localMap.get(serverNote.id);
-      if (local) {
-        // If server is newer, or if it's the same but we want to refresh metadata
-        if ((serverNote.updatedAt || 0) >= (local.updatedAt || 0)) {
-          // Merge metadata from server, but keep local content if server's is missing
-          localMap.set(serverNote.id, { ...local, ...serverNote });
-        }
-      } else {
-        localMap.set(serverNote.id, serverNote);
-      }
-    });
-
-    this.allNotes = Array.from(localMap.values());
-
-    // 2. Refresh current note content if selected
-    if (this.selectedNid) {
-      const fullNote = await storage.getNote(this.selectedNid);
-      if (fullNote) {
-        // Update in index/list
-        const idx = this.allNotes.findIndex((n) => n.id === this.selectedNid);
-        if (idx !== -1) {
-          // Keep content if it was already richer locally (e.g. just typed)
-          const existing = this.allNotes[idx];
-          this.allNotes[idx] = { ...fullNote, ...existing, id: fullNote.id };
-        } else {
-          this.allNotes.push(fullNote);
-        }
-      }
-    }
-
-    // 3. Re-filter lists
-    if (this.selectedCid) {
-      // If the selected collection disappeared, reset
-      if (!this.collections.find((c) => c.id === this.selectedCid)) {
-        this.selectedCid = this.collections.length > 0
-          ? this.collections[0].id
-          : null;
-      }
-    } else if (this.collections.length > 0) {
-      this.selectedCid = this.collections[0].id;
-    }
-
-    this.loadNotes(); // Re-filters notes from allNotes and renders
+    // Removed - no updates on window focus for notes
   }
 
   async loadCollections() {
