@@ -57,11 +57,12 @@ app.use(
   rateLimit,
   async (c, next) => {
     const path = c.req.path;
-    // Skip auth for public, login, and logout routes
+    // Skip auth for public, login, logout, and auth-check routes
     if (
       path.startsWith("/api/public/") ||
       path === "/api/login" ||
-      path === "/api/logout"
+      path === "/api/logout" ||
+      path === "/api/auth-check"
     ) {
       return await next();
     }
