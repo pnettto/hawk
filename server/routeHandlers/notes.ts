@@ -2,12 +2,14 @@ import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { marked } from "marked";
 
-// Pre-load the HTML template
+// Pre-load the HTML templates
 let shareTemplate = "";
+let shareCollectionTemplate = "";
 try {
   shareTemplate = await Deno.readTextFile("./app/share_template.html");
+  shareCollectionTemplate = await Deno.readTextFile("./app/shared_collection_template.html");
 } catch (e) {
-  console.error("Failed to load share template:", e);
+  console.error("Failed to load share templates:", e);
 }
 
 // Collections storage: ["notes", "collections"] -> Collection[]
@@ -24,6 +26,12 @@ interface NoteMetadata {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
+}
+
+interface Collection {
+  id: string;
+  name: string;
+  isPublic?: boolean;
 }
 
 export async function getCollections(c: Context) {
@@ -71,14 +79,28 @@ export async function getPublicNote(c: Context) {
   const nid = c.req.param("nid");
   if (!nid) return c.json({ error: "Missing note ID" }, 400);
 
-  const note = await kv.get<{ isPublic?: boolean }>(["notes", "note", nid]);
+  const note = await kv.get<{ isPublic?: boolean; cid?: string }>(["notes", "note", nid]);
   if (!note.value) return c.json({ error: "Note not found" }, 404);
 
-  if (note.value.isPublic !== true) {
-    return c.json({ error: "Unauthorized" }, 401);
+  // Allow access if:
+  // 1. Note is explicitly public, OR
+  // 2. Note's collection is public
+  if (note.value.isPublic === true) {
+    return c.json(note.value);
   }
 
-  return c.json(note.value);
+  // Check if the collection is public
+  if (note.value.cid) {
+    const collectionsRes = await kv.get<Collection[]>(["notes", "collections"]);
+    const collections = collectionsRes.value || [];
+    const collection = collections.find((col) => col.id === note.value.cid);
+    
+    if (collection?.isPublic === true) {
+      return c.json(note.value);
+    }
+  }
+
+  return c.json({ error: "Unauthorized" }, 401);
 }
 
 export async function getSharedNotePage(c: Context) {
@@ -327,3 +349,40 @@ export async function permanentlyDeleteNote(c: Context) {
 
   return c.json({ success: true });
 }
+
+// Collection sharing endpoints
+export async function getPublicCollection(c: Context) {
+  const cid = c.req.param("cid");
+  if (!cid) return c.json({ error: "Missing collection ID" }, 400);
+
+  const collectionsRes = await kv.get<Collection[]>(["notes", "collections"]);
+  const collections = collectionsRes.value || [];
+  const collection = collections.find((col) => col.id === cid);
+
+  if (!collection || collection.isPublic !== true) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  // Get all notes in this collection (excluding deleted)
+  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
+  const notes = (indexRes.value || []).filter((n) => !n.deletedAt);
+
+  return c.json({ collection, notes });
+}
+
+export async function getSharedCollectionPage(c: Context) {
+  const cid = c.req.param("cid");
+  if (!cid) return c.text("Collection not found", 404);
+
+  const collectionsRes = await kv.get<Collection[]>(["notes", "collections"]);
+  const collections = collectionsRes.value || [];
+  const collection = collections.find((col) => col.id === cid);
+
+  if (!collection || collection.isPublic !== true) {
+    return c.text("Collection not found or private", 404);
+  }
+
+  // Return the static template - the client will fetch the data via API
+  return c.html(shareCollectionTemplate);
+}
+
