@@ -52,7 +52,7 @@ export const style = /* css */ `
 .list-item {
     cursor: pointer;
     border-radius: 8px;
-    margin-bottom: 2px;
+    margin-bottom: .75rem;
     transition: all 0.2s;
     display: flex;
     justify-content: space-between;

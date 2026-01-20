@@ -548,15 +548,16 @@ class NotesApp extends Component {
         <div class="sidebar ${this.isPanelPinned ? "" : "collapsed"}">
             <div class="panel-section">
                 <div class="panel-header">
-                    <span>Library</span>
-                    <button class="btn-icon-tiny" id="add-collection-btn" title="New Collection">+</button>
+                    <span>Collections</span>
+                    
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
                     <select class="dropdown-nav" id="collection-dropdown" style="flex:1">
                         ${collectionsDropdownHtml}
                     </select>
                     <button class="btn-icon-tiny delete-coll-btn" data-cid="${this.selectedCid}">×</button>
-                </div>
+                    <button class="btn-icon-tiny" id="add-collection-btn" title="New Collection">+</button>
+                    </div>
                 ${inlineCreateHtml}
                 
                 ${
