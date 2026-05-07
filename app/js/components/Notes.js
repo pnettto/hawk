@@ -1,40 +1,77 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 import { formatDate } from "../utils/date.js";
-import { debounce } from "../utils/dom.js";
 import { saveForDate } from "../utils/storage.js";
 import { style } from "./Notes.styles.js";
 import "./RichEditor.js";
+
+const SAVE_DEBOUNCE_MS = 500;
 
 class NotesInput extends Component {
   constructor() {
     super({ style });
     this.addStore(appStore);
     this.notesMarkdown = "";
-    this.debouncedSave = debounce(() => this.saveCurrentState(), 500);
+    this._pending = null; // { dateStr, markdown } awaiting flush
+    this._saveTimer = null;
+    this._saveInFlight = null;
+  }
+
+  scheduleSave(dateStr, markdown) {
+    this._pending = { dateStr, markdown };
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => this.flushSave(), SAVE_DEBOUNCE_MS);
+  }
+
+  hasUnsavedWork() {
+    return !!this._pending || !!this._saveInFlight;
+  }
+
+  async flushSave() {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    if (!this._pending) return;
+    const { dateStr, markdown } = this._pending;
+    this._pending = null;
+    this._saveInFlight = (async () => {
+      try {
+        const { logs } = this.getState();
+        const dayLogs = { ...(logs[dateStr] || {}), notesMarkdown: markdown };
+        appStore.updateLogForDate(dateStr, dayLogs);
+        await saveForDate(dateStr, dayLogs);
+      } catch (e) {
+        console.error("Failed to save day notes:", e);
+      } finally {
+        this._saveInFlight = null;
+      }
+    })();
+    await this._saveInFlight;
   }
 
   connectedCallback() {
     super.connectedCallback();
 
-    // Refresh on window focus
     this._onFocus = async () => {
+      // Never overwrite while local typing hasn't been persisted yet.
+      if (this.hasUnsavedWork()) return;
+
+      const richEditor = this.shadowRoot.querySelector("rich-editor");
+      // Defensive: if the editor diverged from notesMarkdown (e.g. a change
+      // event hasn't propagated yet), treat as unsaved and skip.
+      if (richEditor && richEditor.getMarkdown() !== this.notesMarkdown) return;
+
       const { selectedDate } = this.getState();
       const dateStr = formatDate(selectedDate);
-
-      // Force refresh from server
       await appStore.refreshDay(dateStr, true);
 
-      // Update editor with fresh data
       const { logs } = this.getState();
       const data = logs[dateStr] || {};
       const freshMarkdown = data.notesMarkdown || "";
 
       this.notesMarkdown = freshMarkdown;
-      const richEditor = this.shadowRoot.querySelector("rich-editor");
-      if (richEditor) {
-        richEditor.setValue(freshMarkdown);
-      }
+      if (richEditor) richEditor.setValue(freshMarkdown);
     };
 
     globalThis.addEventListener("focus", this._onFocus);
@@ -45,17 +82,6 @@ class NotesInput extends Component {
     globalThis.removeEventListener("focus", this._onFocus);
   }
 
-  async saveCurrentState() {
-    const { selectedDate, logs } = this.getState();
-    const dateStr = formatDate(selectedDate);
-    const dayLogs = { ...logs[dateStr] };
-
-    dayLogs.notesMarkdown = this.notesMarkdown;
-
-    appStore.updateLogForDate(dateStr, dayLogs);
-    await saveForDate(dateStr, dayLogs);
-  }
-
   render() {
     const { selectedDate, logs } = this.getState();
     const dateStr = formatDate(selectedDate);
@@ -63,9 +89,7 @@ class NotesInput extends Component {
     const newMarkdown = data.notesMarkdown || "";
 
     const dateChanged = this._lastDate !== dateStr;
-    this._lastDate = dateStr;
 
-    // Only render the container once
     if (!this.shadowRoot.querySelector(".notes")) {
       this.display(`
           <section class="notes">
@@ -75,12 +99,22 @@ class NotesInput extends Component {
 
       const richEditor = this.shadowRoot.querySelector("rich-editor");
       richEditor.addEventListener("change", (e) => {
+        // Capture the date at typing time so a date change mid-debounce can't
+        // redirect the save to the wrong day.
+        const { selectedDate: cur } = this.getState();
+        const curDateStr = formatDate(cur);
         this.notesMarkdown = e.detail;
-        this.debouncedSave();
+        this.scheduleSave(curDateStr, e.detail);
       });
     }
 
-    // Update editor value only if date changed or it's first load
+    // If the date is changing and there is unsaved work for the previous day,
+    // flush it before swapping editor content so we never lose pending typing.
+    if (this._lastDate && dateChanged && this._pending) {
+      this.flushSave();
+    }
+    this._lastDate = dateStr;
+
     const richEditor = this.shadowRoot.querySelector("rich-editor");
     if (richEditor && (dateChanged || this.notesMarkdown === "")) {
       this.notesMarkdown = newMarkdown;

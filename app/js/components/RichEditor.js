@@ -144,18 +144,31 @@ export class RichEditor extends Component {
   }
 
   setValue(content) {
-    if (this.editor) {
-      // Only update if logically different to avoid cursor jumps?
-      // Markdown parsing round-trip might change syntax slightly.
-      // Tiptap doesn't have a simple "isSame" for markdown.
-      // We typically rely on upstream blocking updates if self-generated.
-      // NotesApp `handleNoteUpdate` -> `save` (doesn't push back to editor).
-      // Only `selectNote` calls `setValue`.
-      // So safe to assume this is a fresh load or switch.
-
-      this.editor.commands.setContent(content);
+    const next = content || "";
+    if (!this.editor) {
+      this.valueStr = next;
+      return;
     }
-    this.valueStr = content;
+    const currentMd = this.editor.storage.markdown.getMarkdown() || "";
+    // Skip re-parsing when the editor already shows this content. Re-parsing
+    // replaces the doc, drops cursor/selection, and visibly re-flows the
+    // markdown when round-trip serialization isn't byte-identical.
+    if (currentMd === next) {
+      this.valueStr = next;
+      return;
+    }
+    // Tolerate trailing-whitespace drift between source and round-tripped form.
+    if (currentMd.replace(/\s+$/, "") === next.replace(/\s+$/, "")) {
+      this.valueStr = next;
+      return;
+    }
+    this.editor.commands.setContent(next);
+    this.valueStr = next;
+  }
+
+  getMarkdown() {
+    if (!this.editor) return this.valueStr;
+    return this.editor.storage.markdown.getMarkdown() || "";
   }
 }
 
