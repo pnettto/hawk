@@ -72,11 +72,19 @@ button.secondary {
   color: var(--text);
 }
 
+button.copied {
+  background: #00d68f;
+  color: #000;
+}
+
 /* HTML Report Styles */
 .report-content {
   line-height: 1.6;
   color: var(--text);
+  transition: opacity var(--dur-base) var(--ease-out);
 }
+
+.report-content.loading { opacity: 0.4; }
 
 .report-content h2 {
   color: var(--accent);

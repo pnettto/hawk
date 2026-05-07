@@ -56,14 +56,38 @@ export const style = /* css */ `
     }
 }
 
-.page-content { animation: fadeIn 0.3s ease; }
+.page-content {
+    animation: pageEnter var(--dur-base) var(--ease-out);
+}
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes pageEnter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .hidden { display: none !important; }
+
+.boot-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    z-index: 9999;
+}
+
+.boot-screen .logo-pulse {
+    width: 2.4rem;
+    height: auto;
+    opacity: 0.8;
+    animation: bootPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes bootPulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.96); }
+    50%      { opacity: 1;   transform: scale(1.04); }
+}
 
 nav {
     display: flex;

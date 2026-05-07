@@ -15,7 +15,7 @@ export const style = /* css */ `
     width: 260px;
     display: flex;
     flex-direction: column;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width var(--dur-slow) var(--ease-spring), opacity var(--dur-slow) var(--ease-spring);
     position: absolute;
     right: calc(100% + 4rem);
     top: 0;
@@ -53,7 +53,7 @@ export const style = /* css */ `
     cursor: pointer;
     border-radius: 8px;
     margin-bottom: 2px;
-    transition: all 0.2s;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -107,7 +107,7 @@ rich-editor { display: block; }
     color: var(--text);
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.2s;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -168,7 +168,7 @@ rich-editor { display: block; }
     font-size: 1.2rem;
     padding: 8px 12px;
     border-radius: 6px;
-    transition: all 0.2s;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
     line-height: 1;
 }
 
@@ -197,10 +197,16 @@ rich-editor { display: block; }
 
 .item-list .delete-note-btn {
     opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
 }
 
-.item-list .list-item:hover .delete-note-btn { opacity: 0.5; }
+.item-list .list-item:hover .delete-note-btn,
+.item-list .list-item:focus-within .delete-note-btn { opacity: 0.5; }
 .item-list .list-item:hover .delete-note-btn:hover { opacity: 1; color: #ff4444; }
+
+@media (hover: none) {
+    .item-list .delete-note-btn { opacity: 0.5; }
+}
 
 .empty-state {
     flex: 1;
@@ -290,6 +296,12 @@ rich-editor { display: block; }
     color: #000;
     font-weight: bold;
     cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+}
+
+.btn-primary.copied {
+    background: #00d68f;
+    color: #000;
 }
 
 .btn-danger {

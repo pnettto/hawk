@@ -115,3 +115,27 @@ a {
 :not(pre)>code[class*=language-], pre[class*=language-] {
     background-color: var(--glass);
 }
+
+:where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: inherit;
+    transition: outline-offset 120ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
+}
+
+:where(button, [role="button"]):active:not(:disabled) {
+    transform: scale(0.97);
+    transition: transform 80ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    :where(button, [role="button"]):active:not(:disabled) {
+        transform: none;
+    }
+}

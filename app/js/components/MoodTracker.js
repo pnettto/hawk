@@ -33,6 +33,7 @@ class MoodTracker extends Component {
     await saveForDate(dateStr, updatedLog);
 
     this.showOptions = false;
+    this._bumpOnNextRender = true;
     this.render();
   }
 
@@ -68,6 +69,13 @@ class MoodTracker extends Component {
     const selectedEl = this.shadowRoot.querySelector(".selected");
     if (selectedEl) {
       selectedEl.addEventListener("click", () => this.toggleOptions());
+      if (this._bumpOnNextRender) {
+        this._bumpOnNextRender = false;
+        requestAnimationFrame(() => {
+          selectedEl.classList.add("bump");
+          setTimeout(() => selectedEl.classList.remove("bump"), 220);
+        });
+      }
     }
 
     this.shadowRoot.querySelectorAll(".item").forEach((item) => {

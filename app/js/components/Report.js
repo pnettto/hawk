@@ -123,7 +123,10 @@ class Report extends Component {
 
   handleInput(e) {
     this.state[e.target.name] = e.target.value;
-    this.refreshReport();
+    const content = this.shadowRoot.querySelector(".report-content");
+    if (content) content.classList.add("loading");
+    if (this._refreshTimer) clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(() => this.refreshReport(), 250);
   }
 
   async copyToClipboard() {
@@ -132,8 +135,12 @@ class Report extends Component {
       await navigator.clipboard.writeText(this.state.markdown);
       const btn = this.shadowRoot.getElementById("copy-btn");
       const original = btn.textContent;
-      btn.textContent = "Copied!";
-      setTimeout(() => btn.textContent = original, 2000);
+      btn.textContent = "✓ Copied";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove("copied");
+      }, 1500);
     } catch (err) {
       console.error("Failed to copy", err);
     }

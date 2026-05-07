@@ -26,13 +26,10 @@ export const style = /* css */ `
     font-size: 1rem;
 }
 
-.date-display:focus { outline: none; }
-
 .calendar-modal {
     position: absolute;
     top: 0;
     left: 50%;
-    transform: translateX(-50%);
     margin-top: 8px;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -41,6 +38,18 @@ export const style = /* css */ `
     min-width: 300px;
     box-shadow: 0 8px 40px rgba(2, 6, 8, 0.8);
     z-index: 1000;
+    transform-origin: top center;
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px) scale(0.98);
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-spring);
+}
+
+.calendar-modal.open {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+    pointer-events: auto;
 }
 
 .calendar-header {
@@ -82,7 +91,8 @@ export const style = /* css */ `
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.875rem;
-    transition: background-color .12s ease;
+    font-variant-numeric: tabular-nums;
+    transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 .cal-day:hover { background-color: var(--glass); }
@@ -114,8 +124,20 @@ export const style = /* css */ `
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: transparent;
+    background: rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 999;
+    animation: overlayIn var(--dur-base) var(--ease-out);
+}
+
+@keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.date-display {
+    font-variant-numeric: tabular-nums;
 }
 
 .hidden { display: none !important; }

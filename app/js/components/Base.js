@@ -336,18 +336,28 @@ export class Component extends HTMLElement {
 
   wrapDebouncedSave(savePromiseFactory, wait = 500) {
     return this.debounce(async (...args) => {
-      this.setSaving(true);
-      const minTime = new Promise((resolve) => setTimeout(resolve, 800));
+      let showTimer = setTimeout(() => this.setSaving(true), 400);
       try {
-        await Promise.all([savePromiseFactory(...args), minTime]);
-        // console.log("Saved (debounced)");
+        await savePromiseFactory(...args);
+        clearTimeout(showTimer);
+        this.setSaving(false);
       } catch (err) {
         console.error("Save failed", err);
+        clearTimeout(showTimer);
         this.setSaveError();
-      } finally {
-        this.setSaving(false);
       }
     }, wait);
+  }
+
+  focusElement(selector, select = false) {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = this.shadowRoot.querySelector(selector);
+        if (!el) return;
+        el.focus();
+        if (select && typeof el.select === "function") el.select();
+      })
+    );
   }
 
   render() {

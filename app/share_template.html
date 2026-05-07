@@ -6,6 +6,7 @@
     <title>Shared Note</title>
     <!-- Assets -->
     <link rel="icon" type="image/svg" href="/images/favicon.svg">
+    <link rel="preconnect" href="https://use.typekit.net" crossorigin>
     <link rel="stylesheet" href="https://use.typekit.net/pmu6sig.css">
     <link rel="stylesheet" href="/styles.css" />
 
@@ -21,7 +22,7 @@
 
       .viewer-container {
         width: 100%;
-        max-width: 900px;
+        max-width: 65ch;
       }
 
       h1 {
@@ -32,6 +33,8 @@
         padding-bottom: 1rem;
         border-bottom: 1px solid var(--line);
         color: var(--accent);
+        text-wrap: balance;
+        letter-spacing: -0.02em;
       }
 
       .meta {
@@ -59,10 +62,17 @@
       /* Tiptap Content Styles - Adapted from RichEditor */
       .tiptap {
         font-size: var(--body);
-        line-height: var(--lh);
+        line-height: 1.7;
         color: var(--text);
         white-space: pre-wrap;
         outline: none;
+        text-wrap: pretty;
+        font-feature-settings: "kern", "liga", "calt";
+      }
+
+      .tiptap h1, .tiptap h2 {
+        text-wrap: balance;
+        letter-spacing: -0.02em;
       }
 
       .tiptap p {

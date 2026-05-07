@@ -13,7 +13,9 @@ class MainApp extends Component {
 
     // 0. Wait for initial check
     if (isCheckingAuth) {
-      this.display("");
+      this.display(
+        `<div class="boot-screen"><img src="/images/logo.svg" class="logo-pulse" alt=""/></div>`,
+      );
       return;
     }
 
@@ -28,8 +30,16 @@ class MainApp extends Component {
     // 2. Page change only
     if (this._lastPage !== currentPage) {
       this._lastPage = currentPage;
-      this.updatePageVisibility(currentPage);
-      this.updateNav(currentPage);
+      const apply = () => {
+        this.updatePageVisibility(currentPage);
+        this.updateNav(currentPage);
+        this.replayPageEnterAnim(currentPage);
+      };
+      if (document.startViewTransition) {
+        document.startViewTransition(apply);
+      } else {
+        apply();
+      }
     }
 
     // 3. Journal tab change
@@ -57,6 +67,20 @@ class MainApp extends Component {
       navReport.classList.toggle("active", currentPage === "report");
     }
     if (navNotes) navNotes.classList.toggle("active", currentPage === "notes");
+  }
+
+  replayPageEnterAnim(currentPage) {
+    const idMap = {
+      app: "journal-page",
+      notes: "notes-page",
+      report: "report-page",
+    };
+    const el = this.shadowRoot.getElementById(idMap[currentPage]);
+    if (!el) return;
+    el.style.animation = "none";
+    // force reflow then re-apply
+    void el.offsetWidth;
+    el.style.animation = "";
   }
 
   updatePageVisibility(currentPage) {

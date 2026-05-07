@@ -1,5 +1,6 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
+import { showToast } from "../utils/toast.js";
 import { formatDate } from "../utils/date.js";
 import {
   HOURS_END as DEFAULT_END,
@@ -212,25 +213,33 @@ class DailyLog extends Component {
       };
 
       row.querySelector(".hour-comment-clear").onclick = async () => {
-        if (confirm("Clear this hour?")) {
-          // Clear UI
-          input.value = "";
-          comment.innerHTML = "";
-          checkbox.checked = false;
-          row.classList.remove("not-empty", "is-comment");
+        const { selectedDate, logs } = this.getState();
+        const dateStr = formatDate(selectedDate);
+        const prev = logs[dateStr] ? { ...logs[dateStr][hour] } : undefined;
+        if (prev === undefined) return;
 
-          // Immediately update state
-          const { selectedDate, logs } = this.getState();
-          const dateStr = formatDate(selectedDate);
-          const dayLogs = { ...logs[dateStr] };
+        // Clear UI
+        input.value = "";
+        comment.innerHTML = "";
+        checkbox.checked = false;
+        row.classList.remove("not-empty", "is-comment");
 
-          // Remove this hour's data
-          delete dayLogs[hour];
+        // Update state and persist
+        const dayLogs = { ...logs[dateStr] };
+        delete dayLogs[hour];
+        appStore.updateLogForDate(dateStr, dayLogs);
+        await saveForDate(dateStr, dayLogs);
 
-          // Update store and save
-          appStore.updateLogForDate(dateStr, dayLogs);
-          await saveForDate(dateStr, dayLogs);
-        }
+        showToast("Hour cleared", {
+          action: "Undo",
+          duration: 6000,
+          onAction: async () => {
+            const current = this.getState().logs[dateStr] || {};
+            const restored = { ...current, [hour]: prev };
+            appStore.updateLogForDate(dateStr, restored);
+            await saveForDate(dateStr, restored);
+          },
+        });
       };
 
       time.onclick = () => {

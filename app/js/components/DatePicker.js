@@ -91,7 +91,7 @@ class DatePicker extends Component {
       prettyDisplay(selectedDate)
     }</button>
                     <div class="calendar-modal ${
-      this.showCalendar ? "" : "hidden"
+      this.showCalendar ? "open" : ""
     }">
                         <div class="calendar-header">
                             <button class="cal-arrow" id="calPrevMonth">◀</button>

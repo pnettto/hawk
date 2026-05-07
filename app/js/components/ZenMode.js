@@ -25,8 +25,12 @@ class ZenMode extends Component {
 
     this.quoteLines = [];
     this.quote = null;
-    this.hidden = true; // start hidden
-    this.forceShow = false; // user override to bypass auto-hide
+    // Decide visibility synchronously so the first render paints zen before
+    // the underlying app flashes through.
+    const currentHour = new Date().getHours();
+    const isEveningOrNight = currentHour >= 18 || currentHour < 8;
+    this.hidden = !isEveningOrNight;
+    this.forceShow = false;
 
     // Bind handlers to preserve `this`
     this.enter = this.enter.bind(this);
@@ -59,15 +63,6 @@ class ZenMode extends Component {
     } catch {
       this.quoteLines = [];
       this.quote = null;
-    }
-
-    // Auto-activate Zen Mode between 6pm and 8am
-    const currentHour = new Date().getHours();
-    const isEveningOrNight = currentHour >= 18 || currentHour < 8;
-
-    if (isEveningOrNight) {
-      this.hidden = false;
-      this.forceShow = false; // Don't override time-based logic
     }
 
     this.render();

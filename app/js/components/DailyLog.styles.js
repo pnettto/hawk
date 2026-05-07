@@ -6,7 +6,7 @@ export const style = /* css */ `
   display: flex;
   flex-direction: column;
   margin-bottom: 2rem;
-  gap: 0.25rem;
+  gap: 2px;
 }
 
 .hour-row {
@@ -15,8 +15,11 @@ export const style = /* css */ `
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 0.25rem;
-  padding: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
+
+.hour-row[data-hour$="-30"] { margin-bottom: 0.5rem; }
 
 @media (max-width: 480px) {
   .hour-row {
@@ -38,7 +41,9 @@ export const style = /* css */ `
   padding: 0.35rem 0.2rem;
   cursor: pointer;
   user-select: none;
-  opacity: 0.5;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 @media (max-width: 480px) {

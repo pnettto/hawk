@@ -9,14 +9,20 @@ export const style = /* css */ `
   height: 2rem;
 }
 
-.mood-tracker .selected { cursor: pointer; }
+.mood-tracker .selected {
+  cursor: pointer;
+  display: inline-block;
+  transition: transform var(--dur-base) var(--ease-bounce);
+}
+
+.mood-tracker .selected.bump { transform: scale(1.18); }
 
 .mood-tracker .options-container { display: flex; }
 
 .mood-tracker .options .item {
   cursor: pointer;
   padding: 0 0.2rem;
-  transition: transform 0.2s ease;
+  transition: transform var(--dur-base) var(--ease-bounce);
 }
 
 .mood-tracker .options .item:hover { transform: scale(1.2); }
