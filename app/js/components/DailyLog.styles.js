@@ -167,4 +167,46 @@ export const style = /* css */ `
 .highlighted .hour-time { color: var(--accent); }
 .highlighted { color: var(--accent); }
 .hidden { display: none !important; }
+
+.hours-edge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 1.25rem;
+}
+
+.hours-edge.top { margin-bottom: 0.25rem; }
+.hours-edge.bottom { margin-top: 0.25rem; margin-bottom: 1rem; }
+
+.hours-nudge,
+.hours-expand {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.15;
+  padding: 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.hours-edge:hover .hours-nudge,
+.hours-edge:hover .hours-expand { opacity: 0.55; }
+
+.hours-nudge:hover,
+.hours-expand:hover { opacity: 1 !important; }
+
+.hours-nudge:disabled {
+  cursor: default;
+  opacity: 0.05 !important;
+}
+
+.hours-expand {
+  position: absolute;
+  right: 0.5rem;
+}
+
+.hours-edge.top { position: relative; }
 `;

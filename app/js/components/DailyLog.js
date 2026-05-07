@@ -39,21 +39,11 @@ class DailyLog extends Component {
   connectedCallback() {
     super.connectedCallback();
     this.initSavingState();
-    this._onKeyDown = (e) => {
-      // ... no changes to key handler
-      if (Component.isTyping()) return;
-
-      if (e.key.toLowerCase() === "w") this.goUp();
-      if (e.key.toLowerCase() === "s") this.goDown();
-      if (e.key.toLowerCase() === "f") this.toggleShowMostHours();
-    };
-    document.addEventListener("keydown", this._onKeyDown);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.teardownSavingState();
-    document.removeEventListener("keydown", this._onKeyDown);
   }
 
   async saveCurrentState() {
@@ -177,8 +167,35 @@ class DailyLog extends Component {
       });
     }
 
+    const canGoUp = this.HOURS_START > 1;
+    const canGoDown = this.HOURS_END < 23;
     this.display(
-      `${this.savingIndicatorHTML}<div class="hours">${rowsHtml}</div>`,
+      `${this.savingIndicatorHTML}
+      <div class="hours-edge top">
+        <button class="hours-nudge" data-action="up" title="Show earlier hour" ${
+        canGoUp ? "" : "disabled"
+      }>⌃</button>
+        <button class="hours-expand" data-action="expand" title="${
+        this.showingAllHours ? "Collapse hours" : "Expand hours"
+      }">${this.showingAllHours ? "⇲" : "⇱"}</button>
+      </div>
+      <div class="hours">${rowsHtml}</div>
+      <div class="hours-edge bottom">
+        <button class="hours-nudge" data-action="down" title="Show later hour" ${
+        canGoDown ? "" : "disabled"
+      }>⌄</button>
+      </div>`,
+    );
+
+    this.shadowRoot.querySelectorAll(".hours-nudge, .hours-expand").forEach(
+      (btn) => {
+        btn.onclick = () => {
+          const action = btn.dataset.action;
+          if (action === "up") this.goUp();
+          else if (action === "down") this.goDown();
+          else if (action === "expand") this.toggleShowMostHours();
+        };
+      },
     );
 
     // Listeners

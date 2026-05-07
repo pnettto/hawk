@@ -14,23 +14,6 @@ class DatePicker extends Component {
   connectedCallback() {
     super.connectedCallback();
     this.calendarViewDate = new Date(this.getState().selectedDate);
-    this._onKeyDown = this.onKeyDown.bind(this);
-    document.addEventListener("keydown", this._onKeyDown);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    document.removeEventListener("keydown", this._onKeyDown);
-  }
-
-  onKeyDown(e) {
-    if (Component.isTyping()) return;
-
-    if (e.key === "a" || e.key === "ArrowLeft") this.goPrev();
-    if (e.key === "d" || e.key === "ArrowRight") this.goNext();
-    if (e.key.toLowerCase() === "t") this.goToday();
-    if (e.key.toLowerCase() === "c") this.toggleCalendar();
-    if (e.key === "Escape" && this.showCalendar) this.toggleCalendar();
   }
 
   goPrev() {
