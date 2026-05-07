@@ -5,29 +5,26 @@ export const style = /* css */ `
 :host {
     display: block;
     font-family: var(--font-sans);
-    outline: none !important;
-    box-shadow: none !important;
 }
 
 .tiptap {
+    position: relative;
     min-height: 100px;
     padding-bottom: 20vh;
-    outline: none !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: none;
+    box-shadow: none;
     font-size: var(--body);
     line-height: var(--lh);
     color: var(--text);
     white-space: pre-wrap;
+    max-width: 70ch;
 }
 
-.tiptap:focus, 
-.tiptap.ProseMirror-focused,
-.element:focus,
-*:focus {
-    outline: none !important;
-    border: none !important;
-    box-shadow: none !important;
+.tiptap:focus,
+.tiptap.ProseMirror-focused {
+    outline: none;
+    border: none;
+    box-shadow: none;
 }
 
 .tiptap a {
@@ -119,9 +116,13 @@ export const style = /* css */ `
 .tiptap p.is-editor-empty:first-child::before {
   color: var(--muted);
   content: attr(data-placeholder);
-  float: left;
-  height: 0;
+  position: absolute;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.4;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.tiptap.ProseMirror-focused p.is-editor-empty:first-child::before {
+  opacity: 0.25;
 }
 `;

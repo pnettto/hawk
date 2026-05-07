@@ -1,6 +1,7 @@
 import { Component } from "./Base.js";
 import { appStore } from "../utils/store.js";
 import * as storage from "../utils/storage.js";
+import { showError, showToast } from "../utils/toast.js";
 import { style } from "./NotesApp.styles.js";
 import "./RichEditor.js";
 
@@ -165,10 +166,7 @@ class NotesApp extends Component {
   promptCreateCollection() {
     this.isCreatingCollection = true;
     this.render();
-    setTimeout(() => {
-      const input = this.shadowRoot.getElementById("inline-create-input");
-      if (input) input.focus();
-    }, 50);
+    this.focusElement("#inline-create-input");
   }
 
   async submitCreateCollection() {
@@ -231,12 +229,17 @@ class NotesApp extends Component {
     // 2. Perform server action in background
     storage.deleteNote(id, note.cid).then(() => {
       this.inFlightOps.delete(id);
+      showToast("Note moved to trash", {
+        action: "Undo",
+        duration: 6000,
+        onAction: () => this.restoreNote(id),
+      });
     }).catch(async (e) => {
       console.error("Failed to trash note:", e);
       this.inFlightOps.delete(id);
       this.allNotes = originalAllNotes;
       await this.loadNotes();
-      alert("Failed to delete note. Please try again.");
+      showError("Failed to delete note. Please try again.");
     });
   }
 
@@ -258,14 +261,17 @@ class NotesApp extends Component {
       this.inFlightOps.delete(id);
       this.allNotes = originalAllNotes;
       await this.loadNotes();
-      alert("Failed to restore note. Please try again.");
+      showError("Failed to restore note. Please try again.");
     });
   }
 
   permanentlyDeleteNote(id) {
-    if (!confirm("Permanently delete this note? This cannot be undone.")) {
+    if (this.confirmingPermDeleteNid !== id) {
+      this.confirmingPermDeleteNid = id;
+      this.render();
       return;
     }
+    this.confirmingPermDeleteNid = null;
 
     const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
     this.allNotes = this.allNotes.filter((n) => n.id !== id);
@@ -280,12 +286,23 @@ class NotesApp extends Component {
       this.inFlightOps.delete(id);
       this.allNotes = originalAllNotes;
       await this.loadNotes();
-      alert("Failed to delete note. Please try again.");
+      showError("Failed to delete note. Please try again.");
     });
   }
 
+  cancelPermDelete() {
+    if (this.confirmingPermDeleteNid == null) return;
+    this.confirmingPermDeleteNid = null;
+    this.render();
+  }
+
   async emptyTrash() {
-    if (!confirm("Permanently delete all notes in trash?")) return;
+    if (!this.confirmingEmptyTrash) {
+      this.confirmingEmptyTrash = true;
+      this.render();
+      return;
+    }
+    this.confirmingEmptyTrash = false;
 
     const originalAllNotes = JSON.parse(JSON.stringify(this.allNotes));
     this.allNotes = this.allNotes.filter((n) =>
@@ -300,8 +317,14 @@ class NotesApp extends Component {
       console.error("Failed to empty trash:", e);
       this.allNotes = originalAllNotes;
       await this.loadNotes();
-      alert("Failed to empty trash. Please try again.");
+      showError("Failed to empty trash. Please try again.");
     }
+  }
+
+  cancelEmptyTrash() {
+    if (!this.confirmingEmptyTrash) return;
+    this.confirmingEmptyTrash = false;
+    this.render();
   }
 
   toggleTrash() {
@@ -365,20 +388,11 @@ class NotesApp extends Component {
       }
     }
 
-    globalThis.scrollTo(0, 0);
-  }
-
-  focusElement(selector, select = false) {
-    // Use requestAnimationFrame to wait for the next frame where DOM might be updated
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const el = this.shadowRoot.querySelector(selector);
-        if (el) {
-          el.focus();
-          if (select && el.select) el.select();
-        }
-      }, 50); // 50ms buffer to ensure Tiptap and other sub-components finished mounting
-    });
+    if (globalThis.scrollY > 80) {
+      const reduce =
+        globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      globalThis.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    }
   }
 
   // Use inherited wrapper for debounced save
@@ -462,7 +476,18 @@ class NotesApp extends Component {
         </div>
     `).join("");
 
-    const trashHtml = this.trashNotes.map((n) => `
+    const trashHtml = this.trashNotes.map((n) =>
+      this.confirmingPermDeleteNid === n.id
+        ? `
+        <div class="list-item confirming" data-nid="${n.id}">
+            <span class="confirm-msg">Delete forever?</span>
+            <div class="confirm-actions">
+                <button class="confirm-btn-text yes confirm-perm-yes" data-nid="${n.id}">Yes</button>
+                <button class="confirm-btn-text no confirm-perm-no">No</button>
+            </div>
+        </div>
+        `
+        : `
         <div class="list-item trash-item" data-nid="${n.id}">
             <span class="title-text">${n.title || "Untitled"}</span>
             <div style="display: flex; gap: 0.25rem;">
@@ -470,7 +495,8 @@ class NotesApp extends Component {
                 <button class="btn-icon-tiny permanently-delete-btn" data-nid="${n.id}" title="Delete Permanently" style="color: #ff4444">×</button>
             </div>
         </div>
-    `).join("");
+        `
+    ).join("");
 
     const editorHtml = currentNote
       ? `
@@ -580,7 +606,10 @@ class NotesApp extends Component {
                     <div style="display: flex; gap: 0.25rem;">
                          ${
       this.showTrash
-        ? `<button class="btn-icon-tiny" id="empty-trash-btn" title="Empty Trash">🧹</button>`
+        ? (this.confirmingEmptyTrash
+          ? `<button class="confirm-btn-text yes" id="empty-trash-confirm-yes">Empty?</button>
+             <button class="confirm-btn-text no" id="empty-trash-confirm-no">Cancel</button>`
+          : `<button class="btn-icon-tiny" id="empty-trash-btn" title="Empty Trash">🧹</button>`)
         : `<button class="btn-icon-tiny" id="add-note-btn" title="New Note">+</button>`
     }
                         <button class="btn-icon-tiny ${
@@ -731,6 +760,32 @@ class NotesApp extends Component {
       emptyTrashBtn.addEventListener("click", () => this.emptyTrash());
     }
 
+    const emptyTrashYes = this.shadowRoot.getElementById(
+      "empty-trash-confirm-yes",
+    );
+    if (emptyTrashYes) {
+      emptyTrashYes.addEventListener("click", () => this.emptyTrash());
+    }
+    const emptyTrashNo = this.shadowRoot.getElementById(
+      "empty-trash-confirm-no",
+    );
+    if (emptyTrashNo) {
+      emptyTrashNo.addEventListener("click", () => this.cancelEmptyTrash());
+    }
+    this.shadowRoot.querySelectorAll(".confirm-perm-yes").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.confirmingPermDeleteNid = btn.dataset.nid;
+        this.permanentlyDeleteNote(btn.dataset.nid);
+      });
+    });
+    this.shadowRoot.querySelectorAll(".confirm-perm-no").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.cancelPermDelete();
+      });
+    });
+
     const addCollBtn = this.shadowRoot.getElementById("add-collection-btn");
     if (addCollBtn) {
       addCollBtn.addEventListener("click", () => this.promptCreateCollection());
@@ -790,8 +845,12 @@ class NotesApp extends Component {
             input.select();
             navigator.clipboard.writeText(input.value);
             const originalText = btn.textContent;
-            btn.textContent = "Copied!";
-            setTimeout(() => btn.textContent = originalText, 2000);
+            btn.textContent = "✓ Copied";
+            btn.classList.add("copied");
+            setTimeout(() => {
+              btn.textContent = originalText;
+              btn.classList.remove("copied");
+            }, 1500);
           }
         });
       }
