@@ -23,6 +23,13 @@ class NotesApp extends Component {
     this.showTrash = false;
     this.trashNotes = [];
     this.inFlightOps = new Set(); // IDs currently being trashed/restored
+
+    // Per-id queue of unsaved note edits. Keyed by note id so that switching
+    // between notes within the debounce window can't drop the previous note's
+    // pending save.
+    this._pendingNoteSaves = new Map();
+    this._noteSaveTimer = null;
+    this._noteSaveInFlight = null;
   }
 
   async connectedCallback() {
@@ -43,6 +50,12 @@ class NotesApp extends Component {
 
   async refreshData() {
     console.log("[NotesApp] Refreshing data on focus...");
+
+    // Flush local edits BEFORE re-fetching so the server reflects our
+    // unsaved typing and can't return stale content that overwrites it.
+    if (this.hasUnsavedNoteWork()) {
+      await this.flushNoteSaves();
+    }
 
     // 1. Refresh collections and index
     const [collections, fullIndex] = await Promise.all([
@@ -356,7 +369,7 @@ class NotesApp extends Component {
     this.focusElement("#note-title", true);
 
     // 2. Trigger debounced save (handles creation on server)
-    this.saveNoteDebounced(newNote);
+    this.queueNoteSave(newNote);
   }
 
   selectCollection(cid) {
@@ -395,11 +408,44 @@ class NotesApp extends Component {
     }
   }
 
-  // Use inherited wrapper for debounced save
-  saveNoteDebounced = this.wrapDebouncedSave(async (note) => {
-    await storage.saveNote(note);
-    console.log("Note saved (debounced)");
-  }, 500);
+  queueNoteSave(note) {
+    // Snapshot the note so a later mutation of the live object can't change
+    // what was queued (we still overwrite the entry on the next keystroke).
+    this._pendingNoteSaves.set(note.id, { ...note });
+    if (this._noteSaveTimer) clearTimeout(this._noteSaveTimer);
+    this._noteSaveTimer = setTimeout(() => this.flushNoteSaves(), 500);
+  }
+
+  hasUnsavedNoteWork() {
+    return this._pendingNoteSaves.size > 0 || !!this._noteSaveInFlight;
+  }
+
+  async flushNoteSaves() {
+    if (this._noteSaveTimer) {
+      clearTimeout(this._noteSaveTimer);
+      this._noteSaveTimer = null;
+    }
+    if (this._pendingNoteSaves.size === 0) return;
+    const toSave = Array.from(this._pendingNoteSaves.values());
+    this._pendingNoteSaves.clear();
+    const showTimer = setTimeout(() => this.setSaving(true), 400);
+    this._noteSaveInFlight = (async () => {
+      try {
+        for (const note of toSave) {
+          await storage.saveNote(note);
+        }
+        clearTimeout(showTimer);
+        this.setSaving(false);
+      } catch (err) {
+        console.error("Save failed", err);
+        clearTimeout(showTimer);
+        this.setSaveError();
+      } finally {
+        this._noteSaveInFlight = null;
+      }
+    })();
+    await this._noteSaveInFlight;
+  }
 
   handleNoteUpdate(content) {
     const titleEl = this.shadowRoot.getElementById("note-title");
@@ -425,7 +471,7 @@ class NotesApp extends Component {
       }
 
       // Trigger debounced save
-      this.saveNoteDebounced(note);
+      this.queueNoteSave(note);
     }
   }
 
