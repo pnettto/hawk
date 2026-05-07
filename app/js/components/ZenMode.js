@@ -35,27 +35,12 @@ class ZenMode extends Component {
     // Bind handlers to preserve `this`
     this.enter = this.enter.bind(this);
     this.leave = this.leave.bind(this);
-    this.keydownHandler = this.keydownHandler.bind(this);
   }
-
-  keydownHandler = (e) => {
-    if (Component.isTyping()) return;
-
-    if (e.key.toLowerCase() === "z") {
-      this.hidden ? this.enter() : this.leave();
-    }
-
-    if (e.key === "Escape") this.leave();
-  };
 
   async connectedCallback() {
     super.connectedCallback();
 
-    // Attach to both window and document to avoid focus/propagation issues
     this.addEventListener("click", this.leave);
-    document.addEventListener("keydown", this.keydownHandler, {
-      capture: true,
-    });
 
     try {
       this.quoteLines = await loadQuotes();
@@ -70,9 +55,6 @@ class ZenMode extends Component {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    document.removeEventListener("keydown", this.keydownHandler, {
-      capture: true,
-    });
     this.removeEventListener("click", this.leave);
   }
 

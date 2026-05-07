@@ -136,7 +136,6 @@ class MainApp extends Component {
     }">
             <header class="app-header">
                 <div class="header-left">
-                    <mood-tracker></mood-tracker>
                     <date-picker></date-picker>
                 </div>
 
@@ -170,8 +169,6 @@ class MainApp extends Component {
             <report-maker></report-maker>
         </main>
 
-        <shortcuts-modal></shortcuts-modal>
-        <mirror-mode></mirror-mode>
         <zen-mode></zen-mode>
       </div>
       <auth-overlay></auth-overlay>
