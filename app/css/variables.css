@@ -1,12 +1,15 @@
 :root {
-    --bg: #1a1d23;
-    --panel: #272b31;
-    --muted: #8c95a1;
+    --bg: #232830;
+    --panel: #2f343d;
+    --muted: #a2abb8;
     --accent: #e6b84d;
-    --line: #2f3339;
-    --glass: rgba(255, 255, 255, 0.12);
-    --glass-dark: rgba(28, 31, 36, 0.8);
-    --text: #dfe1e5;
+    --line: #3a4049;
+    --glass: rgba(255, 255, 255, 0.14);
+    --glass-dark: rgba(255, 255, 255, 0.06);
+    --text: #ecedf0;
+    --input-bg: rgba(255, 255, 255, 0.06);
+    --input-bg-strong: rgba(255, 255, 255, 0.1);
+    --input-placeholder: rgba(236, 237, 240, 0.45);
 
     /* Typography */
     --font-mono: 'JetBrains Mono', monospace;

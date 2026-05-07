@@ -19,8 +19,6 @@ export const style = /* css */ `
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 
-.hour-row[data-hour$="-30"] { margin-bottom: 0.5rem; }
-
 @media (max-width: 480px) {
   .hour-row {
       grid-template-columns: auto minmax(0, 1fr);
@@ -29,7 +27,9 @@ export const style = /* css */ `
   }
 }
 
-.hour-row.not-empty {
+.hour-row.not-empty,
+.hour-row:hover,
+.hour-row:focus-within {
   background-color: var(--glass-dark);
   border-radius: 0.25rem;
 }
@@ -126,7 +126,11 @@ export const style = /* css */ `
 }
 
 .hour-input,
-.hour-comment {
+.hour-comment,
+.hour-input:hover,
+.hour-comment:hover,
+.hour-input:focus,
+.hour-comment:focus {
   border: 0;
   background: transparent;
   padding: 0 0.5rem;

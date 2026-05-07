@@ -35,10 +35,10 @@ export const style = /* css */ `
     color: inherit;
 }
 
-.auth-form input, 
+.auth-form input,
 .auth-form button {
     border-radius: 10px;
-    background: var(--glass-dark);
+    background: var(--input-bg);
 }
 
 .auth-form button {
