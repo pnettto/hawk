@@ -1,0 +1,43 @@
+import { writable } from 'svelte/store'
+import { authCheck, login as apiLogin, logout as apiLogout } from '../api/auth'
+
+interface AuthState {
+  isAuth: boolean
+  isGuest: boolean
+  isCheckingAuth: boolean
+}
+
+function createAuthStore() {
+  const { subscribe, set, update } = writable<AuthState>({
+    isAuth: false,
+    isGuest: false,
+    isCheckingAuth: true,
+  })
+
+  return {
+    subscribe,
+    async checkSession() {
+      const isAuth = await authCheck()
+      set({ isAuth, isGuest: false, isCheckingAuth: false })
+    },
+    async login(password: string): Promise<boolean> {
+      const { ok } = await apiLogin(password)
+      if (ok) set({ isAuth: true, isGuest: false, isCheckingAuth: false })
+      return ok
+    },
+    enterGuest() {
+      // Transient guest mode — read-only browsing, no token saved.
+      set({ isAuth: true, isGuest: true, isCheckingAuth: false })
+    },
+    async logout() {
+      await apiLogout()
+      set({ isAuth: false, isGuest: false, isCheckingAuth: false })
+    },
+    markUnauthenticated() {
+      // Called by api/client.ts on 401 — kicks the UI back to the login overlay.
+      update((s) => ({ ...s, isAuth: false, isGuest: false }))
+    },
+  }
+}
+
+export const authStore = createAuthStore()
