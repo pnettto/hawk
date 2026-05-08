@@ -3,6 +3,7 @@
   import { authStore } from './stores/auth'
   import { appStore } from './stores/app'
   import { logsStore } from './stores/logs'
+  import { preferencesStore } from './stores/preferences'
   import { formatDate } from './utils/date'
   import { hasUnsavedWork } from './stores/saving'
   import Auth from './lib/auth/Auth.svelte'
@@ -15,6 +16,7 @@
     app: () => import('./routes/Journal.svelte'),
     notes: () => import('./routes/Notes.svelte'),
     report: () => import('./routes/Report.svelte'),
+    admin: () => import('./routes/Admin.svelte'),
   } as const
 
   onMount(() => {
@@ -27,6 +29,16 @@
     const dateStr = formatDate($appStore.selectedDate)
     logsStore.loadForDate(dateStr)
     logsStore.prefetchSurrounding($appStore.selectedDate)
+  })
+
+  // Pull saved theme/preferences once per auth so the choice follows the user
+  // across devices. localStorage already gave us a fast first paint.
+  let prefsLoadedFor = $state(false)
+  $effect(() => {
+    if (!$authStore.isAuth || $authStore.isGuest) return
+    if (prefsLoadedFor) return
+    prefsLoadedFor = true
+    preferencesStore.loadFromServer()
   })
 
   // Refresh today on window focus, mirroring the legacy behaviour.
@@ -83,6 +95,18 @@
         class:active={$appStore.currentPage === 'notes'}
         onclick={() => appStore.setCurrentPage('notes')}>Notes</button
       >
+      <button
+        class="nav-icon"
+        class:active={$appStore.currentPage === 'admin'}
+        onclick={() => appStore.setCurrentPage('admin')}
+        aria-label="Settings"
+        title="Settings"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.2"/>
+          <path d="M8 1.5v1.6M8 12.9v1.6M14.5 8h-1.6M3.1 8H1.5M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1M12.6 12.6l-1.1-1.1M4.5 4.5L3.4 3.4"/>
+        </svg>
+      </button>
       {#if !$authStore.isGuest}
         <button class="nav-logout" onclick={() => authStore.logout()}>Logout</button>
       {/if}
@@ -176,7 +200,18 @@
     color: var(--accent);
     background: rgba(230, 184, 77, 0.1);
   }
-  .nav-logout { margin-left: auto; }
+  .nav-icon {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem;
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+  }
+  .nav-icon svg { width: 14px; height: 14px; display: block; }
+  .nav-icon.active { color: var(--accent); background: var(--glass-dark); }
   .nav-logout:hover { color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
   .route-loading { min-height: 50vh; }
   .route-error { padding: 2rem; color: #ff6b6b; text-align: center; }

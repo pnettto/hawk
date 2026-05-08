@@ -34,6 +34,10 @@ import {
   setEntry,
 } from "./server/routeHandlers/kv.ts";
 import { authCheck, login, logout } from "./server/routeHandlers/auth.ts";
+import {
+  getPreferences,
+  patchPreferences,
+} from "./server/routeHandlers/preferences.ts";
 
 const app = new Hono();
 
@@ -108,6 +112,10 @@ app.get("/shared/collection/:cid", getSharedCollectionPage);
 app.get("/api/entries", listEntries);
 app.post("/api/entries", setEntry);
 app.delete("/api/entries", deleteEntry);
+
+// Preferences (theme + future settings)
+app.get("/api/preferences", getPreferences);
+app.post("/api/preferences", patchPreferences);
 
 // Serve frontend
 app.use(
