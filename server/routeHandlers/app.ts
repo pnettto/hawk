@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
+import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 
 // ... existing functions
 export async function getDayLog(c: Context) {
@@ -53,6 +54,12 @@ export async function setDayLog(c: Context) {
   console.log(
     `[POST /api/day] ✓ Saved log for ${dateStr} (${body.length} bytes)`,
   );
+
+  await emitSyncEvent({
+    type: "log.saved",
+    ref: dateStr,
+    originClientId: getClientIdFromCtx(c),
+  });
 
   return c.text("Day log saved", 200);
 }

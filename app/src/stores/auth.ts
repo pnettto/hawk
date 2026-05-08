@@ -30,6 +30,11 @@ function createAuthStore() {
       set({ isAuth: true, isGuest: true, isCheckingAuth: false })
     },
     async logout() {
+      // Tear down sync first so an in-flight reconnect doesn't fire a 401 and
+      // bounce us back into login mid-logout. Imported lazily to avoid a
+      // circular import (sync.ts depends on authStore for unauth signaling).
+      const { syncStore } = await import('./sync')
+      syncStore.stop()
       await apiLogout()
       set({ isAuth: false, isGuest: false, isCheckingAuth: false })
     },

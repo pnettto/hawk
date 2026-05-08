@@ -3,6 +3,7 @@ import * as notesApi from '../api/notes'
 import { showError, showToast } from './toast'
 import { savingStore } from './saving'
 import type { Collection, Note, NoteMetadata } from '../types/models'
+import type { SyncEvent } from './sync'
 
 export type NotesView = 'collection' | 'all' | 'trash'
 
@@ -19,6 +20,23 @@ interface NotesState {
 // Tracks notes mid-mutation so a server refresh can't resurrect them between
 // the optimistic update and the request finishing.
 const inFlightOps = new Set<string>()
+
+// Remote note bodies that arrived while the user was actively typing in the
+// editor. We hold them here until the editor blurs (or the user navigates away)
+// so we don't yank the cursor mid-keystroke. Metadata (title, preview,
+// updatedAt) still updates immediately — only the editor body waits.
+const pendingRemoteContent = new Map<string, Note>()
+const { subscribe: pendingRemoteSubscribe, set: pendingRemoteSet } = writable<
+  Set<string>
+>(new Set())
+function bumpPendingRemote() {
+  pendingRemoteSet(new Set(pendingRemoteContent.keys()))
+}
+
+function isEditorFocused(): boolean {
+  if (typeof document === 'undefined') return false
+  return !!document.querySelector('.ProseMirror-focused')
+}
 
 // Per-note pending save snapshots. Keyed by id so switching notes within the
 // debounce window can't drop an earlier note's pending save.
@@ -62,6 +80,39 @@ function createNotesStore() {
     }
   }
 
+  // Last-write-wins merge of a fresh server-side metadata list into the local
+  // allNotes. Used by both refresh() and applySyncEvent. If `restrictToCids`
+  // is set, only entries in those cids are subject to deletion when missing
+  // from the fresh list (so a per-collection refresh doesn't wipe other cids).
+  function mergeIndexInto(
+    local: NoteMetadata[],
+    fresh: NoteMetadata[],
+    restrictToCids: string[] | null = null,
+  ): NoteMetadata[] {
+    const localMap = new Map(local.map((n) => [n.id, n]))
+    if (restrictToCids) {
+      const cidSet = new Set(restrictToCids)
+      const freshIds = new Set(fresh.map((n) => n.id))
+      for (const [id, n] of localMap) {
+        if (cidSet.has(n.cid) && !freshIds.has(id) && !inFlightOps.has(id)) {
+          localMap.delete(id)
+        }
+      }
+    }
+    for (const sn of fresh) {
+      if (inFlightOps.has(sn.id)) continue
+      const local = localMap.get(sn.id)
+      if (local) {
+        if ((sn.updatedAt || 0) >= (local.updatedAt || 0)) {
+          localMap.set(sn.id, { ...local, ...sn })
+        }
+      } else {
+        localMap.set(sn.id, sn)
+      }
+    }
+    return Array.from(localMap.values())
+  }
+
   async function refresh() {
     if (hasUnsavedWork()) await flushSaves()
     try {
@@ -71,28 +122,12 @@ function createNotesStore() {
       ])
       update((s) => {
         const serverIndex = Array.isArray(fullIndex) ? fullIndex : []
-        const localMap = new Map(s.allNotes.map((n) => [n.id, n]))
-        for (const sn of serverIndex) {
-          if (inFlightOps.has(sn.id)) continue
-          const local = localMap.get(sn.id)
-          if (local) {
-            if ((sn.updatedAt || 0) >= (local.updatedAt || 0)) {
-              localMap.set(sn.id, { ...local, ...sn })
-            }
-          } else {
-            localMap.set(sn.id, sn)
-          }
-        }
+        const allNotes = mergeIndexInto(s.allNotes, serverIndex)
         const selectedCid =
           s.selectedCid && collections.find((c) => c.id === s.selectedCid)
             ? s.selectedCid
             : collections[0]?.id ?? null
-        return {
-          ...s,
-          collections,
-          allNotes: Array.from(localMap.values()),
-          selectedCid,
-        }
+        return { ...s, collections, allNotes, selectedCid }
       })
 
       // Also re-fetch the open note's full content (titles/dates may have changed).
@@ -113,6 +148,170 @@ function createNotesStore() {
     }
   }
 
+  // Re-fetch one collection's slice of allNotes (active + trashed) and merge
+  // last-write-wins. Used by applySyncEvent so a single remote write only
+  // costs one collection refetch, not a full index reload.
+  async function refetchCollectionSlice(cid: string): Promise<void> {
+    try {
+      const [active, trash] = await Promise.all([
+        notesApi.getCollectionNotes(cid).catch(() => [] as NoteMetadata[]),
+        notesApi.getTrash(cid).catch(() => [] as NoteMetadata[]),
+      ])
+      const fresh = [...active, ...trash]
+      update((s) => ({
+        ...s,
+        allNotes: mergeIndexInto(s.allNotes, fresh, [cid]),
+      }))
+    } catch (e) {
+      console.error('[notes] refetchCollectionSlice failed', e)
+    }
+  }
+
+  async function applySyncEvent(evt: SyncEvent): Promise<void> {
+    // Defense in depth — server already filters by originClientId.
+    if (inFlightOps.has(evt.ref)) return
+
+    switch (evt.type) {
+      case 'note.saved': {
+        if (!evt.cid) return
+        // Don't resurrect a note we're about to permanently delete.
+        if (pendingDestructive.has(`perm-del:${evt.ref}`)) return
+        await refetchCollectionSlice(evt.cid)
+        const cur = get({ subscribe })
+        if (evt.ref === cur.selectedNid) {
+          try {
+            const fullNote = await notesApi.getNote(evt.ref)
+            if (!fullNote) return
+            if (isEditorFocused()) {
+              // Stash body — apply on blur. Push title/preview/updatedAt now
+              // so the list and header reflect the change immediately.
+              pendingRemoteContent.set(evt.ref, fullNote as Note)
+              bumpPendingRemote()
+              update((s) => {
+                const allNotes = s.allNotes.map((n) => {
+                  if (n.id !== evt.ref) return n
+                  const { title, preview, updatedAt, deletedAt, isPublic } =
+                    fullNote as Note
+                  return {
+                    ...n,
+                    title,
+                    preview,
+                    updatedAt,
+                    deletedAt,
+                    isPublic,
+                  } as NoteMetadata
+                })
+                return { ...s, allNotes }
+              })
+            } else {
+              update((s) => {
+                const allNotes = s.allNotes.map((n) =>
+                  n.id === evt.ref ? { ...n, ...(fullNote as Note) } : n,
+                )
+                return { ...s, allNotes }
+              })
+            }
+          } catch (e) {
+            console.error('[notes] applySyncEvent getNote failed', e)
+          }
+        }
+        break
+      }
+      case 'note.trashed':
+      case 'note.restored': {
+        if (!evt.cid) return
+        await refetchCollectionSlice(evt.cid)
+        break
+      }
+      case 'note.deleted': {
+        if (!evt.cid) return
+        update((s) => ({
+          ...s,
+          allNotes: s.allNotes.filter((n) => n.id !== evt.ref),
+          selectedNid: s.selectedNid === evt.ref ? null : s.selectedNid,
+        }))
+        pendingRemoteContent.delete(evt.ref)
+        bumpPendingRemote()
+        break
+      }
+      case 'trash.emptied': {
+        if (!evt.cid) return
+        // Drop everything trashed in this collection, then reconcile.
+        update((s) => ({
+          ...s,
+          allNotes: s.allNotes.filter(
+            (n) => !(n.cid === evt.cid && !!n.deletedAt),
+          ),
+        }))
+        await refetchCollectionSlice(evt.cid)
+        break
+      }
+      case 'collection.saved': {
+        try {
+          const collections = await notesApi.getCollections()
+          update((s) => {
+            const selectedCid =
+              s.selectedCid && collections.find((c) => c.id === s.selectedCid)
+                ? s.selectedCid
+                : collections[0]?.id ?? null
+            return { ...s, collections, selectedCid }
+          })
+        } catch (e) {
+          console.error('[notes] applySyncEvent collection.saved failed', e)
+        }
+        break
+      }
+      case 'collection.deleted': {
+        try {
+          const collections = await notesApi.getCollections()
+          update((s) => {
+            const allNotes = evt.cid
+              ? s.allNotes.filter((n) => n.cid !== evt.cid)
+              : s.allNotes
+            const selectedCid =
+              s.selectedCid && collections.find((c) => c.id === s.selectedCid)
+                ? s.selectedCid
+                : collections[0]?.id ?? null
+            const selectedNid =
+              s.selectedNid &&
+              !allNotes.find((n) => n.id === s.selectedNid)
+                ? null
+                : s.selectedNid
+            return { ...s, collections, allNotes, selectedCid, selectedNid }
+          })
+        } catch (e) {
+          console.error('[notes] applySyncEvent collection.deleted failed', e)
+        }
+        break
+      }
+    }
+  }
+
+  // Move stashed remote content into the live note. Called by the editor on
+  // blur and automatically on selectNote when switching away from a note that
+  // had a pending update.
+  function commitPendingRemote(nid: string): void {
+    const remote = pendingRemoteContent.get(nid)
+    if (!remote) return
+    pendingRemoteContent.delete(nid)
+    bumpPendingRemote()
+    update((s) => {
+      const local = s.allNotes.find((n) => n.id === nid)
+      // Drop the remote if the user has typed something newer in the meantime.
+      // Their pending save will land on the server next.
+      if (
+        local &&
+        (local.updatedAt || 0) > (remote.updatedAt || 0)
+      ) {
+        return s
+      }
+      const allNotes = s.allNotes.map((n) =>
+        n.id === nid ? { ...n, ...remote } : n,
+      )
+      return { ...s, allNotes }
+    })
+  }
+
   function selectCollection(cid: string) {
     update((s) => ({ ...s, selectedCid: cid, selectedNid: null, view: 'collection' }))
   }
@@ -126,10 +325,16 @@ function createNotesStore() {
   }
 
   function clearSelectedNote() {
+    const prev = get({ subscribe }).selectedNid
+    if (prev) commitPendingRemote(prev)
     update((s) => ({ ...s, selectedNid: null }))
   }
 
   async function selectNote(nid: string) {
+    // Moving on from the previous note — commit any remote update we held
+    // back while the user was typing.
+    const prev = get({ subscribe }).selectedNid
+    if (prev && prev !== nid) commitPendingRemote(prev)
     update((s) => ({ ...s, selectedNid: nid }))
     const cur = get({ subscribe })
     const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
@@ -508,6 +713,9 @@ function createNotesStore() {
     permanentlyDeleteNote,
     emptyTrash,
     hasUnsavedWork,
+    applySyncEvent,
+    commitPendingRemote,
+    pendingRemoteNids: { subscribe: pendingRemoteSubscribe },
   }
 }
 

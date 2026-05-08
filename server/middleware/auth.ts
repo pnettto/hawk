@@ -3,6 +3,12 @@ import { getCookie } from "hono/cookie";
 
 const getApiKey = () => Deno.env.get("API_KEY") || "";
 
+export function isValidToken(token: string | undefined | null): boolean {
+  const API_KEY = getApiKey();
+  if (!API_KEY) return false;
+  return !!token && token === API_KEY;
+}
+
 export const auth = async (c: Context, next: Next) => {
   const API_KEY = getApiKey();
   if (!API_KEY) {

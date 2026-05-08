@@ -1,8 +1,9 @@
-import { writable } from 'svelte/store'
+import { writable, get } from 'svelte/store'
 import * as logsApi from '../api/logs'
 import { savingStore } from './saving'
 import type { DayLog, LogsByDate } from '../types/models'
 import { formatDate } from '../utils/date'
+import type { SyncEvent } from './sync'
 
 interface LogsState {
   byDate: LogsByDate
@@ -12,6 +13,13 @@ const inFlight = new Map<string, Promise<DayLog | null>>()
 
 function createLogsStore() {
   const { subscribe, update } = writable<LogsState>({ byDate: {} })
+
+  // True for ~750 ms after a local saveDay, so a cross-device echo doesn't
+  // immediately yank the day's checklist while the user is still toggling
+  // boxes. The server already filters by originClientId; this is just belt
+  // and braces for cases where a sibling tab on the same device wrote.
+  const recentLocalSaves = new Map<string, number>()
+  const ECHO_GUARD_MS = 750
 
   async function loadForDate(dateStr: string, force = false): Promise<DayLog | null> {
     if (!force) {
@@ -65,12 +73,25 @@ function createLogsStore() {
 
   async function saveDay(dateStr: string, data: DayLog) {
     updateLog(dateStr, data)
+    recentLocalSaves.set(dateStr, Date.now())
     await savingStore.track(
       logsApi.setDayLog(dateStr, data).catch((e) => {
         console.error(`Failed to save log for ${dateStr}:`, e)
         throw e
       }),
     )
+  }
+
+  async function applySyncEvent(evt: SyncEvent): Promise<void> {
+    if (evt.type !== 'log.saved') return
+    const dateStr = evt.ref
+    const lastLocal = recentLocalSaves.get(dateStr) || 0
+    if (Date.now() - lastLocal < ECHO_GUARD_MS) return
+    // Only refetch if we already have this date loaded — no point pulling a
+    // day the user isn't looking at.
+    const cur = get({ subscribe })
+    if (!cur.byDate[dateStr]) return
+    await loadForDate(dateStr, /* force */ true)
   }
 
   return {
@@ -80,6 +101,7 @@ function createLogsStore() {
     prefetchSurrounding,
     updateLog,
     saveDay,
+    applySyncEvent,
   }
 }
 

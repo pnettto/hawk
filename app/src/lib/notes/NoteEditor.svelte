@@ -41,12 +41,17 @@
       lastNid = currentNote.id
       title = currentNote.title ?? ''
       content = currentNote.content ?? ''
-    } else {
-      // External update (e.g. fetched full content after select) — rehydrate content
-      // only if the editor hasn't diverged.
-      if (currentNote.content !== undefined && content === '' && currentNote.content) {
-        content = currentNote.content
-      }
+      return
+    }
+    // Same note — adopt the title from the store (e.g. another device renamed
+    // it). Only adopt content if it diverges; the sync store holds remote
+    // content back in pendingRemote until blur, so divergence here means a
+    // remote update committed (or initial full-content fetch after select).
+    if (currentNote.title !== undefined && currentNote.title !== title) {
+      title = currentNote.title
+    }
+    if (currentNote.content !== undefined && currentNote.content !== content) {
+      content = currentNote.content
     }
   })
 
@@ -58,6 +63,10 @@
     if (!currentNote) return
     content = markdown
     notesStore.applyEdit(currentNote.id, { content: markdown })
+  }
+  function onEditorBlur() {
+    if (!currentNote) return
+    notesStore.commitPendingRemote(currentNote.id)
   }
 
   function onClickOutside(e: MouseEvent) {
@@ -135,7 +144,7 @@
   </div>
 
   {#key currentNote.id}
-    <RichEditor value={content} onChange={onContentChange} />
+    <RichEditor value={content} onChange={onContentChange} onBlur={onEditorBlur} />
   {/key}
 {:else}
   <div class="empty-state">
