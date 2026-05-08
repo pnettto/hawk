@@ -26,6 +26,28 @@ interface NoteMetadata {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
+  preview?: string;
+}
+
+function buildPreview(markdown: string | undefined, max = 140): string {
+  if (!markdown) return "";
+  const stripped = markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped.length > max ? stripped.slice(0, max).trimEnd() + "…" : stripped;
 }
 
 interface Collection {
@@ -212,8 +234,22 @@ export async function saveNote(c: Context) {
     title: title || "Untitled",
     createdAt: createdAt || existingNote?.createdAt || timestamp,
     updatedAt: timestamp,
+    preview: buildPreview(note.content),
   };
   if (existingNote?.deletedAt) metadata.deletedAt = existingNote.deletedAt;
+
+  // If the note moved to a different collection, drop it from the old index.
+  if (existingNote && existingNote.cid && existingNote.cid !== cid) {
+    const oldIndexRes = await kv.get<NoteMetadata[]>([
+      "notes",
+      "collection",
+      existingNote.cid,
+    ]);
+    if (oldIndexRes.value) {
+      const cleanedOld = oldIndexRes.value.filter((m) => m.id !== id);
+      await kv.set(["notes", "collection", existingNote.cid], cleanedOld);
+    }
+  }
 
   const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
   const index = indexRes.value || [];

@@ -13,12 +13,20 @@
 
     /* Typography */
     --font-mono: 'JetBrains Mono', monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
     --h1: 2.5rem;
     --h2: 1.8rem;
     --h3: 1.4rem;
     --body: 1rem;
     --small: 0.85rem;
     --lh: 1.6;
+
+    /* Spacing scale (4px grid) */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-6: 24px;
 
     /* Motion */
     --ease-out: cubic-bezier(0.2, 0, 0, 1);
