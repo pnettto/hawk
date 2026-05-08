@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authStore } from '../../stores/auth'
+  import { showError } from '../../stores/toast'
 
   let password = $state('')
   let submitting = $state(false)
@@ -11,8 +12,8 @@
     const ok = await authStore.login(password.trim())
     submitting = false
     if (!ok) {
-      console.warn('Invalid password, entering guest mode...')
-      authStore.enterGuest()
+      showError('Invalid password')
+      password = ''
     }
   }
 
