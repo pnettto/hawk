@@ -517,6 +517,48 @@ function createNotesStore() {
       })
   }
 
+  // Flushes any pending edits, then issues one extra save with snapshot=true.
+  // Called from editor blur / tab-switch / page-leave to mark a checkpoint
+  // without snapshotting on every keystroke.
+  async function triggerSnapshot(nid: string) {
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    if (pendingSaves.has(nid)) {
+      await flushSaves()
+    }
+    const cur = get({ subscribe })
+    const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
+    if (!note) return
+    try {
+      await savingStore.track(notesApi.saveNote(note, { snapshot: true }))
+    } catch (e) {
+      console.error('Failed to snapshot note', e)
+    }
+  }
+
+  async function restoreVersion(nid: string, savedAt: number): Promise<boolean> {
+    try {
+      const res = await savingStore.track(
+        notesApi.restoreNoteVersion(nid, savedAt),
+      ) as { success: boolean; note: Note } | undefined
+      if (res?.note) {
+        update((s) => {
+          const allNotes = s.allNotes.map((n) =>
+            n.id === nid ? { ...n, ...res.note } : n,
+          )
+          return { ...s, allNotes }
+        })
+      }
+      return true
+    } catch (e) {
+      console.error('Failed to restore note version', e)
+      showError('Failed to restore version.')
+      return false
+    }
+  }
+
   function trashNote(nid: string) {
     const cur = get({ subscribe })
     const note = cur.allNotes.find((n) => n.id === nid)
@@ -708,6 +750,8 @@ function createNotesStore() {
     applyEdit,
     flushSaves,
     saveNoteImmediate,
+    triggerSnapshot,
+    restoreVersion,
     trashNote,
     restoreNote,
     permanentlyDeleteNote,

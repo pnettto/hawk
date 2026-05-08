@@ -2,6 +2,13 @@ import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { marked } from "marked";
 import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
+import {
+  getVersion,
+  isSubstantialTextChange,
+  listVersions,
+  makePreview,
+  maybeSnapshot,
+} from "../utils/versioning.ts";
 
 // Pre-load the HTML templates
 let shareTemplate = "";
@@ -229,16 +236,34 @@ export async function deleteCollection(c: Context) {
 
 export async function saveNote(c: Context) {
   const note = await c.req.json();
-  const { id, cid, title, createdAt } = note;
+  const { id, cid, title, createdAt, snapshot } = note;
   if (!id || !cid) return c.json({ error: "Missing ID or CID" }, 400);
 
   const timestamp = Date.now();
-  const existingNoteRes = await kv.get<NoteMetadata>(["notes", "note", id]);
+  const existingNoteRes = await kv.get<
+    NoteMetadata & { content?: string }
+  >(["notes", "note", id]);
   const existingNote = existingNoteRes.value;
 
-  const fullNote = { ...note, updatedAt: timestamp };
+  // Strip the snapshot flag so it doesn't pollute the stored record.
+  const { snapshot: _drop, ...notePayload } = note;
+  const fullNote = { ...notePayload, updatedAt: timestamp };
   if (existingNote?.deletedAt) fullNote.deletedAt = existingNote.deletedAt;
   await kv.set(["notes", "note", id], fullNote);
+
+  if (snapshot === true) {
+    const substantial = isSubstantialTextChange(
+      existingNote?.content,
+      fullNote.content,
+    );
+    await maybeSnapshot({
+      kind: "note",
+      id,
+      next: { title: fullNote.title, content: fullNote.content },
+      preview: makePreview(fullNote.content),
+      substantialChange: substantial,
+    });
+  }
 
   const metadata: NoteMetadata = {
     id,
@@ -447,6 +472,100 @@ export async function getPublicCollection(c: Context) {
   const notes = (indexRes.value || []).filter((n) => !n.deletedAt);
 
   return c.json({ collection, notes });
+}
+
+// Version history for notes
+export async function listNoteVersions(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.json({ error: "Missing note ID" }, 400);
+  const versions = await listVersions("note", nid);
+  return c.json(versions);
+}
+
+export async function getNoteVersion(c: Context) {
+  const nid = c.req.param("nid");
+  const savedAtStr = c.req.param("savedAt");
+  if (!nid || !savedAtStr) return c.json({ error: "Missing parameter" }, 400);
+  const savedAt = Number(savedAtStr);
+  if (!Number.isFinite(savedAt)) return c.json({ error: "Bad savedAt" }, 400);
+  const v = await getVersion<{ title?: string; content?: string }>(
+    "note",
+    nid,
+    savedAt,
+  );
+  if (!v) return c.json({ error: "Version not found" }, 404);
+  return c.json(v);
+}
+
+export async function restoreNoteVersion(c: Context) {
+  const nid = c.req.param("nid");
+  const savedAtStr = c.req.param("savedAt");
+  if (!nid || !savedAtStr) return c.json({ error: "Missing parameter" }, 400);
+  const savedAt = Number(savedAtStr);
+  if (!Number.isFinite(savedAt)) return c.json({ error: "Bad savedAt" }, 400);
+
+  const target = await getVersion<{ title?: string; content?: string }>(
+    "note",
+    nid,
+    savedAt,
+  );
+  if (!target) return c.json({ error: "Version not found" }, 404);
+
+  const noteRes = await kv.get<NoteMetadata & { content?: string }>([
+    "notes",
+    "note",
+    nid,
+  ]);
+  if (!noteRes.value) return c.json({ error: "Note not found" }, 404);
+  const current = noteRes.value;
+
+  // Snapshot the current state before overwriting so the restore is itself
+  // reversible. Force a "substantial" flag so the entry is always appended,
+  // regardless of how recently a snapshot was taken.
+  await maybeSnapshot({
+    kind: "note",
+    id: nid,
+    next: { title: current.title, content: current.content },
+    preview: makePreview(current.content),
+    substantialChange: true,
+  });
+
+  const now = Date.now();
+  const restored = {
+    ...current,
+    title: target.content.title ?? current.title,
+    content: target.content.content ?? "",
+    updatedAt: now,
+  };
+  await kv.set(["notes", "note", nid], restored);
+
+  // Update the collection index entry's title + preview + updatedAt.
+  const idxRes = await kv.get<NoteMetadata[]>([
+    "notes",
+    "collection",
+    current.cid,
+  ]);
+  const idx = idxRes.value ?? [];
+  const updated = idx.map((m) =>
+    m.id === nid
+      ? {
+        ...m,
+        title: restored.title || "Untitled",
+        preview: buildPreview(restored.content),
+        updatedAt: now,
+      }
+      : m
+  );
+  await kv.set(["notes", "collection", current.cid], updated);
+
+  await emitSyncEvent({
+    type: "note.saved",
+    ref: nid,
+    cid: current.cid,
+    originClientId: getClientIdFromCtx(c),
+  });
+
+  return c.json({ success: true, note: restored });
 }
 
 export async function getSharedCollectionPage(c: Context) {
