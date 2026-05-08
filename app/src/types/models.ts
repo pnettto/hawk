@@ -12,6 +12,7 @@ export interface NoteMetadata {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
+  preview?: string;
 }
 
 export interface Note extends NoteMetadata {

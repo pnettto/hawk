@@ -4,6 +4,8 @@ import { showError, showToast } from './toast'
 import { savingStore } from './saving'
 import type { Collection, Note, NoteMetadata } from '../types/models'
 
+export type NotesView = 'collection' | 'all' | 'trash'
+
 interface NotesState {
   collections: Collection[]
   // Metadata-only index of every note in every collection. The selected note's
@@ -11,7 +13,7 @@ interface NotesState {
   allNotes: NoteMetadata[]
   selectedCid: string | null
   selectedNid: string | null
-  showTrash: boolean
+  view: NotesView
 }
 
 // Tracks notes mid-mutation so a server refresh can't resurrect them between
@@ -33,8 +35,13 @@ function createNotesStore() {
     allNotes: [],
     selectedCid: null,
     selectedNid: null,
-    showTrash: false,
+    view: 'collection',
   })
+
+  // Pending destructive operations awaiting Undo expiry. Keyed by op id; on
+  // expiry the server call fires; on undo we just revert local state.
+  const pendingDestructive = new Map<string, ReturnType<typeof setTimeout>>()
+  const UNDO_MS = 6000
 
   async function load() {
     try {
@@ -107,7 +114,19 @@ function createNotesStore() {
   }
 
   function selectCollection(cid: string) {
-    update((s) => ({ ...s, selectedCid: cid, selectedNid: null }))
+    update((s) => ({ ...s, selectedCid: cid, selectedNid: null, view: 'collection' }))
+  }
+
+  function selectAllNotes() {
+    update((s) => ({ ...s, selectedNid: null, view: 'all' }))
+  }
+
+  function selectTrash() {
+    update((s) => ({ ...s, selectedNid: null, view: 'trash' }))
+  }
+
+  function clearSelectedNote() {
+    update((s) => ({ ...s, selectedNid: null }))
   }
 
   async function selectNote(nid: string) {
@@ -131,7 +150,7 @@ function createNotesStore() {
     if (!trimmed) return null
     const cid = crypto.randomUUID()
     const next: Collection = { id: cid, name: trimmed }
-    update((s) => ({ ...s, collections: [...s.collections, next], selectedCid: cid }))
+    update((s) => ({ ...s, collections: [...s.collections, next], selectedCid: cid, view: 'collection' }))
     try {
       const cur = get({ subscribe })
       await notesApi.saveCollections(cur.collections)
@@ -143,8 +162,29 @@ function createNotesStore() {
     }
   }
 
-  async function deleteCollection(cid: string) {
+  async function renameCollection(cid: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
     const original = get({ subscribe })
+    update((s) => ({
+      ...s,
+      collections: s.collections.map((c) => (c.id === cid ? { ...c, name: trimmed } : c)),
+    }))
+    try {
+      const cur = get({ subscribe })
+      await notesApi.saveCollections(cur.collections)
+    } catch (e) {
+      console.error('Failed to rename collection:', e)
+      update(() => original)
+      showError('Failed to rename collection.')
+    }
+  }
+
+  function deleteCollection(cid: string) {
+    const original = get({ subscribe })
+    const removed = original.collections.find((c) => c.id === cid)
+    if (!removed) return
+
     update((s) => {
       const collections = s.collections.filter((c) => c.id !== cid)
       const allNotes = s.allNotes.filter((n) => n.cid !== cid)
@@ -153,13 +193,33 @@ function createNotesStore() {
       const selectedNid = s.selectedCid === cid ? null : s.selectedNid
       return { ...s, collections, allNotes, selectedCid, selectedNid }
     })
-    try {
-      await notesApi.deleteCollection(cid)
-    } catch (e) {
-      console.error('Failed to delete collection:', e)
-      update(() => original)
-      showError('Failed to delete collection.')
-    }
+
+    const opKey = `del-coll:${cid}`
+    let undone = false
+
+    const timer = setTimeout(async () => {
+      pendingDestructive.delete(opKey)
+      if (undone) return
+      try {
+        await notesApi.deleteCollection(cid)
+      } catch (e) {
+        console.error('Failed to delete collection:', e)
+        update(() => original)
+        showError('Failed to delete collection.')
+      }
+    }, UNDO_MS)
+    pendingDestructive.set(opKey, timer)
+
+    showToast(`Deleted "${removed.name}"`, {
+      action: 'Undo',
+      duration: UNDO_MS,
+      onAction: () => {
+        undone = true
+        clearTimeout(timer)
+        pendingDestructive.delete(opKey)
+        update(() => original)
+      },
+    })
   }
 
   function createNote(): string | null {
@@ -308,44 +368,122 @@ function createNotesStore() {
 
   function permanentlyDeleteNote(nid: string) {
     const cur = get({ subscribe })
-    const original = JSON.parse(JSON.stringify(cur.allNotes)) as NoteMetadata[]
+    const removed = cur.allNotes.find((n) => n.id === nid)
+    if (!removed) return
+    const originalNotes = JSON.parse(JSON.stringify(cur.allNotes)) as NoteMetadata[]
+    const originalSelectedNid = cur.selectedNid
+
     inFlightOps.add(nid)
     update((s) => ({
       ...s,
       allNotes: s.allNotes.filter((n) => n.id !== nid),
       selectedNid: s.selectedNid === nid ? null : s.selectedNid,
     }))
-    notesApi
-      .permanentlyDeleteNote(nid)
-      .then(() => inFlightOps.delete(nid))
-      .catch((e) => {
-        console.error('Failed to permanently delete note:', e)
+
+    const opKey = `perm-del:${nid}`
+    let undone = false
+
+    const timer = setTimeout(() => {
+      pendingDestructive.delete(opKey)
+      if (undone) return
+      notesApi
+        .permanentlyDeleteNote(nid)
+        .then(() => inFlightOps.delete(nid))
+        .catch((e) => {
+          console.error('Failed to permanently delete note:', e)
+          inFlightOps.delete(nid)
+          update((s) => ({ ...s, allNotes: originalNotes }))
+          showError('Failed to delete note.')
+        })
+    }, UNDO_MS)
+    pendingDestructive.set(opKey, timer)
+
+    showToast(`Deleted "${removed.title || 'Untitled'}"`, {
+      action: 'Undo',
+      duration: UNDO_MS,
+      onAction: () => {
+        undone = true
+        clearTimeout(timer)
+        pendingDestructive.delete(opKey)
         inFlightOps.delete(nid)
-        update((s) => ({ ...s, allNotes: original }))
-        showError('Failed to delete note.')
-      })
+        update((s) => ({ ...s, allNotes: originalNotes, selectedNid: originalSelectedNid }))
+      },
+    })
   }
 
-  async function emptyTrash() {
+  function emptyTrash() {
     const cur = get({ subscribe })
-    if (!cur.selectedCid) return
-    const cid = cur.selectedCid
+    const trashedNotes = cur.allNotes.filter((n) => !!n.deletedAt)
+    if (trashedNotes.length === 0) return
     const original = JSON.parse(JSON.stringify(cur.allNotes)) as NoteMetadata[]
+    const trashedCids = Array.from(new Set(trashedNotes.map((n) => n.cid)))
+
     update((s) => ({
       ...s,
-      allNotes: s.allNotes.filter((n) => !(n.cid === cid && n.deletedAt)),
+      allNotes: s.allNotes.filter((n) => !n.deletedAt),
     }))
-    try {
-      await notesApi.emptyTrash(cid)
-    } catch (e) {
-      console.error('Failed to empty trash:', e)
-      update((s) => ({ ...s, allNotes: original }))
-      showError('Failed to empty trash.')
-    }
+
+    const opKey = `empty-trash`
+    let undone = false
+
+    const timer = setTimeout(async () => {
+      pendingDestructive.delete(opKey)
+      if (undone) return
+      try {
+        await Promise.all(trashedCids.map((cid) => notesApi.emptyTrash(cid)))
+      } catch (e) {
+        console.error('Failed to empty trash:', e)
+        update((s) => ({ ...s, allNotes: original }))
+        showError('Failed to empty trash.')
+      }
+    }, UNDO_MS)
+    pendingDestructive.set(opKey, timer)
+
+    showToast(`Emptied trash (${trashedNotes.length})`, {
+      action: 'Undo',
+      duration: UNDO_MS,
+      onAction: () => {
+        undone = true
+        clearTimeout(timer)
+        pendingDestructive.delete(opKey)
+        update((s) => ({ ...s, allNotes: original }))
+      },
+    })
   }
 
-  function toggleTrash() {
-    update((s) => ({ ...s, showTrash: !s.showTrash, selectedNid: null }))
+  function moveNote(nid: string, targetCid: string) {
+    const cur = get({ subscribe })
+    const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
+    if (!note || note.cid === targetCid) return
+    const original = JSON.parse(JSON.stringify(cur.allNotes)) as NoteMetadata[]
+
+    inFlightOps.add(nid)
+    const now = Date.now()
+    update((s) => ({
+      ...s,
+      allNotes: s.allNotes.map((n) =>
+        n.id === nid ? { ...n, cid: targetCid, updatedAt: now } : n,
+      ),
+    }))
+
+    const moved = get({ subscribe }).allNotes.find((n) => n.id === nid) as Note | undefined
+    if (!moved) {
+      inFlightOps.delete(nid)
+      return
+    }
+    notesApi
+      .saveNote(moved)
+      .then(() => {
+        inFlightOps.delete(nid)
+        const target = cur.collections.find((c) => c.id === targetCid)
+        showToast(`Moved to "${target?.name ?? 'collection'}"`, { duration: 3000 })
+      })
+      .catch((e) => {
+        console.error('Failed to move note:', e)
+        inFlightOps.delete(nid)
+        update((s) => ({ ...s, allNotes: original }))
+        showError('Failed to move note.')
+      })
   }
 
   return {
@@ -353,10 +491,15 @@ function createNotesStore() {
     load,
     refresh,
     selectCollection,
+    selectAllNotes,
+    selectTrash,
     selectNote,
+    clearSelectedNote,
     createCollection,
+    renameCollection,
     deleteCollection,
     createNote,
+    moveNote,
     applyEdit,
     flushSaves,
     saveNoteImmediate,
@@ -364,7 +507,6 @@ function createNotesStore() {
     restoreNote,
     permanentlyDeleteNote,
     emptyTrash,
-    toggleTrash,
     hasUnsavedWork,
   }
 }

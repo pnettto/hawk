@@ -69,7 +69,7 @@
 {:else if !$authStore.isAuth}
   <Auth />
 {:else}
-  <div class="container">
+  <div class="container" class:wide={$appStore.currentPage === 'notes'}>
     <nav>
       <button
         class:active={$appStore.currentPage === 'app'}
@@ -116,8 +116,21 @@
     padding: 2rem;
     box-sizing: border-box;
   }
+  .container.wide {
+    max-width: 1400px;
+    padding: 1.5rem 1rem 0;
+    height: 100vh;
+    min-height: 0;
+  }
+  .container.wide .page-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
   @media (max-width: 600px) {
     .container { padding: 1rem; }
+    .container.wide { padding: 0.75rem 0.5rem 0; }
   }
   .page-content {
     animation: pageEnter var(--dur-base) var(--ease-out);
