@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
+import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 
 // Single shared-install preferences blob. Shape is intentionally open so new
 // keys (theme, density, font, …) can be added without a backend change.
@@ -20,5 +21,10 @@ export async function patchPreferences(c: Context) {
   const cur = (await kv.get<Preferences>(KEY)).value ?? {};
   const next = { ...cur, ...partial };
   await kv.set(KEY, next);
+  await emitSyncEvent({
+    type: "preferences.saved",
+    ref: "preferences",
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json(next);
 }

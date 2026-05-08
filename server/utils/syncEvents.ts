@@ -19,7 +19,8 @@ export type SyncEventType =
   | "trash.emptied"
   | "collection.saved"
   | "collection.deleted"
-  | "log.saved";
+  | "log.saved"
+  | "preferences.saved";
 
 export interface SyncEvent {
   id: string;
