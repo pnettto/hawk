@@ -38,6 +38,7 @@ import {
   getPreferences,
   patchPreferences,
 } from "./server/routeHandlers/preferences.ts";
+import { streamSync } from "./server/routeHandlers/sync.ts";
 
 const app = new Hono();
 
@@ -58,15 +59,23 @@ app.use(
 // Protected routes: API Logs and KV Entries (EXCEPT public notes)
 app.use(
   "/api/*",
-  rateLimit,
   async (c, next) => {
     const path = c.req.path;
-    // Skip auth for public, login, logout, and auth-check routes
+    // SSE stream skips both rate-limit (reconnect storms shouldn't trip the
+    // 60/min IP cap) and middleware auth — it authenticates from the query
+    // string itself, since EventSource can't set headers.
+    if (path === "/api/sync/stream") return await next();
+    return await rateLimit(c, next);
+  },
+  async (c, next) => {
+    const path = c.req.path;
+    // Skip auth for public, login, logout, auth-check, and sync stream routes
     if (
       path.startsWith("/api/public/") ||
       path === "/api/login" ||
       path === "/api/logout" ||
-      path === "/api/auth-check"
+      path === "/api/auth-check" ||
+      path === "/api/sync/stream"
     ) {
       return await next();
     }
@@ -116,6 +125,9 @@ app.delete("/api/entries", deleteEntry);
 // Preferences (theme + future settings)
 app.get("/api/preferences", getPreferences);
 app.post("/api/preferences", patchPreferences);
+
+// Cross-device sync stream (SSE; auths from query string)
+app.get("/api/sync/stream", streamSync);
 
 // Serve frontend
 app.use(

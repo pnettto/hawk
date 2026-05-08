@@ -11,10 +11,11 @@
   interface Props {
     value: string
     onChange?: (markdown: string) => void
+    onBlur?: () => void
     placeholder?: string
     autofocus?: boolean
   }
-  let { value, onChange, placeholder = 'Write here...', autofocus = false }: Props = $props()
+  let { value, onChange, onBlur, placeholder = 'Write here...', autofocus = false }: Props = $props()
 
   let element: HTMLDivElement
   let editor: Editor | null = null
@@ -89,6 +90,9 @@
       content: value,
       onUpdate: () => {
         onChange?.(getMarkdown())
+      },
+      onBlur: () => {
+        onBlur?.()
       },
     })
   })

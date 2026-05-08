@@ -1,6 +1,7 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { marked } from "marked";
+import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 
 // Pre-load the HTML templates
 let shareTemplate = "";
@@ -64,6 +65,11 @@ export async function getCollections(c: Context) {
 export async function saveCollections(c: Context) {
   const collections = await c.req.json();
   await kv.set(["notes", "collections"], collections);
+  await emitSyncEvent({
+    type: "collection.saved",
+    ref: "all",
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -212,6 +218,12 @@ export async function deleteCollection(c: Context) {
   }
   await kv.delete(["notes", "collection", cid]);
 
+  await emitSyncEvent({
+    type: "collection.deleted",
+    ref: cid,
+    cid,
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -262,6 +274,12 @@ export async function saveNote(c: Context) {
   }
 
   await kv.set(["notes", "collection", cid], index);
+  await emitSyncEvent({
+    type: "note.saved",
+    ref: id,
+    cid,
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -314,6 +332,12 @@ export async function trashNote(c: Context) {
 
   await kv.set(["notes", "collection", cid], newIndex);
 
+  await emitSyncEvent({
+    type: "note.trashed",
+    ref: nid,
+    cid,
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -342,6 +366,12 @@ export async function restoreNote(c: Context) {
   });
   await kv.set(["notes", "collection", cid], newIndex);
 
+  await emitSyncEvent({
+    type: "note.restored",
+    ref: nid,
+    cid,
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -361,6 +391,12 @@ export async function emptyTrash(c: Context) {
   }
 
   await kv.set(["notes", "collection", cid], active);
+  await emitSyncEvent({
+    type: "trash.emptied",
+    ref: cid,
+    cid,
+    originClientId: getClientIdFromCtx(c),
+  });
   return c.json({ success: true });
 }
 
@@ -381,6 +417,13 @@ export async function permanentlyDeleteNote(c: Context) {
       const newIndex = indexRes.value.filter((m) => m.id !== nid);
       await kv.set(["notes", "collection", cid], newIndex);
     }
+
+    await emitSyncEvent({
+      type: "note.deleted",
+      ref: nid,
+      cid,
+      originClientId: getClientIdFromCtx(c),
+    });
   }
 
   return c.json({ success: true });

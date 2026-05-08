@@ -4,6 +4,7 @@
   import { appStore } from './stores/app'
   import { logsStore } from './stores/logs'
   import { preferencesStore } from './stores/preferences'
+  import { syncStore } from './stores/sync'
   import { formatDate } from './utils/date'
   import { hasUnsavedWork } from './stores/saving'
   import Auth from './lib/auth/Auth.svelte'
@@ -39,6 +40,14 @@
     if (prefsLoadedFor) return
     prefsLoadedFor = true
     preferencesStore.loadFromServer()
+  })
+
+  // Open the cross-device sync stream once authenticated. Guest mode skips
+  // it (no token to authenticate with).
+  $effect(() => {
+    if (!$authStore.isAuth || $authStore.isGuest) return
+    syncStore.start()
+    return () => syncStore.stop()
   })
 
   // Refresh today on window focus, mirroring the legacy behaviour.
