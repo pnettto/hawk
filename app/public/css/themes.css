@@ -1,0 +1,158 @@
+/* Theme palettes. Each block overrides the color tokens declared as defaults
+   in variables.css. Non-color tokens (typography, spacing, motion) live there
+   too and are intentionally NOT redefined here. */
+
+/* ---- DARK THEMES ----------------------------------------------------- */
+
+/* 1. Hawk — graphite + amber (default). Mirrors variables.css for explicit
+       selection, so the gear/admin UI can show this as the "active" theme. */
+:root[data-theme="hawk"] {
+    --bg: #232830;
+    --panel: #2f343d;
+    --muted: #a2abb8;
+    --accent: #e6b84d;
+    --line: #3a4049;
+    --glass: rgba(255, 255, 255, 0.14);
+    --glass-dark: rgba(255, 255, 255, 0.06);
+    --text: #ecedf0;
+    --input-bg: rgba(255, 255, 255, 0.06);
+    --input-bg-strong: rgba(255, 255, 255, 0.1);
+    --input-placeholder: rgba(236, 237, 240, 0.45);
+}
+
+/* 2. Tokyo Night — indigo background, soft cyan-blue accent. */
+:root[data-theme="tokyo-night"] {
+    --bg: #1a1b26;
+    --panel: #24283b;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --line: #292e42;
+    --glass: rgba(192, 202, 245, 0.12);
+    --glass-dark: rgba(192, 202, 245, 0.05);
+    --text: #c0caf5;
+    --input-bg: rgba(192, 202, 245, 0.05);
+    --input-bg-strong: rgba(192, 202, 245, 0.09);
+    --input-placeholder: rgba(192, 202, 245, 0.4);
+}
+
+/* 3. Dracula — deep purple, magenta accent. */
+:root[data-theme="dracula"] {
+    --bg: #282a36;
+    --panel: #353746;
+    --muted: #6272a4;
+    --accent: #ff79c6;
+    --line: #44475a;
+    --glass: rgba(248, 248, 242, 0.12);
+    --glass-dark: rgba(248, 248, 242, 0.05);
+    --text: #f8f8f2;
+    --input-bg: rgba(248, 248, 242, 0.05);
+    --input-bg-strong: rgba(248, 248, 242, 0.09);
+    --input-placeholder: rgba(248, 248, 242, 0.4);
+}
+
+/* 4. Nord — cool slate-blue, frost accent. */
+:root[data-theme="nord"] {
+    --bg: #2e3440;
+    --panel: #3b4252;
+    --muted: #81a1c1;
+    --accent: #88c0d0;
+    --line: #434c5e;
+    --glass: rgba(236, 239, 244, 0.12);
+    --glass-dark: rgba(236, 239, 244, 0.05);
+    --text: #eceff4;
+    --input-bg: rgba(236, 239, 244, 0.05);
+    --input-bg-strong: rgba(236, 239, 244, 0.09);
+    --input-placeholder: rgba(236, 239, 244, 0.4);
+}
+
+/* 5. Gruvbox Dark — warm brown, retro mustard accent. */
+:root[data-theme="gruvbox-dark"] {
+    --bg: #282828;
+    --panel: #3c3836;
+    --muted: #a89984;
+    --accent: #fabd2f;
+    --line: #504945;
+    --glass: rgba(235, 219, 178, 0.12);
+    --glass-dark: rgba(235, 219, 178, 0.05);
+    --text: #ebdbb2;
+    --input-bg: rgba(235, 219, 178, 0.05);
+    --input-bg-strong: rgba(235, 219, 178, 0.09);
+    --input-placeholder: rgba(235, 219, 178, 0.45);
+}
+
+/* ---- LIGHT THEMES ---------------------------------------------------- */
+
+/* 6. Paper — softer ivory, ink text, red accent. */
+:root[data-theme="paper"] {
+    --bg: #ece7d9;
+    --panel: #f4f0e6;
+    --muted: #4a4a4a;
+    --accent: #b03a2e;
+    --line: #cfc9b9;
+    --glass: rgba(20, 20, 20, 0.1);
+    --glass-dark: rgba(20, 20, 20, 0.05);
+    --text: #15140f;
+    --input-bg: rgba(20, 20, 20, 0.05);
+    --input-bg-strong: rgba(20, 20, 20, 0.09);
+    --input-placeholder: rgba(21, 20, 15, 0.55);
+}
+
+/* 7. Solarized Light — dim cream + teal accent, base03 text. */
+:root[data-theme="solarized-light"] {
+    --bg: #f1e8cf;
+    --panel: #e6dcbd;
+    --muted: #4f6166;
+    --accent: #167873;
+    --line: #cfc4a3;
+    --glass: rgba(0, 43, 54, 0.14);
+    --glass-dark: rgba(0, 43, 54, 0.06);
+    --text: #002b36;
+    --input-bg: rgba(0, 43, 54, 0.06);
+    --input-bg-strong: rgba(0, 43, 54, 0.1);
+    --input-placeholder: rgba(0, 43, 54, 0.6);
+}
+
+/* 8. Latte — Catppuccin, dimmer base + crust panel. */
+:root[data-theme="latte"] {
+    --bg: #dce0e8;
+    --panel: #ccd0da;
+    --muted: #5c5f77;
+    --accent: #d20f6f;
+    --line: #acb0be;
+    --glass: rgba(76, 79, 105, 0.12);
+    --glass-dark: rgba(76, 79, 105, 0.05);
+    --text: #383b54;
+    --input-bg: rgba(76, 79, 105, 0.06);
+    --input-bg-strong: rgba(76, 79, 105, 0.1);
+    --input-placeholder: rgba(76, 79, 105, 0.55);
+}
+
+/* 9. Rosé Pine Dawn — toned-down rose, deeper highlight text. */
+:root[data-theme="rose-pine-dawn"] {
+    --bg: #ede0d4;
+    --panel: #e3d3c2;
+    --muted: #6e6a86;
+    --accent: #b4637a;
+    --line: #cdc4bb;
+    --glass: rgba(87, 82, 121, 0.12);
+    --glass-dark: rgba(87, 82, 121, 0.05);
+    --text: #2f2a4a;
+    --input-bg: rgba(87, 82, 121, 0.06);
+    --input-bg-strong: rgba(87, 82, 121, 0.1);
+    --input-placeholder: rgba(87, 82, 121, 0.55);
+}
+
+/* 10. GitHub Light — off-white surface, deeper muted, blue accent. */
+:root[data-theme="github-light"] {
+    --bg: #eaeef2;
+    --panel: #d8dee4;
+    --muted: #424a53;
+    --accent: #0550ae;
+    --line: #afb8c1;
+    --glass: rgba(31, 35, 40, 0.1);
+    --glass-dark: rgba(31, 35, 40, 0.04);
+    --text: #14181f;
+    --input-bg: rgba(31, 35, 40, 0.05);
+    --input-bg-strong: rgba(31, 35, 40, 0.09);
+    --input-placeholder: rgba(31, 35, 40, 0.55);
+}
