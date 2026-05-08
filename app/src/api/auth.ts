@@ -31,8 +31,8 @@ export async function logout(): Promise<void> {
 
 export async function authCheck(): Promise<boolean> {
   try {
-    await api.get('/api/auth-check')
-    return true
+    const res = await api.get<{ authenticated?: boolean }>('/api/auth-check')
+    return res.authenticated === true
   } catch {
     return false
   }
