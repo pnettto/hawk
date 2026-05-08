@@ -52,7 +52,8 @@
   }
   .journal-tabs {
     display: flex;
-    gap: 1.5rem;
+    gap: 0.25rem;
+    font-family: var(--font-ui, inherit);
   }
   .journal-tabs button {
     background: none;
@@ -60,10 +61,21 @@
     color: var(--muted);
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.8rem;
-    padding: 0;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.05rem;
+    letter-spacing: 0.12em;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
   }
-  .journal-tabs button.active { color: var(--accent); }
+  .journal-tabs button:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .journal-tabs button.active {
+    color: var(--accent);
+    background: rgba(230, 184, 77, 0.1);
+  }
 </style>

@@ -224,15 +224,31 @@
   <button
     class="hours-nudge"
     title="Show earlier hour"
+    aria-label="Show earlier hour"
     disabled={!canGoUp}
-    onclick={goUp}>⌃</button
+    onclick={goUp}
   >
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3.5 10l4.5-4.5 4.5 4.5"/>
+    </svg>
+  </button>
   <button
     class="hours-expand"
     title={showingAllHours ? 'Collapse hours' : 'Expand hours'}
+    aria-label={showingAllHours ? 'Collapse hours' : 'Expand hours'}
     onclick={toggleExpand}
   >
-    {showingAllHours ? '⇲' : '⇱'}
+    {#if showingAllHours}
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9.5 2.5v4h4M2.5 9.5h4v4"/>
+        <path d="M9.5 6.5l4-4M6.5 9.5l-4 4"/>
+      </svg>
+    {:else}
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.5 6.5v-4h4M13.5 9.5v4h-4"/>
+        <path d="M2.5 2.5l4 4M13.5 13.5l-4-4"/>
+      </svg>
+    {/if}
   </button>
 </div>
 
@@ -259,7 +275,17 @@
         {slot.timeText}
       </button>
       <div class="hour-controls">
-        <button class="hour-comment-switch" onclick={() => onToggleComment(slot.hourStr)}>💬</button>
+        <button
+          class="hour-comment-switch"
+          title="Toggle note"
+          aria-label="Toggle note"
+          aria-pressed={openComments.has(slot.hourStr)}
+          onclick={() => onToggleComment(slot.hourStr)}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+          </svg>
+        </button>
         <div class="hour-checkbox-wrap">
           <input
             type="checkbox"
@@ -282,14 +308,33 @@
             oninput={() => onInput(slot.hourStr)}
           ></div>
         </div>
-        <button class="hour-comment-clear" onclick={() => onClearHour(slot.hourStr)}>✖️</button>
+        <button
+          class="hour-comment-clear"
+          title="Clear hour"
+          aria-label="Clear hour"
+          onclick={() => onClearHour(slot.hourStr)}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8"/>
+          </svg>
+        </button>
       </div>
     </div>
   {/each}
 </div>
 
 <div class="hours-edge bottom">
-  <button class="hours-nudge" title="Show later hour" disabled={!canGoDown} onclick={goDown}>⌄</button>
+  <button
+    class="hours-nudge"
+    title="Show later hour"
+    aria-label="Show later hour"
+    disabled={!canGoDown}
+    onclick={goDown}
+  >
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3.5 6l4.5 4.5 4.5-4.5"/>
+    </svg>
+  </button>
 </div>
 
 <style>
@@ -358,17 +403,25 @@
     flex-direction: column;
   }
   .hour-comment-switch {
-    font-size: 0.8rem;
     background: none;
     padding: 0.4rem;
     border: none;
     cursor: pointer;
+    color: var(--muted);
     opacity: 0.2;
-    padding-top: 0.35rem;
     min-width: 2rem;
     min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .hour-row.is-comment .hour-comment-switch { opacity: 0.6; }
+  .hour-comment-switch svg { width: 14px; height: 14px; display: block; }
+  .hour-row:hover .hour-comment-switch,
+  .hour-row:focus-within .hour-comment-switch { opacity: 0.5; }
+  .hour-comment-switch:hover { opacity: 1 !important; color: var(--text); background: rgba(255, 255, 255, 0.06); }
+  .hour-row.is-comment .hour-comment-switch { opacity: 0.7; color: var(--accent); }
   .hour-checkbox-wrap {
     display: inline-flex;
     align-items: center;
@@ -413,16 +466,28 @@
     white-space: pre-wrap;
   }
   .hour-comment-clear {
-    font-size: 0.5rem;
     background: none;
     padding: 0.4rem;
     border: none;
     cursor: pointer;
-    opacity: 0.2;
+    color: var(--muted);
+    opacity: 0;
     min-width: 2rem;
     min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .hour-comment-clear:hover { opacity: 1; }
+  .hour-comment-clear svg { width: 12px; height: 12px; display: block; }
+  .hour-row.not-empty .hour-comment-clear,
+  .hour-row:hover .hour-comment-clear,
+  .hour-row:focus-within .hour-comment-clear { opacity: 0.4; }
+  .hour-comment-clear:hover { opacity: 1 !important; color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
+  @media (hover: none) {
+    .hour-comment-clear { opacity: 0.4; }
+  }
   .highlighted .hour-time { color: var(--accent); }
   .highlighted { color: var(--accent); }
   .hidden { display: none !important; }
@@ -448,15 +513,20 @@
     color: var(--muted);
     cursor: pointer;
     opacity: 0.15;
-    padding: 0 0.5rem;
-    font-size: 0.9rem;
+    padding: 4px 8px;
     line-height: 1;
-    transition: opacity var(--dur-fast) var(--ease-out);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
+  .hours-nudge svg,
+  .hours-expand svg { width: 14px; height: 14px; display: block; }
   .hours-edge:hover .hours-nudge,
   .hours-edge:hover .hours-expand { opacity: 0.55; }
   .hours-nudge:hover,
-  .hours-expand:hover { opacity: 1 !important; }
+  .hours-expand:hover { opacity: 1 !important; color: var(--text); background: rgba(255, 255, 255, 0.05); }
   .hours-nudge:disabled {
     cursor: default;
     opacity: 0.05 !important;
