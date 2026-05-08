@@ -1,12 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { appStore } from '../../stores/app'
-  import { formatDate } from '../../utils/date'
+
+  // Single rule: auto-show at off-hours, dismiss on click. There is no other
+  // path to visibility — date navigation, store updates, parent re-renders,
+  // and HMR cannot flip the overlay on.
+  const APPROPRIATE = (() => {
+    const h = new Date().getHours()
+    return h >= 18 || h < 8
+  })()
+
+  // Persist dismissal for the tab session so reloading after dismissing
+  // doesn't bring it back during the same evening.
+  const DISMISS_KEY = 'hawk:zen-dismissed'
+  function readDismissed(): boolean {
+    try { return sessionStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
+  }
+  function writeDismissed() {
+    try { sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }
+  }
 
   let quoteLines = $state<string[]>([])
   let quote = $state<[string, string] | null>(null)
-  let forceShow = $state(false)
-  let dismissed = $state(false)
+  let dismissed = $state(readDismissed())
 
   function pickQuote() {
     if (!quoteLines.length) {
@@ -19,6 +34,7 @@
   }
 
   onMount(async () => {
+    if (!APPROPRIATE || dismissed) return
     try {
       const res = await fetch('/data/quotes.csv')
       const text = await res.text()
@@ -29,24 +45,11 @@
     }
   })
 
-  let shouldHideByTime = $derived.by(() => {
-    const date = $appStore.selectedDate
-    const todayStr = formatDate(new Date())
-    const isToday = todayStr === formatDate(date)
-    const h = date.getHours()
-    return isToday && h >= 8 && h <= 18
-  })
-
-  let hiddenByDefault = $derived.by(() => {
-    const h = new Date().getHours()
-    return !(h >= 18 || h < 8)
-  })
-
-  let isVisible = $derived(!dismissed && !hiddenByDefault && (!shouldHideByTime || forceShow))
+  let isVisible = $derived(APPROPRIATE && !dismissed)
 
   function leave() {
     dismissed = true
-    forceShow = false
+    writeDismissed()
   }
 </script>
 

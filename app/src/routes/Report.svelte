@@ -200,8 +200,29 @@
       <input id="r-end" type="date" bind:value={endDate} onchange={onDateChange} />
     </div>
     <div class="actions">
-      <button class="secondary" onclick={refresh}>Refresh</button>
-      <button class:copied onclick={copyToClipboard}>{copied ? '✓ Copied' : 'Copy'}</button>
+      <button type="button" class="ghost-btn" onclick={refresh} title="Refresh report" aria-label="Refresh">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M13 4v3h-3"/>
+          <path d="M3 12v-3h3"/>
+          <path d="M12.5 7A5 5 0 0 0 4.4 5.5"/>
+          <path d="M3.5 9a5 5 0 0 0 8.1 1.5"/>
+        </svg>
+        <span>Refresh</span>
+      </button>
+      <button type="button" class="ghost-btn primary" class:copied onclick={copyToClipboard} title="Copy markdown">
+        {#if copied}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 8.5l3 3 6-7"/>
+          </svg>
+          <span>Copied</span>
+        {:else}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="2.5" width="8.5" height="10" rx="1.5"/>
+            <path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7"/>
+          </svg>
+          <span>Copy</span>
+        {/if}
+      </button>
     </div>
   </div>
 
@@ -215,43 +236,59 @@
       {@html html}
     </div>
   {:else}
-    <div class="empty-notice">No logs found for this period</div>
+    <div class="empty-state">
+      <div class="empty-headline">No logs in this period</div>
+      <div class="empty-sub">Try a different range, or write something today.</div>
+    </div>
   {/if}
 </div>
 
 <style>
   .controls {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.75rem;
+    align-items: flex-end;
     flex-wrap: wrap;
     border-bottom: 1px solid var(--line);
-    padding-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    font-family: var(--font-ui, inherit);
   }
   .date-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
   label {
-    font-size: 0.8rem;
+    font-size: 0.65rem;
     color: var(--muted);
     text-transform: uppercase;
-    letter-spacing: 0.05rem;
+    letter-spacing: 0.12em;
+    opacity: 0.7;
+    padding-left: 2px;
   }
   input[type='date'] {
-    background: var(--bg);
-    border: none;
-    padding: 0.5rem;
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
     color: var(--text);
     font-family: inherit;
+    font-size: 0.9rem;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  input[type='date']:hover,
+  input[type='date']:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.06);
+    outline: none;
   }
   .actions {
     margin-left: auto;
     display: flex;
-    gap: 1rem;
+    gap: 0.5rem;
   }
   @media (max-width: 600px) {
     .controls {
@@ -262,28 +299,37 @@
       margin-left: 0;
       width: 100%;
     }
-    button { flex: 1; }
+    .actions .ghost-btn { flex: 1; justify-content: center; }
   }
-  button {
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    opacity: 0.9;
-    transition: opacity 0.2s;
-  }
-  button:hover { opacity: 1; }
-  button.secondary {
-    background: transparent;
+  .ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: none;
     border: 1px solid var(--line);
-    color: var(--text);
+    color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    line-height: 1;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
   }
-  button.copied {
-    background: #00d68f;
-    color: #000;
+  .ghost-btn svg { width: 14px; height: 14px; display: block; }
+  .ghost-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .ghost-btn.primary { color: var(--text); }
+  .ghost-btn.copied {
+    color: #00d68f;
+    border-color: rgba(0, 214, 143, 0.4);
+    background: rgba(0, 214, 143, 0.06);
   }
   .report-content {
     line-height: 1.6;
@@ -328,10 +374,12 @@
     color: var(--accent);
     font-weight: normal;
   }
-  .empty-notice {
+  .empty-state {
     text-align: center;
-    padding: 3rem;
+    padding: 3.5rem 1.5rem;
     color: var(--muted);
-    font-style: italic;
+    font-family: var(--font-ui, inherit);
   }
+  .empty-headline { font-size: 0.95rem; opacity: 0.75; }
+  .empty-sub { font-size: 0.8rem; opacity: 0.5; margin-top: 0.4rem; }
 </style>

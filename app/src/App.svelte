@@ -141,12 +141,13 @@
   }
   nav {
     display: flex;
-    gap: 1rem;
+    gap: 0.25rem;
     margin-bottom: 2rem;
+    font-family: var(--font-ui, inherit);
   }
   @media (max-width: 600px) {
     nav {
-      gap: 0.5rem;
+      gap: 0.25rem;
       overflow-x: auto;
       padding-bottom: 0.5rem;
       scrollbar-width: none;
@@ -159,15 +160,24 @@
     color: var(--muted);
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.8rem;
-    padding: 0.5rem;
+    font-size: 0.78rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
     white-space: nowrap;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  nav button:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
   }
   nav button.active {
     color: var(--accent);
-    font-weight: bold;
+    background: rgba(230, 184, 77, 0.1);
   }
   .nav-logout { margin-left: auto; }
+  .nav-logout:hover { color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
   .route-loading { min-height: 50vh; }
   .route-error { padding: 2rem; color: #ff6b6b; text-align: center; }
   .boot-screen {

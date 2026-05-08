@@ -73,33 +73,52 @@
   .auth-form > :global(*) {
     display: block;
     border: 0;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
+    margin-bottom: 0.85rem;
+    padding: 0.65rem 0.9rem;
     width: 100%;
     color: inherit;
+    font-family: inherit;
   }
-  .auth-form input,
+  .auth-form input {
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line);
+    transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  }
+  .auth-form input:hover,
+  .auth-form input:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.08);
+    outline: none;
+  }
   .auth-form button {
     border-radius: 10px;
-    background: var(--input-bg);
-  }
-  .auth-form button {
     background: var(--accent);
     color: #000;
     cursor: pointer;
-    font-weight: bold;
+    font-weight: 600;
+    font-family: var(--font-ui, inherit);
+    transition: filter var(--dur-fast) var(--ease-out);
   }
+  .auth-form button:hover { filter: brightness(1.05); }
+  .auth-form button:disabled { opacity: 0.6; cursor: default; }
   .guest {
     background: transparent !important;
-    color: var(--accent) !important;
-    text-decoration: underline;
-    font-size: 0.8rem;
+    color: var(--muted) !important;
+    text-decoration: none !important;
+    font-size: 0.78rem;
     border: 0;
     cursor: pointer;
-    font-weight: normal !important;
+    font-weight: 400 !important;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .guest:hover {
+    color: var(--accent) !important;
   }
   p {
-    font-size: 0.8rem;
-    opacity: 0.6;
+    font-family: var(--font-ui, inherit);
+    font-size: 0.78rem;
+    opacity: 0.55;
+    line-height: 1.5;
   }
 </style>
