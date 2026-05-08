@@ -17,7 +17,11 @@
     // Build: produce app/dist for prod (Hono serves it).
     "build": "sh -c 'cd app && npm install && npm run build'",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv --env main.ts",
-    "deploy": "deno task build && deno deploy --org pnettto --app hawk --prod",
+    // `deno deploy` respects .gitignore (denoland/deploy_feedback#940), so we
+    // temporarily un-ignore app/dist (built by Vite) for the upload, then restore.
+    "deploy": "deno task build && sh -c 'trap \"git checkout -- .gitignore app/.gitignore\" EXIT; sed -i.bak \"\\|^app/dist$|d\" .gitignore && sed -i.bak \"\\|^dist$|d\" app/.gitignore && rm -f .gitignore.bak app/.gitignore.bak && deno deploy --org pnettto --app hawk --prod'",
     "test": "sh -c 'cd app && npm test'"
   }
 }
+
+
