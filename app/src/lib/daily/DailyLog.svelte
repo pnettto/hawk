@@ -283,7 +283,7 @@
           onclick={() => onToggleComment(slot.hourStr)}
         >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+            <path d="M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/>
           </svg>
         </button>
         <div class="hour-checkbox-wrap">
@@ -426,9 +426,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.8rem;
-    padding-top: 0.5rem;
-    min-width: 2rem;
+    width: 2rem;
+    height: 2rem;
   }
   .hour-checkbox {
     appearance: none;
