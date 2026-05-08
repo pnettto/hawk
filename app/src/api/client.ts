@@ -5,7 +5,13 @@
 const TOKEN_KEY = 'hawk_token'
 const API_BASE_KEY = 'hawk_api_base'
 
-// Resolution order: runtime localStorage override → build-time VITE_API_BASE → ''
+// In a Chrome extension, location.origin is `chrome-extension://<id>` so relative
+// `/api/...` requests would go nowhere. Fall back to the deployed backend.
+const PROD_API_BASE = 'https://hawk.pnettto.deno.net'
+const isExtension = location.protocol === 'chrome-extension:'
+
+// Resolution order: runtime localStorage override → build-time VITE_API_BASE →
+// hardcoded prod URL (extension only) → '' (same-origin web app).
 const buildTimeBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
 function getApiBase(): string {
   try {
@@ -14,7 +20,9 @@ function getApiBase(): string {
   } catch {
     /* localStorage unavailable */
   }
-  return buildTimeBase.replace(/\/$/, '')
+  if (buildTimeBase) return buildTimeBase.replace(/\/$/, '')
+  if (isExtension) return PROD_API_BASE
+  return ''
 }
 
 export const setApiBase = (url: string): void => localStorage.setItem(API_BASE_KEY, url)
