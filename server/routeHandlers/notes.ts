@@ -5,7 +5,7 @@ import { marked } from "marked";
 // Pre-load the HTML template
 let shareTemplate = "";
 try {
-  shareTemplate = await Deno.readTextFile("./app/share_template.html");
+  shareTemplate = await Deno.readTextFile("./server/share_template.html");
 } catch (e) {
   console.error("Failed to load share template:", e);
 }
