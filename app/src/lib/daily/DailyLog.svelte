@@ -6,6 +6,8 @@
   import { showToast } from '../../stores/toast'
   import { formatDate } from '../../utils/date'
   import { debounce } from '../../utils/debounce'
+  import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
+  import HistoryPopover from '../ui/HistoryPopover.svelte'
   import {
     HOURS_END as DEFAULT_END,
     HOURS_START as DEFAULT_START,
@@ -14,9 +16,12 @@
 
   let hoursStart = $state(DEFAULT_START)
   let hoursEnd = $state(DEFAULT_END)
-  let showingAllHours = $state(false)
   let movingFrom = $state<string | null>(null)
   let openComments = $state(new Set<string>())
+  let showHistory = $state(false)
+  let hoursEl = $state<HTMLDivElement | null>(null)
+  let historyAnchorEl = $state<HTMLButtonElement | null>(null)
+  let teardownTriggers: (() => void) | null = null
 
   const isVisuallyEmpty = (html: string) => {
     if (!html) return true
@@ -132,9 +137,61 @@
     }
   }, 1000)
 
+  function toggleHistory() {
+    showHistory = !showHistory
+  }
+
+  // Run inside the popover before listing — flushes any pending typing and
+  // captures a checkpoint so the popover always opens against fresh state.
+  async function prepareHistory() {
+    save.cancel()
+    savingStore.clearPending(PENDING_KEY)
+    dirtyHours.clear()
+    const next = buildLatestDayLog()
+    logsStore.updateLog(dateStr, next)
+    await logsStore.snapshotAndSave(dateStr, next, 'tasks')
+  }
+
+  // Build the latest DayLog from the in-memory `editing` map (same shape as
+  // the debounced save), without going through the debouncer. Used by the
+  // snapshot trigger so the snapshot reflects the user's last keystrokes.
+  function buildLatestDayLog(): DayLog {
+    const next: DayLog = { ...dayLogs }
+    for (const s of slots) {
+      const e = editing[s.hourStr]
+      if (!e) continue
+      next[s.hourStr] = { checked: e.checked, text: e.text, comment: e.comment }
+    }
+    for (const key of Object.keys(next)) {
+      if (/^\d{1,2}(?:-\d{1,2})?$/.test(key)) {
+        const v = next[key] as HourEntry
+        if (!v.checked && !v.text && isVisuallyEmpty(v.comment)) delete next[key]
+      }
+    }
+    return next
+  }
+
+  $effect(() => {
+    teardownTriggers?.()
+    teardownTriggers = null
+    const ds = dateStr
+    const el = hoursEl
+    if (!el) return
+    teardownTriggers = bindSnapshotTriggers(el, async () => {
+      save.cancel()
+      savingStore.clearPending(PENDING_KEY)
+      dirtyHours.clear()
+      const next = buildLatestDayLog()
+      logsStore.updateLog(ds, next)
+      await logsStore.snapshotAndSave(ds, next, 'tasks')
+    })
+  })
+
   onDestroy(() => {
     save.flush()
     savingStore.clearPending(PENDING_KEY)
+    teardownTriggers?.()
+    teardownTriggers = null
   })
 
   function onInput(hourStr: string) {
@@ -204,55 +261,63 @@
     hoursStart += 1
     hoursEnd += 1
   }
-  function toggleExpand() {
-    if (showingAllHours) {
-      hoursStart = DEFAULT_START
-      hoursEnd = DEFAULT_END
-      showingAllHours = false
-    } else {
-      hoursStart = 7
-      hoursEnd = 20
-      showingAllHours = true
-    }
-  }
 
   let canGoUp = $derived(hoursStart > 1)
   let canGoDown = $derived(hoursEnd < 23)
 </script>
 
 <div class="hours-edge top">
-  <button
-    class="hours-nudge"
-    title="Show earlier hour"
-    aria-label="Show earlier hour"
-    disabled={!canGoUp}
-    onclick={goUp}
-  >
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M3.5 10l4.5-4.5 4.5 4.5"/>
-    </svg>
-  </button>
-  <button
-    class="hours-expand"
-    title={showingAllHours ? 'Collapse hours' : 'Expand hours'}
-    aria-label={showingAllHours ? 'Collapse hours' : 'Expand hours'}
-    onclick={toggleExpand}
-  >
-    {#if showingAllHours}
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M9.5 2.5v4h4M2.5 9.5h4v4"/>
-        <path d="M9.5 6.5l4-4M6.5 9.5l-4 4"/>
+  <div class="hours-actions">
+    <div class="hours-history">
+      <button
+        class="edge-btn history-toggle"
+        title="Version history"
+        aria-label="Version history"
+        bind:this={historyAnchorEl}
+        onclick={toggleHistory}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+          <path d="M3 3v5h5" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      </button>
+      {#if showHistory}
+        <HistoryPopover
+          kind="day-tasks"
+          entityId={dateStr}
+          anchor={historyAnchorEl}
+          prepare={prepareHistory}
+          onClose={() => (showHistory = false)}
+        />
+      {/if}
+    </div>
+    <button
+      class="edge-btn hours-nudge"
+      title="Show earlier hour"
+      aria-label="Show earlier hour"
+      disabled={!canGoUp}
+      onclick={goUp}
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 10l4.5-4.5 4.5 4.5"/>
       </svg>
-    {:else}
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M2.5 6.5v-4h4M13.5 9.5v4h-4"/>
-        <path d="M2.5 2.5l4 4M13.5 13.5l-4-4"/>
+    </button>
+    <button
+      class="edge-btn hours-nudge"
+      title="Show later hour"
+      aria-label="Show later hour"
+      disabled={!canGoDown}
+      onclick={goDown}
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 6l4.5 4.5 4.5-4.5"/>
       </svg>
-    {/if}
-  </button>
+    </button>
+  </div>
 </div>
 
-<div class="hours">
+<div class="hours" bind:this={hoursEl}>
   {#each slots as slot (slot.hourStr)}
     {@const e = editing[slot.hourStr] ?? slot.state}
     {@const notEmpty = !!e.text || !isVisuallyEmpty(e.comment)}
@@ -323,19 +388,6 @@
   {/each}
 </div>
 
-<div class="hours-edge bottom">
-  <button
-    class="hours-nudge"
-    title="Show later hour"
-    aria-label="Show later hour"
-    disabled={!canGoDown}
-    onclick={goDown}
-  >
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M3.5 6l4.5 4.5 4.5-4.5"/>
-    </svg>
-  </button>
-</div>
 
 <style>
   .hours {
@@ -493,45 +545,55 @@
   .hours-edge {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    height: 1.25rem;
+    justify-content: flex-end;
+    height: 1.75rem;
   }
   .hours-edge.top {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .hours-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .hours-history {
     position: relative;
+    display: flex;
+    align-items: center;
+    /* Avoid `transform` on this or any ancestor — it creates a new containing
+       block for the fixed-positioned HistoryPopover and breaks viewport anchoring. */
   }
-  .hours-edge.bottom {
-    margin-top: 0.25rem;
-    margin-bottom: 1rem;
-  }
-  .hours-nudge,
-  .hours-expand {
-    background: none;
-    border: 0;
-    color: var(--muted);
-    cursor: pointer;
-    opacity: 0.15;
-    padding: 4px 8px;
-    line-height: 1;
-    border-radius: 6px;
+  .edge-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.55;
+    transition:
+      opacity var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
   }
-  .hours-nudge svg,
-  .hours-expand svg { width: 14px; height: 14px; display: block; }
-  .hours-edge:hover .hours-nudge,
-  .hours-edge:hover .hours-expand { opacity: 0.55; }
-  .hours-nudge:hover,
-  .hours-expand:hover { opacity: 1 !important; color: var(--text); background: rgba(255, 255, 255, 0.05); }
-  .hours-nudge:disabled {
+  .edge-btn svg { width: 14px; height: 14px; display: block; }
+  .hours-edge:hover .edge-btn { opacity: 0.85; }
+  .edge-btn:hover {
+    opacity: 1;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent);
+  }
+  .edge-btn:disabled {
     cursor: default;
-    opacity: 0.05 !important;
-  }
-  .hours-expand {
-    position: absolute;
-    right: 0.5rem;
+    opacity: 0.3 !important;
+    background: transparent;
+    border-color: transparent;
   }
 </style>

@@ -82,6 +82,63 @@ function createLogsStore() {
     )
   }
 
+  // Mark a snapshot checkpoint for one section (notes or tasks) of the day.
+  // Sends the latest state with snapshot=true so the server applies its
+  // coalesce rules.
+  async function triggerSnapshot(
+    dateStr: string,
+    section: logsApi.DaySection,
+  ): Promise<void> {
+    const cur = get({ subscribe })
+    const data = (cur.byDate[dateStr] ?? {}) as DayLog
+    recentLocalSaves.set(dateStr, Date.now())
+    try {
+      await savingStore.track(
+        logsApi.setDayLog(dateStr, data, { snapshot: true, section }),
+      )
+    } catch (e) {
+      console.error(`Failed to snapshot ${section} for ${dateStr}:`, e)
+    }
+  }
+
+  // Save + snapshot in a single server round-trip, against an explicit body.
+  // Used when the caller has the latest in-memory state ready (e.g. the
+  // history-popover toggle) and doesn't want to depend on byDate being
+  // up-to-date through a separate save.
+  async function snapshotAndSave(
+    dateStr: string,
+    data: DayLog,
+    section: logsApi.DaySection,
+  ): Promise<void> {
+    recentLocalSaves.set(dateStr, Date.now())
+    try {
+      await savingStore.track(
+        logsApi.setDayLog(dateStr, data, { snapshot: true, section }),
+      )
+    } catch (e) {
+      console.error(`Failed to snapshot+save ${section} for ${dateStr}:`, e)
+    }
+  }
+
+  async function restoreVersion(
+    dateStr: string,
+    section: logsApi.DaySection,
+    savedAt: number,
+  ): Promise<boolean> {
+    try {
+      const res = await savingStore.track(
+        logsApi.restoreDayVersion(dateStr, section, savedAt),
+      ) as { success: boolean; dayLog: DayLog } | undefined
+      if (res?.dayLog) {
+        updateLog(dateStr, res.dayLog)
+      }
+      return true
+    } catch (e) {
+      console.error('Failed to restore day version:', e)
+      return false
+    }
+  }
+
   async function applySyncEvent(evt: SyncEvent): Promise<void> {
     if (evt.type !== 'log.saved') return
     const dateStr = evt.ref
@@ -101,6 +158,9 @@ function createLogsStore() {
     prefetchSurrounding,
     updateLog,
     saveDay,
+    triggerSnapshot,
+    snapshotAndSave,
+    restoreVersion,
     applySyncEvent,
   }
 }

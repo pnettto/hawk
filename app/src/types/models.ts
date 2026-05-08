@@ -33,3 +33,10 @@ export interface DayLog {
 }
 
 export type LogsByDate = Record<string, DayLog>;
+
+export interface SnapshotMeta {
+  savedAt: number;
+  preview: string;
+}
+
+export type SnapshotKind = "note" | "day-notes" | "day-tasks";

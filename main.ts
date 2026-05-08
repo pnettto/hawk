@@ -7,7 +7,10 @@ import { rateLimit } from "./server/middleware/rateLimit.ts";
 
 import {
   getDayLog,
+  getDayVersion,
   getRangeLog,
+  listDayVersions,
+  restoreDayVersion,
   setDayLog,
 } from "./server/routeHandlers/app.ts";
 import {
@@ -17,13 +20,16 @@ import {
   getCollections,
   getNote,
   getNotesIndex,
+  getNoteVersion,
   getPublicCollection,
   getPublicNote,
   getSharedCollectionPage,
   getSharedNotePage,
   getTrash,
+  listNoteVersions,
   permanentlyDeleteNote,
   restoreNote,
+  restoreNoteVersion,
   saveCollections,
   saveNote,
   trashNote,
@@ -88,6 +94,11 @@ app.get("/api/day", getDayLog);
 app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
 
+// Day log version history
+app.get("/api/day/versions", listDayVersions);
+app.get("/api/day/versions/one", getDayVersion);
+app.post("/api/day/versions/restore", restoreDayVersion);
+
 // Auth API
 app.post("/api/login", login);
 app.get("/api/logout", logout);
@@ -102,6 +113,11 @@ app.get("/api/notes/index", getNotesIndex);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", permanentlyDeleteNote);
+
+// Note version history
+app.get("/api/notes/notes/:nid/versions", listNoteVersions);
+app.get("/api/notes/notes/:nid/versions/:savedAt", getNoteVersion);
+app.post("/api/notes/notes/:nid/versions/:savedAt/restore", restoreNoteVersion);
 
 // Trash Bin API
 app.post("/api/notes/notes/:nid/trash", trashNote);

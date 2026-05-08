@@ -1,11 +1,29 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import { notesStore } from '../../stores/notes'
   import NoteSharePopover from './NoteSharePopover.svelte'
+  import HistoryPopover from '../ui/HistoryPopover.svelte'
   import RichEditor from '../editor/RichEditor.svelte'
+  import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
   import type { Note } from '../../types/models'
 
   let showSharePopover = $state(false)
   let showCollectionPicker = $state(false)
+  let showHistoryPopover = $state(false)
+  let editorEl = $state<HTMLDivElement | null>(null)
+  let historyAnchorEl = $state<HTMLButtonElement | null>(null)
+  let teardownTriggers: (() => void) | null = null
+
+  function toggleHistory() {
+    showHistoryPopover = !showHistoryPopover
+  }
+
+  // Run inside the popover before listing — captures the user's current state
+  // so the very first popover open already has a snapshot to show.
+  async function prepareHistory() {
+    if (!currentNote) return
+    await notesStore.triggerSnapshot(currentNote.id)
+  }
 
   let currentNote = $derived.by(() => {
     const s = $notesStore
@@ -84,9 +102,27 @@
     document.addEventListener('click', onClickOutside)
     return () => document.removeEventListener('click', onClickOutside)
   })
+
+  // Re-bind snapshot triggers whenever the editor root or selected note changes.
+  // Trigger fires on focusout/visibilitychange/beforeunload — see snapshotTriggers.ts.
+  $effect(() => {
+    teardownTriggers?.()
+    teardownTriggers = null
+    if (!editorEl || !currentNote) return
+    const nid = currentNote.id
+    teardownTriggers = bindSnapshotTriggers(editorEl, () => {
+      notesStore.triggerSnapshot(nid)
+    })
+  })
+
+  onDestroy(() => {
+    teardownTriggers?.()
+    teardownTriggers = null
+  })
 </script>
 
 {#if currentNote}
+<div class="editor-root" bind:this={editorEl}>
   <div class="editor-header">
     <button
       type="button"
@@ -127,6 +163,31 @@
           {/if}
         </div>
       {/if}
+      <div class="history-wrap">
+        <button
+          type="button"
+          class="history-toggle icon-btn"
+          aria-label="Version history"
+          title="Version history"
+          bind:this={historyAnchorEl}
+          onclick={toggleHistory}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        {#if showHistoryPopover}
+          <HistoryPopover
+            kind="note"
+            entityId={currentNote.id}
+            anchor={historyAnchorEl}
+            prepare={prepareHistory}
+            onClose={() => (showHistoryPopover = false)}
+          />
+        {/if}
+      </div>
       <div class="share-wrap">
         <button
           type="button"
@@ -146,6 +207,7 @@
   {#key currentNote.id}
     <RichEditor value={content} onChange={onContentChange} onBlur={onEditorBlur} />
   {/key}
+</div>
 {:else}
   <div class="empty-state">
     {$notesStore.selectedCid ? 'Select or create a note' : 'Choose or create a collection'}
@@ -259,6 +321,34 @@
   .picker-item:hover { background: rgba(255, 255, 255, 0.06); }
   .picker-item .dot { color: var(--accent); font-size: 0.55rem; }
 
+  .editor-root { display: contents; }
+  .history-wrap { position: relative; }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.7;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      opacity var(--dur-fast) var(--ease-out);
+  }
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--accent);
+    color: var(--text);
+    opacity: 1;
+  }
+  .icon-btn:disabled { opacity: 0.4; cursor: default; }
   .share-wrap { position: relative; }
   .share-btn {
     font-size: 0.8rem;
