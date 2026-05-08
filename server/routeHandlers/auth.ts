@@ -1,5 +1,5 @@
 import { Context } from "hono";
-import { setCookie } from "hono/cookie";
+import { setCookie, getCookie } from "hono/cookie";
 
 const API_KEY = Deno.env.get("API_KEY") || "";
 
@@ -44,6 +44,17 @@ export function logout(c: Context) {
 }
 
 export function authCheck(c: Context) {
-  // If they reached here, the middleware already verified them
-  return c.json({ authenticated: true });
+  const authHeader = c.req.header("Authorization");
+  const cookieToken = getCookie(c, "hawk_token");
+  
+  const API_KEY = Deno.env.get("API_KEY") || "";
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : cookieToken;
+
+  if (token === API_KEY) {
+    return c.json({ authenticated: true });
+  }
+  
+  return c.json({ authenticated: false });
 }

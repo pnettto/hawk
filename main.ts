@@ -17,7 +17,9 @@ import {
   getCollections,
   getNote,
   getNotesIndex,
+  getPublicCollection,
   getPublicNote,
+  getSharedCollectionPage,
   getSharedNotePage,
   getTrash,
   permanentlyDeleteNote,
@@ -55,11 +57,12 @@ app.use(
   rateLimit,
   async (c, next) => {
     const path = c.req.path;
-    // Skip auth for public, login, and logout routes
+    // Skip auth for public, login, logout, and auth-check routes
     if (
       path.startsWith("/api/public/") ||
       path === "/api/login" ||
-      path === "/api/logout"
+      path === "/api/logout" ||
+      path === "/api/auth-check"
     ) {
       return await next();
     }
@@ -95,9 +98,11 @@ app.delete("/api/notes/collections/:cid/trash", emptyTrash);
 
 // Public Note API
 app.get("/api/public/notes/:nid", getPublicNote);
+app.get("/api/public/collections/:cid", getPublicCollection);
 
 // Public Note View (SSR Page)
 app.get("/shared/:nid", getSharedNotePage);
+app.get("/shared/collection/:cid", getSharedCollectionPage);
 
 // KV Entries (existing)
 app.get("/api/entries", listEntries);
