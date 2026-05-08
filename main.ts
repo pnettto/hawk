@@ -112,9 +112,12 @@ app.use(
     rewriteRequestPath: (path: string) => path.replace(/^\/kv/, ""),
   }),
 );
-app.use("/*", serveStatic({ root: "./app" }));
+// Frontend is built by Vite into app/dist (see app/vite.config.ts).
+// In dev, run `deno task dev` — Vite serves the frontend on :5173 and proxies API to this server.
+app.use("/*", serveStatic({ root: "./app/dist" }));
 
 // 404 handler
 app.notFound((c) => c.text("Not found", 404));
 
-Deno.serve(app.fetch);
+const port = Number(Deno.env.get("PORT")) || 8000;
+Deno.serve({ port }, app.fetch);
