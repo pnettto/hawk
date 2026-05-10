@@ -9,11 +9,17 @@
     e.preventDefault()
     if (!password.trim() || submitting) return
     submitting = true
-    const ok = await authStore.login(password.trim())
+    const res = await authStore.login(password.trim())
     submitting = false
-    if (!ok) {
-      showError('Invalid password')
-      password = ''
+    if (!res.ok) {
+      if (res.reason === 'rate_limited') {
+        showError('Too many login attempts. Try again in a few minutes.')
+      } else if (res.reason === 'network') {
+        showError('Network error — check your connection.')
+      } else {
+        showError('Invalid password')
+        password = ''
+      }
     }
   }
 

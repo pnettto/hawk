@@ -1,5 +1,10 @@
 import { writable } from 'svelte/store'
-import { authCheck, login as apiLogin, logout as apiLogout } from '../api/auth'
+import {
+  authCheck,
+  login as apiLogin,
+  logout as apiLogout,
+  type LoginFailReason,
+} from '../api/auth'
 
 interface AuthState {
   isAuth: boolean
@@ -20,10 +25,15 @@ function createAuthStore() {
       const isAuth = await authCheck()
       set({ isAuth, isGuest: false, isCheckingAuth: false })
     },
-    async login(password: string): Promise<boolean> {
-      const { ok } = await apiLogin(password)
-      if (ok) set({ isAuth: true, isGuest: false, isCheckingAuth: false })
-      return ok
+    async login(
+      password: string,
+    ): Promise<{ ok: true } | { ok: false; reason: LoginFailReason }> {
+      const res = await apiLogin(password)
+      if (res.ok) {
+        set({ isAuth: true, isGuest: false, isCheckingAuth: false })
+        return { ok: true }
+      }
+      return res
     },
     enterGuest() {
       // Transient guest mode — read-only browsing, no token saved.
