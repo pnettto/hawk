@@ -1,7 +1,7 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { isValidToken } from "../middleware/auth.ts";
-import type { SyncEvent } from "../utils/syncEvents.ts";
+import { SYNC_KEYS, type SyncEvent } from "../utils/syncEvents.ts";
 
 // Server-Sent Events stream of cross-device sync events.
 // EventSource can't set headers, so the token is passed in the query string.
@@ -12,22 +12,23 @@ import type { SyncEvent } from "../utils/syncEvents.ts";
 //   data: <json SyncEvent>
 //
 // Plus periodic ":keepalive\n\n" comments to defeat proxy idle timeouts.
+//
+// Implementation note: we *poll* the ["sync","tail"] counter with `kv.get`
+// rather than using `kv.watch`. Deno Deploy's KV proxy intermittently rejects
+// `/watch` and `/snapshot_read` (the endpoints behind `kv.watch` / `kv.list`)
+// with `invalidAuthorizationHeader`, while plain `kv.get` keeps working on the
+// same deployment. See syncEvents.ts for the key layout.
 
 const KEEPALIVE_MS = 25_000;
-
-// Lower bound for the next list scan. Inclusive on the prefix, exclusive on the
-// last seen ulid (we use ulid + "\x00" — i.e. just past it in lex order).
-function eventListBounds(lastUlid: string | null) {
-  return {
-    start: lastUlid
-      ? ["sync", "event", lastUlid + "\x00"]
-      : ["sync", "event"],
-    end: ["sync", "event", "\xff"],
-  };
-}
+const POLL_MS = 750;
 
 function sseFrame(evt: SyncEvent): string {
   return `id: ${evt.id}\nevent: ${evt.type}\ndata: ${JSON.stringify(evt)}\n\n`;
+}
+
+async function readTail(): Promise<bigint> {
+  const res = await kv.get<Deno.KvU64>(SYNC_KEYS.tail());
+  return res.value?.value ?? 0n;
 }
 
 export function streamSync(c: Context) {
@@ -63,26 +64,18 @@ export function streamSync(c: Context) {
       send(`retry: 3000\n\n`);
       send(`event: hello\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
 
-      // Keepalive timer.
       const keepalive = setInterval(() => send(`:keepalive\n\n`), KEEPALIVE_MS);
 
-      // Cursor of the last event ulid we've delivered. Start from "now" so we
-      // don't replay everything in the 90s retention window on connect.
-      let lastUlid: string | null = null;
-      try {
-        const tail = kv.list<SyncEvent>(
-          { prefix: ["sync", "event"] },
-          { reverse: true, limit: 1 },
-        );
-        for await (const entry of tail) {
-          lastUlid = entry.key[2] as string;
-        }
-      } catch (e) {
-        console.error("[sync] cursor init failed", e);
-      }
+      // Start "from now" so a reconnect doesn't replay the recent window.
+      let lastSent = await readTail();
+
+      // Declared up front so `onAbort` can close over a stable binding and
+      // safely cancel the poller whether abort fires before or after it starts.
+      let poller: ReturnType<typeof setInterval> | null = null;
 
       const onAbort = () => {
         clearInterval(keepalive);
+        if (poller) clearInterval(poller);
         close();
       };
       if (abortSignal.aborted) {
@@ -91,18 +84,23 @@ export function streamSync(c: Context) {
       }
       abortSignal.addEventListener("abort", onAbort, { once: true });
 
-      // Watch the version key — fires whenever any write bumps it.
-      const watch = kv.watch([["sync", "version"]]);
-      try {
-        for await (const _ of watch) {
-          if (closed) break;
-          const bounds = eventListBounds(lastUlid);
-          const iter = kv.list<SyncEvent>(bounds);
-          for await (const entry of iter) {
+      // Polling loop. Each tick: read tail, drain any new indices via kv.get.
+      // Overlapping ticks are guarded by `busy` so a slow KV round-trip can't
+      // schedule a second drain on top of an in-flight one.
+      let busy = false;
+      poller = setInterval(async () => {
+        if (closed || busy) return;
+        busy = true;
+        try {
+          const tail = await readTail();
+          while (lastSent < tail && !closed) {
+            const next = lastSent + 1n;
+            const entry = await kv.get<SyncEvent>(SYNC_KEYS.queue(next));
+            lastSent = next;
             const evt = entry.value;
-            const ulidPart = entry.key[2] as string;
-            lastUlid = ulidPart;
-            // Echo suppression: don't bounce a write back to its origin tab.
+            // Entry may have expired (90s TTL) if the SSE was idle for longer
+            // than the retention window — skip and keep advancing the cursor.
+            if (!evt) continue;
             if (
               connectionClientId &&
               evt.originClientId &&
@@ -112,14 +110,12 @@ export function streamSync(c: Context) {
             }
             send(sseFrame(evt));
           }
+        } catch (e) {
+          if (!closed) console.error("[sync] poll failed", e);
+        } finally {
+          busy = false;
         }
-      } catch (e) {
-        if (!closed) console.error("[sync] watch loop failed", e);
-      } finally {
-        clearInterval(keepalive);
-        abortSignal.removeEventListener("abort", onAbort);
-        close();
-      }
+      }, POLL_MS);
     },
     cancel() {
       // Reader went away — ReadableStream will surface as an abort upstream.
