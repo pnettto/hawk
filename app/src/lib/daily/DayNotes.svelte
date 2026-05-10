@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
+  import { onDestroy, untrack } from 'svelte'
   import { appStore } from '../../stores/app'
   import { logsStore } from '../../stores/logs'
   import { savingStore } from '../../stores/saving'
@@ -33,21 +33,38 @@
     await logsStore.snapshotAndSave(dateStr, next, 'notes')
   }
 
-  // Re-seed editor content whenever the date changes.
+  // Reseed rules:
+  // - Date changed → take server data, dirty cleared.
+  // - Same date, dirty (user typing) → preserve local value.
+  // - Same date, clean and server differs → adopt server (cross-device sync,
+  //   force-reloads). Without this, log.saved events for the active day
+  //   updated byDate but never reached the editor.
   let lastSeenDate = ''
+  let dirty = false
   $effect(() => {
-    if (lastSeenDate !== dateStr) {
-      lastSeenDate = dateStr
-      value = (day.notesMarkdown as string) ?? ''
-    }
+    const ds = dateStr
+    const serverMd = (day.notesMarkdown as string) ?? ''
+    untrack(() => {
+      if (lastSeenDate !== ds) {
+        lastSeenDate = ds
+        value = serverMd
+        dirty = false
+      } else if (!dirty && serverMd !== value) {
+        value = serverMd
+      }
+    })
   })
 
   const save = debounce(async () => {
     savingStore.clearPending(PENDING_KEY)
+    const sent = value
     const cur = ($logsStore.byDate[dateStr] ?? {}) as DayLog
-    const next: DayLog = { ...cur, notesMarkdown: value }
+    const next: DayLog = { ...cur, notesMarkdown: sent }
     try {
       await logsStore.saveDay(dateStr, next)
+      // Only clear if no further keystrokes happened while the request was in
+      // flight — otherwise we'd accept a sync echo that overwrites the user.
+      if (value === sent) dirty = false
     } catch (e) {
       console.error('Failed to save day notes:', e)
     }
@@ -55,6 +72,7 @@
 
   function onChange(md: string) {
     value = md
+    dirty = true
     savingStore.markPending(PENDING_KEY)
     save()
   }
