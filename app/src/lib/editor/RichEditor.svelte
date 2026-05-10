@@ -75,7 +75,7 @@
       element,
       autofocus: autofocus ? 'start' : false,
       extensions: [
-        StarterKit,
+        StarterKit.configure({ link: false }),
         Placeholder.configure({ placeholder }),
         Markdown,
         Link.configure({
