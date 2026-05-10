@@ -3,7 +3,7 @@ import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
 
 import { auth } from "./server/middleware/auth.ts";
-import { rateLimit } from "./server/middleware/rateLimit.ts";
+import { loginRateLimit, rateLimit } from "./server/middleware/rateLimit.ts";
 
 import {
   getDayLog,
@@ -67,10 +67,19 @@ app.use(
   "/api/*",
   async (c, next) => {
     const path = c.req.path;
-    // SSE stream skips both rate-limit (reconnect storms shouldn't trip the
-    // 60/min IP cap) and middleware auth — it authenticates from the query
-    // string itself, since EventSource can't set headers.
+    // SSE stream skips rate-limit (reconnect storms shouldn't trip the IP cap)
+    // and middleware auth — it authenticates from the query string itself,
+    // since EventSource can't set headers.
     if (path === "/api/sync/stream") return await next();
+    // Login has its own stricter bucket so brute-force is bounded without
+    // sharing the budget with normal API traffic — otherwise a chatty session
+    // can drain the general bucket and the user gets 429 on their own login.
+    if (path === "/api/login") return await loginRateLimit(c, next);
+    // auth-check and logout are cheap, fire on every page load, and aren't
+    // attack-worthy — exempting them avoids the cascade that started this bug.
+    if (path === "/api/auth-check" || path === "/api/logout") {
+      return await next();
+    }
     return await rateLimit(c, next);
   },
   async (c, next) => {

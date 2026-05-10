@@ -1,19 +1,24 @@
 import { api, apiOrigin, getToken, removeToken, saveToken } from './client'
 
-export async function login(password: string): Promise<{ ok: boolean; token?: string }> {
+export type LoginFailReason = 'invalid' | 'rate_limited' | 'network'
+
+export async function login(
+  password: string,
+): Promise<{ ok: true; token?: string } | { ok: false; reason: LoginFailReason }> {
   try {
     const res = await fetch(apiOrigin() + '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
-    if (!res.ok) return { ok: false }
+    if (res.status === 429) return { ok: false, reason: 'rate_limited' }
+    if (!res.ok) return { ok: false, reason: 'invalid' }
     const { token } = (await res.json()) as { token?: string }
     if (token) saveToken(token)
     return { ok: true, token }
   } catch (e) {
     console.error('Login failed:', e)
-    return { ok: false }
+    return { ok: false, reason: 'network' }
   }
 }
 
