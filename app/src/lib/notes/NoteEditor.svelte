@@ -204,9 +204,13 @@
     </div>
   </div>
 
-  {#key currentNote.id}
-    <RichEditor value={content} onChange={onContentChange} onBlur={onEditorBlur} />
-  {/key}
+  {#if currentNote.content === undefined}
+    <div class="editor-loading">Loading…</div>
+  {:else}
+    {#key currentNote.id}
+      <RichEditor value={content} onChange={onContentChange} onBlur={onEditorBlur} />
+    {/key}
+  {/if}
 </div>
 {:else}
   <div class="empty-state">
@@ -381,6 +385,14 @@
     font-style: italic;
     opacity: 0.5;
     padding: 4rem 2rem;
+  }
+  .editor-loading {
+    color: var(--muted);
+    font-style: italic;
+    opacity: 0.4;
+    padding: 0.5rem 0;
+    font-size: 1rem;
+    line-height: var(--lh);
   }
   @media (max-width: 900px) {
     .mobile-back { display: inline-flex; }

@@ -14,6 +14,7 @@
 
   let dateStr = $derived(formatDate($appStore.selectedDate))
   let day = $derived(($logsStore.byDate[dateStr] ?? {}) as DayLog)
+  let loaded = $derived(dateStr in $logsStore.byDate)
   let value = $state('')
   let showHistory = $state(false)
   let rootEl = $state<HTMLElement | null>(null)
@@ -126,9 +127,13 @@
       onClose={() => (showHistory = false)}
     />
   {/if}
-  {#key dateStr}
-    <RichEditor {value} {onChange} placeholder="Notes for the day..." />
-  {/key}
+  {#if !loaded}
+    <div class="editor-loading">Loading…</div>
+  {:else}
+    {#key dateStr}
+      <RichEditor {value} {onChange} placeholder="Notes for the day..." />
+    {/key}
+  {/if}
 </section>
 
 <style>
@@ -163,4 +168,12 @@
     background: rgba(255, 255, 255, 0.08);
   }
   .history-toggle:disabled { opacity: 0.4; cursor: default; }
+  .editor-loading {
+    color: var(--muted);
+    font-style: italic;
+    opacity: 0.4;
+    padding: 0.5rem 0;
+    font-size: 1rem;
+    line-height: var(--lh);
+  }
 </style>
