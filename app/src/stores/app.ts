@@ -9,11 +9,19 @@ interface AppState {
   journalTab: JournalTab
 }
 
+const JOURNAL_TAB_KEY = 'hawk_journal_tab'
+
+function loadJournalTab(): JournalTab {
+  if (typeof localStorage === 'undefined') return 'tasks'
+  const v = localStorage.getItem(JOURNAL_TAB_KEY)
+  return v === 'notes' || v === 'tasks' ? v : 'tasks'
+}
+
 function createAppStore() {
   const { subscribe, update, set } = writable<AppState>({
     selectedDate: new Date(),
     currentPage: 'app',
-    journalTab: 'tasks',
+    journalTab: loadJournalTab(),
   })
 
   return {
@@ -21,7 +29,15 @@ function createAppStore() {
     set,
     setSelectedDate: (date: Date) => update((s) => ({ ...s, selectedDate: date })),
     setCurrentPage: (page: Page) => update((s) => ({ ...s, currentPage: page })),
-    setJournalTab: (tab: JournalTab) => update((s) => ({ ...s, journalTab: tab })),
+    setJournalTab: (tab: JournalTab) =>
+      update((s) => {
+        try {
+          localStorage.setItem(JOURNAL_TAB_KEY, tab)
+        } catch {
+          // ignore — private mode / quota
+        }
+        return { ...s, journalTab: tab }
+      }),
   }
 }
 
