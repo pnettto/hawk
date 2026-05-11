@@ -85,14 +85,14 @@
 
 {#if $authStore.isCheckingAuth}
   <div class="boot-screen">
-    <img src="/logo.svg" class="logo-pulse" alt="" />
+    <span class="logo-pulse" aria-hidden="true"></span>
   </div>
 {:else if !$authStore.isAuth}
   <Auth />
 {:else}
   <div class="container" class:wide={$appStore.currentPage === 'notes'}>
     <nav>
-      <img src="/logo.svg" class="nav-logo" alt="" aria-hidden="true" />
+      <span class="nav-logo" aria-hidden="true"></span>
       <button
         class:active={$appStore.currentPage === 'app'}
         onclick={() => appStore.setCurrentPage('app')}>Journal</button
@@ -181,11 +181,15 @@
     font-family: var(--font-ui, inherit);
   }
   .nav-logo {
-    width: 1.1rem;
-    height: 1.1rem;
-    margin-right: 0.6rem;
-    opacity: 0.55;
+    display: inline-block;
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-right: 0.7rem;
+    opacity: 0.8;
     flex-shrink: 0;
+    background-color: var(--logo-color);
+    -webkit-mask: url(/logo.svg) center / contain no-repeat;
+            mask: url(/logo.svg) center / contain no-repeat;
   }
   @media (max-width: 600px) {
     nav {
@@ -243,9 +247,14 @@
     z-index: 9999;
   }
   .logo-pulse {
+    display: inline-block;
     width: 2.4rem;
+    height: 2.4rem;
     opacity: 0.8;
     animation: bootPulse 1.4s ease-in-out infinite;
+    background-color: var(--logo-color);
+    -webkit-mask: url(/logo.svg) center / contain no-repeat;
+            mask: url(/logo.svg) center / contain no-repeat;
   }
   @keyframes bootPulse {
     0%, 100% { opacity: 0.4; transform: scale(0.96); }

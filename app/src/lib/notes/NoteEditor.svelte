@@ -250,7 +250,6 @@
     width: 100%;
     outline: none;
     font-weight: 800;
-    opacity: 0.95;
     font-family: inherit;
   }
   .header-actions { display: flex; align-items: center; gap: 0.5rem; }
@@ -295,14 +294,12 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--muted);
-    opacity: 0.7;
     padding: 6px 10px 4px;
   }
   .picker-empty {
     padding: 6px 10px 10px;
     font-size: 0.8rem;
     color: var(--muted);
-    opacity: 0.6;
     font-style: italic;
   }
   .picker-item {

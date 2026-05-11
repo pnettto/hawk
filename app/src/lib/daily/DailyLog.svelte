@@ -428,7 +428,6 @@
     padding: 0.35rem 0.2rem;
     cursor: pointer;
     user-select: none;
-    opacity: 0.7;
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }

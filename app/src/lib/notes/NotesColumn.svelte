@@ -319,7 +319,6 @@
     font-size: 0.75rem;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
-    opacity: 0.7;
   }
   .col-actions { display: flex; gap: 0.4rem; align-items: center; }
 
@@ -432,7 +431,6 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--muted);
-    opacity: 0.6;
     padding: 0.85rem 0.75rem 0.4rem;
   }
 
@@ -501,7 +499,6 @@
     gap: 0.4rem;
     font-size: 0.72rem;
     color: var(--muted);
-    opacity: 0.75;
     margin-top: 2px;
   }
   .meta-dot { opacity: 0.6; }
