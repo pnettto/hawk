@@ -4,15 +4,14 @@
   import { appStore } from '../stores/app'
   import { debounce } from '../utils/debounce'
   import { formatDate } from '../utils/date'
-  import DatePicker from '../lib/daily/DatePicker.svelte'
   import type { DayLog, HourEntry } from '../types/models'
 
-  const today = new Date()
-  const lastWeek = new Date()
-  lastWeek.setDate(today.getDate() - 6)
+  interface Props {
+    startDate: Date
+    endDate: Date
+  }
+  let { startDate, endDate }: Props = $props()
 
-  let startDate = $state(lastWeek)
-  let endDate = $state(today)
   let markdown = $state('')
   let loading = $state(false)
   let copied = $state(false)
@@ -89,6 +88,19 @@
     loading = false
   }
 
+  const debouncedRefresh = debounce(refresh, 250)
+
+  // Refetch when the parent updates the date range (skip the initial run —
+  // onMount already kicks off the first load).
+  let mounted = false
+  $effect(() => {
+    void startDate
+    void endDate
+    if (!mounted) return
+    loading = true
+    debouncedRefresh()
+  })
+
   // Re-generate whenever logs update (loadForRange resolves), dates change,
   // or the active tab changes.
   $effect(() => {
@@ -98,19 +110,6 @@
     void $appStore.reportTab
     markdown = generate()
   })
-
-  const debouncedRefresh = debounce(refresh, 250)
-
-  function onStartChange(d: Date) {
-    startDate = d
-    loading = true
-    debouncedRefresh()
-  }
-  function onEndChange(d: Date) {
-    endDate = d
-    loading = true
-    debouncedRefresh()
-  }
 
   async function copyToClipboard() {
     if (!markdown) return
@@ -130,6 +129,7 @@
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       appStore.setSelectedDate(new Date(dateStr + 'T12:00:00'))
       appStore.setCurrentPage('app')
+      appStore.setJournalTab($appStore.reportTab === 'tasks' ? 'tasks' : 'notes')
     }
   }
 
@@ -198,16 +198,14 @@
 
   let html = $derived(renderMarkdown(markdown))
 
-  onMount(refresh)
+  onMount(() => {
+    mounted = true
+    refresh()
+  })
 </script>
 
-<header class="report-header">
-  <div class="range">
-    <DatePicker value={startDate} onSelect={onStartChange} />
-    <span class="range-sep" aria-hidden="true">→</span>
-    <DatePicker value={endDate} onSelect={onEndChange} />
-  </div>
-  <div class="report-tabs">
+<div class="report-toolbar">
+  <div class="report-filter">
     <button
       class:active={$appStore.reportTab === 'notes'}
       onclick={() => appStore.setReportTab('notes')}>Day Notes</button
@@ -217,19 +215,14 @@
       onclick={() => appStore.setReportTab('tasks')}>Tasks</button
     >
   </div>
-</header>
-
-<div class="actions">
-  <button type="button" class="ghost-btn" onclick={refresh} title="Refresh report" aria-label="Refresh">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M13 4v3h-3"/>
-      <path d="M3 12v-3h3"/>
-      <path d="M12.5 7A5 5 0 0 0 4.4 5.5"/>
-      <path d="M3.5 9a5 5 0 0 0 8.1 1.5"/>
-    </svg>
-    <span>Refresh</span>
-  </button>
-  <button type="button" class="ghost-btn primary" class:copied onclick={copyToClipboard} title="Copy markdown">
+  <button
+    type="button"
+    class="copy-btn"
+    class:copied
+    onclick={copyToClipboard}
+    title="Copy markdown"
+    aria-label="Copy markdown"
+  >
     {#if copied}
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3.5 8.5l3 3 6-7"/>
@@ -264,33 +257,19 @@
 {/if}
 
 <style>
-  .report-header {
-    margin-bottom: 1rem;
+  .report-toolbar {
     display: flex;
-    flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 1.5rem;
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 0.5rem;
-  }
-  .range {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-  .range-sep {
-    color: var(--muted);
-    opacity: 0.6;
-    font-size: 0.9rem;
-    padding: 0 0.25rem;
-  }
-  .report-tabs {
-    display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
     font-family: var(--font-ui, inherit);
   }
-  .report-tabs button {
+  .report-filter {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .report-filter button {
     background: none;
     border: none;
     color: var(--muted);
@@ -301,89 +280,44 @@
     border-radius: 999px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    padding-left: 2px;
-  }
-  input[type='date'] {
-    background: var(--input-bg);
-    border: 1px solid var(--line);
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 0.9rem;
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out);
   }
-  input[type='date']:hover,
-  input[type='date']:focus {
-    border-color: var(--accent);
-    background: var(--input-bg-strong);
-    outline: none;
-  }
-  .report-tabs button:hover {
+  .report-filter button:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
   }
-  .report-tabs button.active {
+  .report-filter button.active {
     color: var(--accent);
-    background: rgba(230, 184, 77, 0.1);
+    background: var(--glass);
   }
-  @media (max-width: 600px) {
-    .report-header {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.75rem;
-    }
-    .range {
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .report-tabs {
-      justify-content: center;
-    }
-  }
-  .actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-bottom: 1.5rem;
-    font-family: var(--font-ui, inherit);
-  }
-  @media (max-width: 600px) {
-    .actions {
-      justify-content: stretch;
-    }
-    .actions .ghost-btn { flex: 1; justify-content: center; }
-  }
-  .ghost-btn {
+  .copy-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     background: none;
-    border: 1px solid var(--line);
+    border: none;
     color: var(--muted);
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.85rem;
-    border-radius: 8px;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
     line-height: 1;
     transition:
       background-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
+      color var(--dur-fast) var(--ease-out);
   }
-  .ghost-btn svg { width: 14px; height: 14px; display: block; }
-  .ghost-btn:hover {
+  .copy-btn svg { width: 12px; height: 12px; display: block; }
+  .copy-btn:hover {
     color: var(--text);
-    border-color: var(--accent);
     background: var(--glass-dark);
   }
-  .ghost-btn.primary { color: var(--text); }
-  .ghost-btn.copied {
+  .copy-btn.copied {
     color: var(--accent);
-    border-color: var(--accent);
     background: var(--glass);
   }
   .report-content {

@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store'
 
-export type Page = 'app' | 'notes' | 'report' | 'admin'
-export type JournalTab = 'tasks' | 'notes'
+export type Page = 'app' | 'notes' | 'admin'
+export type JournalTab = 'tasks' | 'notes' | 'report'
 export type ReportTab = 'notes' | 'tasks'
 
 interface AppState {
@@ -16,7 +16,7 @@ const JOURNAL_TAB_KEY = 'hawk_journal_tab'
 function loadJournalTab(): JournalTab {
   if (typeof localStorage === 'undefined') return 'tasks'
   const v = localStorage.getItem(JOURNAL_TAB_KEY)
-  return v === 'notes' || v === 'tasks' ? v : 'tasks'
+  return v === 'notes' || v === 'tasks' || v === 'report' ? v : 'tasks'
 }
 
 function createAppStore() {

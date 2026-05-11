@@ -3,11 +3,27 @@
   import DatePicker from '../lib/daily/DatePicker.svelte'
   import DailyLog from '../lib/daily/DailyLog.svelte'
   import DayNotes from '../lib/daily/DayNotes.svelte'
+  import Report from './Report.svelte'
+
+  const today = new Date()
+  const lastWeek = new Date()
+  lastWeek.setDate(today.getDate() - 6)
+
+  let reportStart = $state(lastWeek)
+  let reportEnd = $state(today)
 </script>
 
 <header class="app-header">
   <div class="header-left">
-    <DatePicker />
+    {#if $appStore.journalTab === 'report'}
+      <div class="range">
+        <DatePicker value={reportStart} onSelect={(d) => (reportStart = d)} hideArrows />
+        <span class="range-sep" aria-hidden="true">→</span>
+        <DatePicker value={reportEnd} onSelect={(d) => (reportEnd = d)} hideArrows />
+      </div>
+    {:else}
+      <DatePicker />
+    {/if}
   </div>
   <div class="journal-tabs">
     <button
@@ -18,11 +34,17 @@
       class:active={$appStore.journalTab === 'tasks'}
       onclick={() => appStore.setJournalTab('tasks')}>Tasks</button
     >
+    <button
+      class:active={$appStore.journalTab === 'report'}
+      onclick={() => appStore.setJournalTab('report')}>Report</button
+    >
   </div>
 </header>
 
 {#if $appStore.journalTab === 'tasks'}
   <DailyLog />
+{:else if $appStore.journalTab === 'report'}
+  <Report startDate={reportStart} endDate={reportEnd} />
 {:else}
   <DayNotes />
 {/if}
@@ -49,6 +71,19 @@
     display: flex;
     align-items: center;
     gap: 1.5rem;
+  }
+  .range {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    margin-left: -18px;
+  }
+  .range-sep {
+    color: var(--muted);
+    opacity: 0.6;
+    font-size: 0.9rem;
+    padding: 0 0.25rem;
   }
   .journal-tabs {
     display: flex;

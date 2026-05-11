@@ -16,7 +16,6 @@
   const routeLoaders = {
     app: () => import('./routes/Journal.svelte'),
     notes: () => import('./routes/Notes.svelte'),
-    report: () => import('./routes/Report.svelte'),
     admin: () => import('./routes/Admin.svelte'),
   } as const
 
@@ -96,10 +95,6 @@
       <button
         class:active={$appStore.currentPage === 'app'}
         onclick={() => appStore.setCurrentPage('app')}>Journal</button
-      >
-      <button
-        class:active={$appStore.currentPage === 'report'}
-        onclick={() => appStore.setCurrentPage('report')}>Report</button
       >
       <button
         class:active={$appStore.currentPage === 'notes'}
