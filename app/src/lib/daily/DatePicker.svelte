@@ -6,8 +6,9 @@
   interface Props {
     value?: Date
     onSelect?: (d: Date) => void
+    hideArrows?: boolean
   }
-  let { value, onSelect }: Props = $props()
+  let { value, onSelect, hideArrows = false }: Props = $props()
 
   // When no props are passed, the picker is bound to the global selectedDate.
   let currentDate = $derived(value ?? $appStore.selectedDate)
@@ -74,7 +75,9 @@
 </script>
 
 <div class="date-control">
-  <button class="cal-arrow" aria-label="Previous day" onclick={goPrev}>◀</button>
+  {#if !hideArrows}
+    <button class="cal-arrow" aria-label="Previous day" onclick={goPrev}>◀</button>
+  {/if}
   <div class="date-container">
     <button class="date-display" onclick={toggleCalendar}>
       {prettyDisplay(currentDate)}
@@ -100,7 +103,9 @@
       </div>
     </div>
   </div>
-  <button class="cal-arrow" aria-label="Next day" onclick={goNext}>▶</button>
+  {#if !hideArrows}
+    <button class="cal-arrow" aria-label="Next day" onclick={goNext}>▶</button>
+  {/if}
 </div>
 {#if showCalendar}
   <button
