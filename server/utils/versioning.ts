@@ -118,6 +118,20 @@ export async function maybeSnapshot<T>(args: MaybeSnapshotArgs<T>): Promise<void
   const now = Date.now();
   const latest = index[0];
 
+  // Skip entirely if the latest snapshot already holds identical content.
+  // Without this, every blur/visibility/paste/popover trigger past the
+  // coalesce window appends a duplicate — most visibly as a wall of
+  // "(empty)" entries on a note the user opened but didn't edit.
+  if (latest) {
+    const latestRes = await kv.get<{ content: T }>(k.entry(id, latest.savedAt));
+    if (
+      latestRes.value &&
+      JSON.stringify(latestRes.value.content) === JSON.stringify(next)
+    ) {
+      return;
+    }
+  }
+
   const shouldCoalesce = latest &&
     !substantialChange &&
     now - latest.savedAt < COALESCE_WINDOW_MS;
