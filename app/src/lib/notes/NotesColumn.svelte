@@ -62,13 +62,17 @@
     return { title: name || 'Notes', subtitle: '' }
   })
 
-  function onCreate() {
+  async function onCreate() {
     const s = $notesStore
     // In 'all' view with no selectedCid, fall back to first collection.
     if (!s.selectedCid && s.collections.length > 0) {
       notesStore.selectCollection(s.collections[0].id)
     }
     notesStore.createNote()
+    await tick()
+    const el = document.querySelector<HTMLInputElement>('.note-title')
+    el?.focus()
+    el?.select()
   }
 
   function canCreate(): boolean {

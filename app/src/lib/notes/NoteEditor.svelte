@@ -48,6 +48,7 @@
   }
 
   let title = $state('')
+  let titleInputEl = $state<HTMLInputElement | null>(null)
   let lastNid = ''
   $effect(() => {
     if (!currentNote) {
@@ -60,9 +61,10 @@
       return
     }
     // Same note — adopt the title from the store (e.g. another device renamed
-    // it). Content is read directly from the store via $derived below, so the
-    // editor mounts with the loaded body on the same render the {#if} flips
-    // from loading → loaded.
+    // it). Skip while the user is typing here — applyEdit updates the store on
+    // every keystroke, which re-runs this effect; if currentNote hasn't yet
+    // re-derived the new title, we'd clobber what the user just typed.
+    if (typeof document !== 'undefined' && document.activeElement === titleInputEl) return
     if (currentNote.title !== undefined && currentNote.title !== title) {
       title = currentNote.title
     }
@@ -132,7 +134,7 @@
     >
       <span aria-hidden="true">←</span>
     </button>
-    <input type="text" class="note-title" bind:value={title} oninput={onTitleInput} />
+    <input type="text" class="note-title" bind:this={titleInputEl} bind:value={title} oninput={onTitleInput} />
     <div class="header-actions">
       {#if currentCollectionName}
         <div class="collection-wrap">
