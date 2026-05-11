@@ -48,7 +48,6 @@
   }
 
   let title = $state('')
-  let content = $state('')
   let lastNid = ''
   $effect(() => {
     if (!currentNote) {
@@ -58,20 +57,22 @@
     if (currentNote.id !== lastNid) {
       lastNid = currentNote.id
       title = currentNote.title ?? ''
-      content = currentNote.content ?? ''
       return
     }
     // Same note — adopt the title from the store (e.g. another device renamed
-    // it). Only adopt content if it diverges; the sync store holds remote
-    // content back in pendingRemote until blur, so divergence here means a
-    // remote update committed (or initial full-content fetch after select).
+    // it). Content is read directly from the store via $derived below, so the
+    // editor mounts with the loaded body on the same render the {#if} flips
+    // from loading → loaded.
     if (currentNote.title !== undefined && currentNote.title !== title) {
       title = currentNote.title
     }
-    if (currentNote.content !== undefined && currentNote.content !== content) {
-      content = currentNote.content
-    }
   })
+
+  // Source of truth for the editor body is the store. Deriving (instead of
+  // mirroring into local state via $effect) avoids a one-frame flash where
+  // the RichEditor mounts before the effect runs and the empty-state
+  // placeholder briefly shows.
+  let editorValue = $derived(currentNote?.content ?? '')
 
   function onTitleInput() {
     if (!currentNote) return
@@ -79,7 +80,6 @@
   }
   function onContentChange(markdown: string) {
     if (!currentNote) return
-    content = markdown
     notesStore.applyEdit(currentNote.id, { content: markdown })
   }
   function onEditorBlur() {
@@ -208,7 +208,7 @@
     <div class="editor-loading">Loading…</div>
   {:else}
     {#key currentNote.id}
-      <RichEditor value={content} onChange={onContentChange} onBlur={onEditorBlur} />
+      <RichEditor value={editorValue} onChange={onContentChange} onBlur={onEditorBlur} />
     {/key}
   {/if}
 </div>
