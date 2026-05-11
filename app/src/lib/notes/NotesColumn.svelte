@@ -198,7 +198,9 @@
   <div class="col-list">
     {#if visibleNotes.length === 0}
       <div class="empty">
-        {#if $notesStore.view === 'trash'}
+        {#if !$notesStore.loaded}
+          <div class="empty-headline">Loading…</div>
+        {:else if $notesStore.view === 'trash'}
           <div class="empty-headline">Trash is empty</div>
           <div class="empty-sub">Notes you delete will rest here.</div>
         {:else if $notesStore.collections.length === 0}

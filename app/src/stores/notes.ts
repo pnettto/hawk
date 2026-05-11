@@ -15,6 +15,7 @@ interface NotesState {
   selectedCid: string | null
   selectedNid: string | null
   view: NotesView
+  loaded: boolean
 }
 
 // Tracks notes mid-mutation so a server refresh can't resurrect them between
@@ -54,6 +55,7 @@ function createNotesStore() {
     selectedCid: null,
     selectedNid: null,
     view: 'collection',
+    loaded: false,
   })
 
   // Pending destructive operations awaiting Undo expiry. Keyed by op id; on
@@ -85,7 +87,7 @@ function createNotesStore() {
           s.selectedCid && collections.find((c) => c.id === s.selectedCid)
             ? s.selectedCid
             : collections[0]?.id ?? null
-        return { ...s, collections, allNotes, selectedCid }
+        return { ...s, collections, allNotes, selectedCid, loaded: true }
       })
     } catch (e) {
       console.error('[notes] load failed', e)
