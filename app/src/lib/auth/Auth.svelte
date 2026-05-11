@@ -32,7 +32,7 @@
 <div class="auth-container">
   <form class="auth-form" onsubmit={handleSubmit}>
     <div>
-      <img src="/logo.svg" class="logo" alt="Hawk" />
+      <span class="logo" role="img" aria-label="Hawk"></span>
     </div>
     <input
       name="password"
@@ -73,8 +73,13 @@
     text-align: center;
   }
   .auth-form .logo {
+    display: inline-block;
     width: 3rem;
+    height: 3rem;
     margin-bottom: 2rem;
+    background-color: var(--logo-color);
+    -webkit-mask: url(/logo.svg) center / contain no-repeat;
+            mask: url(/logo.svg) center / contain no-repeat;
   }
   .auth-form > :global(*) {
     display: block;

@@ -264,7 +264,6 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    opacity: 0.7;
     padding-left: 2px;
   }
   input[type='date'] {

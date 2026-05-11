@@ -140,7 +140,6 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--muted);
-    opacity: 0.7;
     padding: 0.5rem 0.75rem 0.25rem;
   }
   .rail-divider {
@@ -202,7 +201,6 @@
   .rail-count {
     font-size: 0.7rem;
     color: var(--muted);
-    opacity: 0.6;
     font-variant-numeric: tabular-nums;
   }
 
