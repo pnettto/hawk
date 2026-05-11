@@ -18,7 +18,7 @@
 
   function generate(): string {
     const logs = $logsStore.byDate
-    const tab = $appStore.reportTab
+    const tab = $appStore.overviewTab
     const startStr = formatDate(startDate)
     const endStr = formatDate(endDate)
     const start = new Date(startStr + 'T12:00:00')
@@ -107,7 +107,7 @@
     void $logsStore.byDate
     void startDate
     void endDate
-    void $appStore.reportTab
+    void $appStore.overviewTab
     markdown = generate()
   })
 
@@ -122,7 +122,7 @@
     }
   }
 
-  function onClickReport(e: MouseEvent) {
+  function onClickOverview(e: MouseEvent) {
     const el = (e.target as HTMLElement | null)?.closest('h2')
     if (!el) return
     const dateStr = el.textContent?.split(' ')[0] ?? ''
@@ -132,7 +132,7 @@
     const iso = `20${yy}-${mm}-${dd}`
     appStore.setSelectedDate(new Date(iso + 'T12:00:00'))
     appStore.setCurrentPage('app')
-    appStore.setJournalTab($appStore.reportTab === 'tasks' ? 'tasks' : 'notes')
+    appStore.setJournalTab($appStore.overviewTab === 'tasks' ? 'tasks' : 'notes')
   }
 
   // Cheap markdown→HTML for headings, bold, lists, blockquotes — plus paragraphs.
@@ -209,12 +209,12 @@
 <div class="report-toolbar">
   <div class="report-filter">
     <button
-      class:active={$appStore.reportTab === 'notes'}
-      onclick={() => appStore.setReportTab('notes')}>Day Notes</button
+      class:active={$appStore.overviewTab === 'notes'}
+      onclick={() => appStore.setOverviewTab('notes')}>Day Notes</button
     >
     <button
-      class:active={$appStore.reportTab === 'tasks'}
-      onclick={() => appStore.setReportTab('tasks')}>Tasks</button
+      class:active={$appStore.overviewTab === 'tasks'}
+      onclick={() => appStore.setOverviewTab('tasks')}>Tasks</button
     >
   </div>
   <button
@@ -244,7 +244,7 @@
   <div
     class="report-content"
     class:loading
-    onclick={onClickReport}
+    onclick={onClickOverview}
     role="presentation"
   >
     {@html html}
@@ -252,7 +252,7 @@
 {:else}
   <div class="empty-state">
     <div class="empty-headline">
-      {#if $appStore.reportTab === 'tasks'}No tasks in this period{:else}No day notes in this period{/if}
+      {#if $appStore.overviewTab === 'tasks'}No tasks in this period{:else}No day notes in this period{/if}
     </div>
     <div class="empty-sub">Try a different range, or write something today.</div>
   </div>

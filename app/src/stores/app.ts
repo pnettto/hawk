@@ -1,14 +1,14 @@
 import { writable } from 'svelte/store'
 
 export type Page = 'app' | 'notes' | 'admin'
-export type JournalTab = 'tasks' | 'notes' | 'report'
-export type ReportTab = 'notes' | 'tasks'
+export type JournalTab = 'tasks' | 'notes' | 'overview'
+export type OverviewTab = 'notes' | 'tasks'
 
 interface AppState {
   selectedDate: Date
   currentPage: Page
   journalTab: JournalTab
-  reportTab: ReportTab
+  overviewTab: OverviewTab
 }
 
 const JOURNAL_TAB_KEY = 'hawk_journal_tab'
@@ -16,7 +16,8 @@ const JOURNAL_TAB_KEY = 'hawk_journal_tab'
 function loadJournalTab(): JournalTab {
   if (typeof localStorage === 'undefined') return 'tasks'
   const v = localStorage.getItem(JOURNAL_TAB_KEY)
-  return v === 'notes' || v === 'tasks' || v === 'report' ? v : 'tasks'
+  if (v === 'report') return 'overview'
+  return v === 'notes' || v === 'tasks' || v === 'overview' ? v : 'tasks'
 }
 
 function createAppStore() {
@@ -24,7 +25,7 @@ function createAppStore() {
     selectedDate: new Date(),
     currentPage: 'app',
     journalTab: loadJournalTab(),
-    reportTab: 'notes',
+    overviewTab: 'notes',
   })
 
   return {
@@ -41,7 +42,7 @@ function createAppStore() {
         }
         return { ...s, journalTab: tab }
       }),
-    setReportTab: (tab: ReportTab) => update((s) => ({ ...s, reportTab: tab })),
+    setOverviewTab: (tab: OverviewTab) => update((s) => ({ ...s, overviewTab: tab })),
   }
 }
 
