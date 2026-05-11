@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import { Editor, InputRule, Extension } from '@tiptap/core'
+  import { Plugin, PluginKey } from '@tiptap/pm/state'
   import StarterKit from '@tiptap/starter-kit'
   import Placeholder from '@tiptap/extension-placeholder'
   import Link from '@tiptap/extension-link'
@@ -64,6 +65,34 @@
     },
   })
 
+  // Always parse pasted text as markdown. tiptap-markdown's built-in
+  // transformPastedText only fires when the clipboard has no text/html — but
+  // VSCode (and many editors) ship a styled HTML version alongside the text,
+  // which makes ProseMirror take the HTML branch and the markdown shows up
+  // literally. Force the plain-text branch through the markdown parser.
+  const MarkdownPaste = Extension.create({
+    name: 'markdownPaste',
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: new PluginKey('markdownPaste'),
+          props: {
+            handlePaste: (_view, event) => {
+              const text = event.clipboardData?.getData('text/plain')
+              if (!text || !editor) return false
+              const parser = (editor.storage as { markdown?: { parser?: { parse: (s: string) => string } } }).markdown?.parser
+              if (!parser) return false
+              const html = parser.parse(text)
+              editor.commands.insertContent(html)
+              event.preventDefault()
+              return true
+            },
+          },
+        }),
+      ]
+    },
+  })
+
   function getMarkdown(): string {
     if (!editor) return ''
     // tiptap-markdown stores its serializer here; it isn't part of the typed editor surface.
@@ -77,7 +106,7 @@
       extensions: [
         StarterKit.configure({ link: false }),
         Placeholder.configure({ placeholder }),
-        Markdown,
+        Markdown.configure({ transformPastedText: true, transformCopiedText: true }),
         Link.configure({
           openOnClick: true,
           autolink: true,
@@ -86,6 +115,7 @@
         Image.configure({ inline: false, allowBase64: true }),
         Youtube.configure({ controls: true, nocookie: true, allowFullscreen: true }),
         CustomInputRules,
+        MarkdownPaste,
       ],
       content: value,
       onUpdate: () => {
