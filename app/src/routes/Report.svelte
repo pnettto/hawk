@@ -3,30 +3,31 @@
   import { logsStore } from '../stores/logs'
   import { appStore } from '../stores/app'
   import { debounce } from '../utils/debounce'
+  import { formatDate } from '../utils/date'
+  import DatePicker from '../lib/daily/DatePicker.svelte'
   import type { DayLog, HourEntry } from '../types/models'
-
-  function fmt(d: Date) {
-    return d.toISOString().split('T')[0]
-  }
 
   const today = new Date()
   const lastWeek = new Date()
   lastWeek.setDate(today.getDate() - 6)
 
-  let startDate = $state(fmt(lastWeek))
-  let endDate = $state(fmt(today))
+  let startDate = $state(lastWeek)
+  let endDate = $state(today)
   let markdown = $state('')
   let loading = $state(false)
   let copied = $state(false)
 
   function generate(): string {
     const logs = $logsStore.byDate
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const tab = $appStore.reportTab
+    const startStr = formatDate(startDate)
+    const endStr = formatDate(endDate)
+    const start = new Date(startStr + 'T12:00:00')
+    const end = new Date(endStr + 'T12:00:00')
     const dates: string[] = []
     const cur = new Date(start)
     while (cur <= end) {
-      dates.push(fmt(cur))
+      dates.push(formatDate(cur))
       cur.setDate(cur.getDate() + 1)
     }
     return dates
@@ -37,40 +38,43 @@
         const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
         let out = `## ${date} ${dayName}\n\n`
         let hasContent = false
-        const entries = Object.entries(dayLog)
-          .filter(([hour, data]) => {
-            if (!hour.includes('-') && isNaN(Number(hour))) return false
-            const e = data as HourEntry
-            return !!(e?.text?.trim() || e?.comment?.trim())
-          })
-          .sort((a, b) => {
-            const mins = (k: string) => {
-              const [h, m] = k.split('-').map(Number)
-              return h * 60 + (m || 0)
-            }
-            return mins(a[0]) - mins(b[0])
-          })
-          .map(([hour, data]) => {
-            const e = data as HourEntry
-            const time = hour.replace('-30', ':30').replace(/-00|$/, ':00')
-            const cb = e.checked ? '[x]' : '[ ]'
-            let line = `- ${cb} **${time}** ${e.text || ''}`
-            if (e.comment) {
-              const lines = e.comment
-                .split('\n')
-                .map((l) => `  > ${l}`)
-                .join('\n')
-              line += `\n${lines}`
-            }
-            return line
-          })
-        if (entries.length) {
-          out += entries.join('\n') + '\n\n'
-          hasContent = true
-        }
-        if (typeof dayLog.notesMarkdown === 'string' && dayLog.notesMarkdown.trim()) {
-          out += `### Notes\n${dayLog.notesMarkdown.trim()}\n\n`
-          hasContent = true
+        if (tab === 'tasks') {
+          const entries = Object.entries(dayLog)
+            .filter(([hour, data]) => {
+              if (!hour.includes('-') && isNaN(Number(hour))) return false
+              const e = data as HourEntry
+              return !!(e?.text?.trim() || e?.comment?.trim())
+            })
+            .sort((a, b) => {
+              const mins = (k: string) => {
+                const [h, m] = k.split('-').map(Number)
+                return h * 60 + (m || 0)
+              }
+              return mins(a[0]) - mins(b[0])
+            })
+            .map(([hour, data]) => {
+              const e = data as HourEntry
+              const time = hour.replace('-30', ':30').replace(/-00|$/, ':00')
+              const cb = e.checked ? '[x]' : '[ ]'
+              let line = `- ${cb} **${time}** ${e.text || ''}`
+              if (e.comment) {
+                const lines = e.comment
+                  .split('\n')
+                  .map((l) => `  > ${l}`)
+                  .join('\n')
+                line += `\n${lines}`
+              }
+              return line
+            })
+          if (entries.length) {
+            out += entries.join('\n') + '\n\n'
+            hasContent = true
+          }
+        } else {
+          if (typeof dayLog.notesMarkdown === 'string' && dayLog.notesMarkdown.trim()) {
+            out += `${dayLog.notesMarkdown.trim()}\n\n`
+            hasContent = true
+          }
         }
         return hasContent ? out : null
       })
@@ -80,22 +84,30 @@
 
   async function refresh() {
     loading = true
-    await logsStore.loadForRange(startDate, endDate)
+    await logsStore.loadForRange(formatDate(startDate), formatDate(endDate))
     markdown = generate()
     loading = false
   }
 
-  // Re-generate whenever logs update (loadForRange resolves) or dates change.
+  // Re-generate whenever logs update (loadForRange resolves), dates change,
+  // or the active tab changes.
   $effect(() => {
     void $logsStore.byDate
     void startDate
     void endDate
+    void $appStore.reportTab
     markdown = generate()
   })
 
   const debouncedRefresh = debounce(refresh, 250)
 
-  function onDateChange() {
+  function onStartChange(d: Date) {
+    startDate = d
+    loading = true
+    debouncedRefresh()
+  }
+  function onEndChange(d: Date) {
+    endDate = d
     loading = true
     debouncedRefresh()
   }
@@ -189,79 +201,104 @@
   onMount(refresh)
 </script>
 
-<div class="report-container">
-  <div class="controls">
-    <div class="date-group">
-      <label for="r-start">From</label>
-      <input id="r-start" type="date" bind:value={startDate} onchange={onDateChange} />
-    </div>
-    <div class="date-group">
-      <label for="r-end">To</label>
-      <input id="r-end" type="date" bind:value={endDate} onchange={onDateChange} />
-    </div>
-    <div class="actions">
-      <button type="button" class="ghost-btn" onclick={refresh} title="Refresh report" aria-label="Refresh">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M13 4v3h-3"/>
-          <path d="M3 12v-3h3"/>
-          <path d="M12.5 7A5 5 0 0 0 4.4 5.5"/>
-          <path d="M3.5 9a5 5 0 0 0 8.1 1.5"/>
-        </svg>
-        <span>Refresh</span>
-      </button>
-      <button type="button" class="ghost-btn primary" class:copied onclick={copyToClipboard} title="Copy markdown">
-        {#if copied}
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3.5 8.5l3 3 6-7"/>
-          </svg>
-          <span>Copied</span>
-        {:else}
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="5" y="2.5" width="8.5" height="10" rx="1.5"/>
-            <path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7"/>
-          </svg>
-          <span>Copy</span>
-        {/if}
-      </button>
-    </div>
+<header class="report-header">
+  <div class="range">
+    <DatePicker value={startDate} onSelect={onStartChange} />
+    <span class="range-sep" aria-hidden="true">→</span>
+    <DatePicker value={endDate} onSelect={onEndChange} />
   </div>
-
-  {#if markdown}
-    <div
-      class="report-content"
-      class:loading
-      onclick={onClickReport}
-      role="presentation"
+  <div class="report-tabs">
+    <button
+      class:active={$appStore.reportTab === 'notes'}
+      onclick={() => appStore.setReportTab('notes')}>Day Notes</button
     >
-      {@html html}
-    </div>
-  {:else}
-    <div class="empty-state">
-      <div class="empty-headline">No logs in this period</div>
-      <div class="empty-sub">Try a different range, or write something today.</div>
-    </div>
-  {/if}
+    <button
+      class:active={$appStore.reportTab === 'tasks'}
+      onclick={() => appStore.setReportTab('tasks')}>Tasks</button
+    >
+  </div>
+</header>
+
+<div class="actions">
+  <button type="button" class="ghost-btn" onclick={refresh} title="Refresh report" aria-label="Refresh">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M13 4v3h-3"/>
+      <path d="M3 12v-3h3"/>
+      <path d="M12.5 7A5 5 0 0 0 4.4 5.5"/>
+      <path d="M3.5 9a5 5 0 0 0 8.1 1.5"/>
+    </svg>
+    <span>Refresh</span>
+  </button>
+  <button type="button" class="ghost-btn primary" class:copied onclick={copyToClipboard} title="Copy markdown">
+    {#if copied}
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 8.5l3 3 6-7"/>
+      </svg>
+      <span>Copied</span>
+    {:else}
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="5" y="2.5" width="8.5" height="10" rx="1.5"/>
+        <path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7"/>
+      </svg>
+      <span>Copy</span>
+    {/if}
+  </button>
 </div>
 
+{#if markdown}
+  <div
+    class="report-content"
+    class:loading
+    onclick={onClickReport}
+    role="presentation"
+  >
+    {@html html}
+  </div>
+{:else}
+  <div class="empty-state">
+    <div class="empty-headline">
+      {#if $appStore.reportTab === 'tasks'}No tasks in this period{:else}No day notes in this period{/if}
+    </div>
+    <div class="empty-sub">Try a different range, or write something today.</div>
+  </div>
+{/if}
+
 <style>
-  .controls {
+  .report-header {
+    margin-bottom: 1rem;
     display: flex;
-    gap: 0.75rem;
-    margin-bottom: 1.75rem;
-    align-items: flex-end;
-    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
     border-bottom: 1px solid var(--line);
-    padding-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+  }
+  .range {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .range-sep {
+    color: var(--muted);
+    opacity: 0.6;
+    font-size: 0.9rem;
+    padding: 0 0.25rem;
+  }
+  .report-tabs {
+    display: flex;
+    gap: 0.25rem;
     font-family: var(--font-ui, inherit);
   }
-  .date-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-  label {
-    font-size: 0.65rem;
+  .report-tabs button {
+    background: none;
+    border: none;
     color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     padding-left: 2px;
@@ -276,7 +313,7 @@
     font-size: 0.9rem;
     transition:
       background-color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
+      color var(--dur-fast) var(--ease-out);
   }
   input[type='date']:hover,
   input[type='date']:focus {
@@ -284,19 +321,38 @@
     background: var(--input-bg-strong);
     outline: none;
   }
-  .actions {
-    margin-left: auto;
-    display: flex;
-    gap: 0.5rem;
+  .report-tabs button:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .report-tabs button.active {
+    color: var(--accent);
+    background: rgba(230, 184, 77, 0.1);
   }
   @media (max-width: 600px) {
-    .controls {
+    .report-header {
       flex-direction: column;
       align-items: stretch;
+      gap: 0.75rem;
     }
+    .range {
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .report-tabs {
+      justify-content: center;
+    }
+  }
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-bottom: 1.5rem;
+    font-family: var(--font-ui, inherit);
+  }
+  @media (max-width: 600px) {
     .actions {
-      margin-left: 0;
-      width: 100%;
+      justify-content: stretch;
     }
     .actions .ghost-btn { flex: 1; justify-content: center; }
   }
