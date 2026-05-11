@@ -68,7 +68,19 @@ function createNotesStore() {
         notesApi.getNotesIndex(),
       ])
       update((s) => {
-        const allNotes = Array.isArray(fullIndex) ? fullIndex : []
+        const fresh = Array.isArray(fullIndex) ? fullIndex : []
+        // Preserve already-loaded `content` for any note still in the index.
+        // Without this, navigating away and back to /notes would clobber the
+        // selected note's body with metadata-only data, and any snapshot
+        // trigger that fires before the body is refetched would save an
+        // empty version over the real one.
+        const localById = new Map(s.allNotes.map((n) => [n.id, n as Note]))
+        const allNotes = fresh.map((sn) => {
+          const local = localById.get(sn.id)
+          return local && local.content !== undefined
+            ? ({ ...sn, content: local.content } as NoteMetadata)
+            : sn
+        })
         const selectedCid =
           s.selectedCid && collections.find((c) => c.id === s.selectedCid)
             ? s.selectedCid
@@ -531,6 +543,10 @@ function createNotesStore() {
     const cur = get({ subscribe })
     const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
     if (!note) return
+    // Don't snapshot a metadata-only record — we'd write an empty version over
+    // the real one. Happens if a trigger fires after select but before the
+    // full-content fetch lands.
+    if (note.content === undefined) return
     try {
       await savingStore.track(notesApi.saveNote(note, { snapshot: true }))
     } catch (e) {
