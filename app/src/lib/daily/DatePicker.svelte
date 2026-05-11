@@ -1,28 +1,42 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { appStore } from '../../stores/app'
   import { formatDate, prettyDisplay } from '../../utils/date'
 
+  interface Props {
+    value?: Date
+    onSelect?: (d: Date) => void
+  }
+  let { value, onSelect }: Props = $props()
+
+  // When no props are passed, the picker is bound to the global selectedDate.
+  let currentDate = $derived(value ?? $appStore.selectedDate)
+  function commit(d: Date) {
+    if (onSelect) onSelect(d)
+    else appStore.setSelectedDate(d)
+  }
+
   let showCalendar = $state(false)
-  let calendarViewDate = $state(new Date($appStore.selectedDate))
+  let calendarViewDate = $state(untrack(() => new Date(currentDate)))
 
   function goPrev() {
-    const d = new Date($appStore.selectedDate)
+    const d = new Date(currentDate)
     d.setDate(d.getDate() - 1)
-    appStore.setSelectedDate(d)
+    commit(d)
   }
   function goNext() {
-    const d = new Date($appStore.selectedDate)
+    const d = new Date(currentDate)
     d.setDate(d.getDate() + 1)
-    appStore.setSelectedDate(d)
+    commit(d)
   }
   function goToday() {
     const today = new Date()
-    appStore.setSelectedDate(today)
+    commit(today)
     calendarViewDate = today
   }
   function toggleCalendar() {
     showCalendar = !showCalendar
-    if (showCalendar) calendarViewDate = new Date($appStore.selectedDate)
+    if (showCalendar) calendarViewDate = new Date(currentDate)
   }
   function changeMonth(offset: number) {
     const d = new Date(calendarViewDate)
@@ -30,7 +44,7 @@
     calendarViewDate = d
   }
   function selectDate(d: Date) {
-    appStore.setSelectedDate(d)
+    commit(d)
     showCalendar = false
   }
 
@@ -56,14 +70,14 @@
       year: 'numeric',
     }),
   )
-  let selectedStr = $derived(formatDate($appStore.selectedDate))
+  let selectedStr = $derived(formatDate(currentDate))
 </script>
 
 <div class="date-control">
   <button class="cal-arrow" aria-label="Previous day" onclick={goPrev}>◀</button>
   <div class="date-container">
     <button class="date-display" onclick={toggleCalendar}>
-      {prettyDisplay($appStore.selectedDate)}
+      {prettyDisplay(currentDate)}
     </button>
     <div class="calendar-modal" class:open={showCalendar}>
       <div class="calendar-header">
