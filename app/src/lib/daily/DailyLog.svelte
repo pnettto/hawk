@@ -440,7 +440,7 @@
   }
   .hour-row.moving-source .hour-time {
     background-color: var(--accent);
-    color: #022;
+    color: var(--on-accent);
     border-radius: 4px;
   }
   .hour-row.moving-target .hour-time { color: var(--accent); }
@@ -472,7 +472,7 @@
   .hour-comment-switch svg { width: 14px; height: 14px; display: block; }
   .hour-row:hover .hour-comment-switch,
   .hour-row:focus-within .hour-comment-switch { opacity: 0.5; }
-  .hour-comment-switch:hover { opacity: 1 !important; color: var(--text); background: rgba(255, 255, 255, 0.06); }
+  .hour-comment-switch:hover { opacity: 1 !important; color: var(--text); background: var(--glass-dark); }
   .hour-row.is-comment .hour-comment-switch { opacity: 0.7; color: var(--accent); }
   .hour-checkbox-wrap {
     display: inline-flex;
@@ -535,7 +535,7 @@
   .hour-row.not-empty .hour-comment-clear,
   .hour-row:hover .hour-comment-clear,
   .hour-row:focus-within .hour-comment-clear { opacity: 0.4; }
-  .hour-comment-clear:hover { opacity: 1 !important; color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
+  .hour-comment-clear:hover { opacity: 1 !important; color: var(--danger); background: var(--danger-bg); }
   @media (hover: none) {
     .hour-comment-clear { opacity: 0.4; }
   }
@@ -570,7 +570,7 @@
     width: 30px;
     height: 30px;
     padding: 0;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
     border: 1px solid var(--line);
     border-radius: 6px;
     color: var(--muted);
@@ -587,7 +587,7 @@
   .edge-btn:hover {
     opacity: 1;
     color: var(--text);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--glass);
     border-color: var(--accent);
   }
   .edge-btn:disabled {

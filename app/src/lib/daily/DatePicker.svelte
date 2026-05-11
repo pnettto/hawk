@@ -130,7 +130,6 @@
     border-radius: 12px;
     padding: 20px;
     min-width: 300px;
-    box-shadow: 0 8px 40px rgba(2, 6, 8, 0.8);
     z-index: 1000;
     transform-origin: top center;
     opacity: 0;
@@ -191,8 +190,8 @@
     opacity: 0.4;
   }
   .cal-day.selected {
-    background: linear-gradient(180deg, var(--accent), #fff076);
-    color: #000;
+    background: var(--accent);
+    color: var(--on-accent);
     border: 0;
     font-weight: bold;
   }

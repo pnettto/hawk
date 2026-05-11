@@ -7,6 +7,9 @@
     --glass: rgba(255, 255, 255, 0.14);
     --glass-dark: rgba(255, 255, 255, 0.06);
     --text: #ecedf0;
+    --on-accent: #15140f;
+    --danger: #ff6b6b;
+    --danger-bg: rgba(255, 107, 107, 0.1);
     --input-bg: rgba(255, 255, 255, 0.06);
     --input-bg-strong: rgba(255, 255, 255, 0.1);
     --input-placeholder: rgba(236, 237, 240, 0.45);

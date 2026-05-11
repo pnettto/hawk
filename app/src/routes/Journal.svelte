@@ -72,10 +72,10 @@
   }
   .journal-tabs button:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
   }
   .journal-tabs button.active {
     color: var(--accent);
-    background: rgba(230, 184, 77, 0.1);
+    background: var(--glass);
   }
 </style>

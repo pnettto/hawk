@@ -152,7 +152,6 @@
     height: auto;
     border-radius: 12px;
     margin: 1.5rem auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
   :global(.rich-editor .tiptap iframe) {
     display: block;
@@ -162,7 +161,6 @@
     border-radius: 12px;
     border: none;
     margin: 1.5rem auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
   :global(.rich-editor .tiptap h1) { font-size: 2.5rem; font-weight: 800; margin: 1.5rem 0 0.8rem; line-height: 1.2; }
   :global(.rich-editor .tiptap h2) { font-size: 1.8rem; font-weight: 700; margin: 1.2rem 0 0.6rem; line-height: 1.3; }
@@ -177,7 +175,7 @@
     color: var(--muted);
   }
   :global(.rich-editor .tiptap code) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--glass);
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
     font-family: var(--font-mono);

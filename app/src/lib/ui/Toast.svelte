@@ -48,7 +48,6 @@
     border-radius: 6px;
     font-family: 'code-saver', ui-monospace, monospace;
     font-size: 0.85rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     opacity: 0;
     transform: translateY(8px);
     transition:
@@ -70,14 +69,14 @@
     border-radius: 4px;
   }
   .hawk-toast-action:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-dark);
   }
   .hawk-toast.error {
-    border-color: #ff6b6b;
+    border-color: var(--danger);
   }
   .hawk-toast.error::before {
     content: '!';
-    color: #ff6b6b;
+    color: var(--danger);
     font-weight: bold;
   }
 </style>

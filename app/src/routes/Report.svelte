@@ -268,7 +268,7 @@
     padding-left: 2px;
   }
   input[type='date'] {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--input-bg);
     border: 1px solid var(--line);
     padding: 0.5rem 0.75rem;
     border-radius: 8px;
@@ -282,7 +282,7 @@
   input[type='date']:hover,
   input[type='date']:focus {
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--input-bg-strong);
     outline: none;
   }
   .actions {
@@ -323,13 +323,13 @@
   .ghost-btn:hover {
     color: var(--text);
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
   }
   .ghost-btn.primary { color: var(--text); }
   .ghost-btn.copied {
-    color: #00d68f;
-    border-color: rgba(0, 214, 143, 0.4);
-    background: rgba(0, 214, 143, 0.06);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--glass);
   }
   .report-content {
     line-height: 1.6;

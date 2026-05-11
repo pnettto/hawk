@@ -307,15 +307,8 @@
     padding: 0.75rem;
     border-radius: 10px;
     z-index: 1000;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.04) inset,
-      0 16px 40px rgba(0, 0, 0, 0.55),
-      0 4px 12px rgba(0, 0, 0, 0.35);
     width: min(560px, 92vw);
     max-width: 92vw;
-    /* Hard opaque backdrop so dark themes never look ghosted on top of busy
-       content. The semi-transparent inset is purely a top highlight. */
-    backdrop-filter: none;
   }
   .header {
     display: flex;
@@ -382,10 +375,10 @@
     font-family: inherit;
   }
   .row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--glass-dark);
   }
   .row.selected {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--glass);
   }
   .time {
     font-size: 0.75rem;
@@ -442,7 +435,7 @@
     border: none;
     padding: 0.4rem 0.85rem;
     border-radius: 6px;
-    color: #000;
+    color: var(--on-accent);
     font-weight: bold;
     cursor: pointer;
     font-size: 0.75rem;

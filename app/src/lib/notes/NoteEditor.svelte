@@ -241,7 +241,7 @@
     flex-shrink: 0;
     transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   }
-  .mobile-back:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--accent); }
+  .mobile-back:hover { background: var(--glass-dark); border-color: var(--accent); }
   .note-title {
     background: none;
     border: none;
@@ -259,7 +259,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
     border: 1px solid var(--line);
     border-radius: 999px;
     padding: 5px 12px;
@@ -273,7 +273,7 @@
       color var(--dur-fast) var(--ease-out),
       border-color var(--dur-fast) var(--ease-out);
   }
-  .collection-chip:hover { color: var(--text); border-color: var(--accent); background: rgba(255, 255, 255, 0.07); }
+  .collection-chip:hover { color: var(--text); border-color: var(--accent); background: var(--glass); }
   .chip-icon { color: var(--accent); font-size: 0.55rem; }
   .chip-name { font-weight: 500; }
   .chip-caret { font-size: 0.7rem; opacity: 0.6; }
@@ -289,7 +289,6 @@
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 6px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
   .picker-header {
     font-size: 0.65rem;
@@ -322,7 +321,7 @@
     text-align: left;
     transition: background-color var(--dur-fast) var(--ease-out);
   }
-  .picker-item:hover { background: rgba(255, 255, 255, 0.06); }
+  .picker-item:hover { background: var(--glass); }
   .picker-item .dot { color: var(--accent); font-size: 0.55rem; }
 
   .editor-root { display: contents; }
@@ -336,7 +335,7 @@
     padding: 0;
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
     color: var(--muted);
     cursor: pointer;
     opacity: 0.7;
@@ -347,7 +346,7 @@
       opacity var(--dur-fast) var(--ease-out);
   }
   .icon-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--glass);
     border-color: var(--accent);
     color: var(--text);
     opacity: 1;
@@ -359,22 +358,24 @@
     padding: 6px 12px;
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--glass-dark);
     color: var(--text);
     cursor: pointer;
     white-space: nowrap;
     transition:
       background-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out);
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
   }
   .share-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--glass);
     border-color: var(--accent);
   }
   .share-btn.active {
-    background: rgba(0, 255, 136, 0.1);
-    border-color: #00ff88;
-    color: #00ff88;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
   }
   .empty-state {
     flex: 1;

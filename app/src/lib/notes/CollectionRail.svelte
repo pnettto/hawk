@@ -165,7 +165,7 @@
   }
   .rail-row:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
   }
   .rail-row:focus-visible {
     outline: 2px solid var(--accent);
@@ -173,7 +173,7 @@
   }
   .rail-row.active {
     color: var(--text);
-    background: rgba(230, 184, 77, 0.1);
+    background: var(--glass);
   }
   .rail-row.active::before {
     content: '';
@@ -212,7 +212,7 @@
   }
   .rail-rename input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--input-bg);
     border: 1px solid var(--accent);
     border-radius: 8px;
     color: var(--text);
@@ -242,7 +242,7 @@
   .rail-new:hover {
     border-color: var(--accent);
     color: var(--text);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--glass-dark);
   }
   .rail-new span:first-child {
     font-size: 1rem;
@@ -284,14 +284,14 @@
       padding: 0.5rem 0.85rem;
       border: 1px solid var(--line);
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.025);
+      background: var(--glass-dark);
       white-space: nowrap;
       width: auto;
       max-width: none;
       min-height: 36px;
     }
     .rail-row.active {
-      background: rgba(230, 184, 77, 0.15);
+      background: var(--glass);
       border-color: var(--accent);
       color: var(--text);
     }
