@@ -2,11 +2,13 @@ import { writable } from 'svelte/store'
 
 export type Page = 'app' | 'notes' | 'report' | 'admin'
 export type JournalTab = 'tasks' | 'notes'
+export type ReportTab = 'notes' | 'tasks'
 
 interface AppState {
   selectedDate: Date
   currentPage: Page
   journalTab: JournalTab
+  reportTab: ReportTab
 }
 
 const JOURNAL_TAB_KEY = 'hawk_journal_tab'
@@ -22,6 +24,7 @@ function createAppStore() {
     selectedDate: new Date(),
     currentPage: 'app',
     journalTab: loadJournalTab(),
+    reportTab: 'notes',
   })
 
   return {
@@ -38,6 +41,7 @@ function createAppStore() {
         }
         return { ...s, journalTab: tab }
       }),
+    setReportTab: (tab: ReportTab) => update((s) => ({ ...s, reportTab: tab })),
   }
 }
 
