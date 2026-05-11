@@ -80,6 +80,13 @@
     if (!currentNote) return
     notesStore.applyEdit(currentNote.id, { title })
   }
+  function onTitleKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || e.shiftKey) return
+    const pm = editorEl?.querySelector<HTMLElement>('.tiptap')
+    if (!pm) return
+    e.preventDefault()
+    pm.focus()
+  }
   function onContentChange(markdown: string) {
     if (!currentNote) return
     notesStore.applyEdit(currentNote.id, { content: markdown })
@@ -134,7 +141,7 @@
     >
       <span aria-hidden="true">←</span>
     </button>
-    <input type="text" class="note-title" bind:this={titleInputEl} bind:value={title} oninput={onTitleInput} />
+    <input type="text" class="note-title" bind:this={titleInputEl} bind:value={title} oninput={onTitleInput} onkeydown={onTitleKeydown} />
     <div class="header-actions">
       {#if currentCollectionName}
         <div class="collection-wrap">
