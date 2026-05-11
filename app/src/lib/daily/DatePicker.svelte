@@ -255,4 +255,16 @@
       opacity: 1;
     }
   }
+  @media (max-width: 600px) {
+    .calendar-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      margin-top: 0;
+      transform: translate(-50%, -50%) scale(0.98);
+    }
+    .calendar-modal.open {
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
 </style>
