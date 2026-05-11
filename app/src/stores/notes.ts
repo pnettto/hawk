@@ -34,6 +34,32 @@ function bumpPendingRemote() {
   pendingRemoteSet(new Set(pendingRemoteContent.keys()))
 }
 
+// Mirrors server/routeHandlers/notes.ts:buildPreview — kept in sync so the
+// list updates instantly on edit instead of waiting for a server round-trip
+// (and our own writes' sync events get echo-suppressed, so the server preview
+// would never make it back here anyway).
+function buildPreview(markdown: string | undefined, max = 140): string {
+  if (!markdown) return ''
+  const stripped = markdown
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return stripped.length > max ? stripped.slice(0, max).trimEnd() + '…' : stripped
+}
+
 function isEditorFocused(): boolean {
   if (typeof document === 'undefined') return false
   return !!document.querySelector('.ProseMirror-focused')
@@ -463,9 +489,12 @@ function createNotesStore() {
   }
 
   function applyEdit(nid: string, patch: Partial<Note>) {
+    const previewPatch = patch.content !== undefined
+      ? { preview: buildPreview(patch.content) }
+      : {}
     update((s) => {
       const allNotes = s.allNotes.map((n) =>
-        n.id === nid ? { ...n, ...patch, updatedAt: Date.now() } : n,
+        n.id === nid ? { ...n, ...patch, ...previewPatch, updatedAt: Date.now() } : n,
       )
       return { ...s, allNotes }
     })
