@@ -3,23 +3,23 @@
   import DatePicker from '../lib/daily/DatePicker.svelte'
   import DailyLog from '../lib/daily/DailyLog.svelte'
   import DayNotes from '../lib/daily/DayNotes.svelte'
-  import Report from './Report.svelte'
+  import Overview from './Overview.svelte'
 
   const today = new Date()
   const lastWeek = new Date()
   lastWeek.setDate(today.getDate() - 6)
 
-  let reportStart = $state(lastWeek)
-  let reportEnd = $state(today)
+  let overviewStart = $state(lastWeek)
+  let overviewEnd = $state(today)
 </script>
 
 <header class="app-header">
   <div class="header-left">
-    {#if $appStore.journalTab === 'report'}
+    {#if $appStore.journalTab === 'overview'}
       <div class="range">
-        <DatePicker value={reportStart} onSelect={(d) => (reportStart = d)} hideArrows />
+        <DatePicker value={overviewStart} onSelect={(d) => (overviewStart = d)} hideArrows />
         <span class="range-sep" aria-hidden="true">→</span>
-        <DatePicker value={reportEnd} onSelect={(d) => (reportEnd = d)} hideArrows />
+        <DatePicker value={overviewEnd} onSelect={(d) => (overviewEnd = d)} hideArrows />
       </div>
     {:else}
       <DatePicker />
@@ -35,16 +35,16 @@
       onclick={() => appStore.setJournalTab('tasks')}>Tasks</button
     >
     <button
-      class:active={$appStore.journalTab === 'report'}
-      onclick={() => appStore.setJournalTab('report')}>Report</button
+      class:active={$appStore.journalTab === 'overview'}
+      onclick={() => appStore.setJournalTab('overview')}>Overview</button
     >
   </div>
 </header>
 
 {#if $appStore.journalTab === 'tasks'}
   <DailyLog />
-{:else if $appStore.journalTab === 'report'}
-  <Report startDate={reportStart} endDate={reportEnd} />
+{:else if $appStore.journalTab === 'overview'}
+  <Overview startDate={overviewStart} endDate={overviewEnd} />
 {:else}
   <DayNotes />
 {/if}
