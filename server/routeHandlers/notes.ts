@@ -248,6 +248,12 @@ export async function saveNote(c: Context) {
   // Strip the snapshot flag so it doesn't pollute the stored record.
   const { snapshot: _drop, ...notePayload } = note;
   const fullNote = { ...notePayload, updatedAt: timestamp };
+  // If the client never loaded full content (e.g. a metadata-only save from a
+  // title edit, or a snapshot trigger that fired before the editor finished
+  // hydrating), keep the existing body instead of wiping it.
+  if (notePayload.content === undefined && existingNote?.content !== undefined) {
+    fullNote.content = existingNote.content;
+  }
   if (existingNote?.deletedAt) fullNote.deletedAt = existingNote.deletedAt;
   await kv.set(["notes", "note", id], fullNote);
 
