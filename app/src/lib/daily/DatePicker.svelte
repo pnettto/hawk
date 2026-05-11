@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { appStore } from '../../stores/app'
-  import { formatDate, prettyDisplay } from '../../utils/date'
+  import { formatDate, prettyDisplay, shortDisplay } from '../../utils/date'
 
   interface Props {
     value?: Date
@@ -74,13 +74,13 @@
   let selectedStr = $derived(formatDate(currentDate))
 </script>
 
-<div class="date-control">
+<div class="date-control" class:compact={hideArrows}>
   {#if !hideArrows}
     <button class="cal-arrow" aria-label="Previous day" onclick={goPrev}>◀</button>
   {/if}
   <div class="date-container">
     <button class="date-display" onclick={toggleCalendar}>
-      {prettyDisplay(currentDate)}
+      {hideArrows ? shortDisplay(currentDate) : prettyDisplay(currentDate)}
     </button>
     <div class="calendar-modal" class:open={showCalendar}>
       <div class="calendar-header">
@@ -125,6 +125,9 @@
   .date-container {
     position: relative;
     min-width: 9rem;
+  }
+  .date-control.compact .date-container {
+    min-width: auto;
   }
   .date-display {
     background: transparent;

@@ -3,7 +3,7 @@
   import { logsStore } from '../stores/logs'
   import { appStore } from '../stores/app'
   import { debounce } from '../utils/debounce'
-  import { formatDate } from '../utils/date'
+  import { formatDate, shortDisplay } from '../utils/date'
   import type { DayLog, HourEntry } from '../types/models'
 
   interface Props {
@@ -35,7 +35,7 @@
         if (!dayLog || Object.keys(dayLog).length === 0) return null
         const d = new Date(date + 'T12:00:00')
         const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
-        let out = `## ${date} ${dayName}\n\n`
+        let out = `## ${shortDisplay(d)} ${dayName}\n\n`
         let hasContent = false
         if (tab === 'tasks') {
           const entries = Object.entries(dayLog)
@@ -126,11 +126,13 @@
     const el = (e.target as HTMLElement | null)?.closest('h2')
     if (!el) return
     const dateStr = el.textContent?.split(' ')[0] ?? ''
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      appStore.setSelectedDate(new Date(dateStr + 'T12:00:00'))
-      appStore.setCurrentPage('app')
-      appStore.setJournalTab($appStore.reportTab === 'tasks' ? 'tasks' : 'notes')
-    }
+    const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})$/)
+    if (!m) return
+    const [, dd, mm, yy] = m
+    const iso = `20${yy}-${mm}-${dd}`
+    appStore.setSelectedDate(new Date(iso + 'T12:00:00'))
+    appStore.setCurrentPage('app')
+    appStore.setJournalTab($appStore.reportTab === 'tasks' ? 'tasks' : 'notes')
   }
 
   // Cheap markdown→HTML for headings, bold, lists, blockquotes — plus paragraphs.
