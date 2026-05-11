@@ -92,6 +92,7 @@
 {:else}
   <div class="container" class:wide={$appStore.currentPage === 'notes'}>
     <nav>
+      <img src="/logo.svg" class="nav-logo" alt="" aria-hidden="true" />
       <button
         class:active={$appStore.currentPage === 'app'}
         onclick={() => appStore.setCurrentPage('app')}>Journal</button
@@ -174,9 +175,17 @@
   }
   nav {
     display: flex;
+    align-items: center;
     gap: 0.25rem;
     margin-bottom: 2rem;
     font-family: var(--font-ui, inherit);
+  }
+  .nav-logo {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-right: 0.6rem;
+    opacity: 0.55;
+    flex-shrink: 0;
   }
   @media (max-width: 600px) {
     nav {
@@ -203,11 +212,11 @@
   }
   nav button:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
   }
   nav button.active {
     color: var(--accent);
-    background: rgba(230, 184, 77, 0.1);
+    background: var(--glass);
   }
   .nav-icon {
     margin-left: auto;
@@ -221,9 +230,9 @@
   }
   .nav-icon svg { width: 14px; height: 14px; display: block; }
   .nav-icon.active { color: var(--accent); background: var(--glass-dark); }
-  .nav-logout:hover { color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
+  .nav-logout:hover { color: var(--danger); background: var(--danger-bg); }
   .route-loading { min-height: 50vh; }
-  .route-error { padding: 2rem; color: #ff6b6b; text-align: center; }
+  .route-error { padding: 2rem; color: var(--danger); text-align: center; }
   .boot-screen {
     position: fixed;
     inset: 0;

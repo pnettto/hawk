@@ -75,7 +75,6 @@
     padding: 1rem;
     border-radius: 8px;
     z-index: 100;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     width: 320px;
   }
   .hint {
@@ -99,7 +98,7 @@
   label:first-of-type { margin-top: 0; }
   .share-link-input {
     width: 100%;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border: 1px solid var(--line);
     padding: 0.5rem;
     color: var(--text);
@@ -120,14 +119,16 @@
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 6px;
-    color: #000;
+    color: var(--on-accent);
     font-weight: bold;
     cursor: pointer;
     font-size: 0.75rem;
     white-space: nowrap;
+    transition: filter var(--dur-fast) var(--ease-out);
   }
+  .btn-primary:hover { filter: brightness(1.08); }
   .btn-primary.full { width: 100%; font-size: 0.8rem; }
-  .btn-primary.copied { background: #00d68f; }
+  .btn-primary.copied { filter: brightness(0.85); }
   .btn-secondary {
     background: none;
     border: 1px solid var(--line);

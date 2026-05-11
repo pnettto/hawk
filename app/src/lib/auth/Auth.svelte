@@ -87,20 +87,20 @@
   }
   .auth-form input {
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--input-bg);
     border: 1px solid var(--line);
     transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
   .auth-form input:hover,
   .auth-form input:focus {
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--input-bg-strong);
     outline: none;
   }
   .auth-form button {
     border-radius: 10px;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     cursor: pointer;
     font-weight: 600;
     font-family: var(--font-ui, inherit);

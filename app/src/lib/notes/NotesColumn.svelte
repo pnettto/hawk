@@ -293,7 +293,7 @@
     flex-direction: column;
     border-left: 1px solid var(--line);
     border-right: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.015);
+    background: var(--glass-dark);
     min-height: 0;
     font-family: var(--font-ui, inherit);
   }
@@ -343,7 +343,7 @@
       border-color var(--dur-fast) var(--ease-out);
   }
   .icon-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass);
     color: var(--text);
     border-color: var(--accent);
   }
@@ -354,7 +354,7 @@
   .icon-btn.primary { color: var(--text); }
   .icon-btn.ghost { border-color: transparent; }
   .icon-btn.ghost:hover { border-color: var(--line); }
-  .icon-btn.ghost.danger:hover { color: #ff5b5b; border-color: rgba(255, 91, 91, 0.4); background: rgba(255, 91, 91, 0.08); }
+  .icon-btn.ghost.danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
   .icon-btn svg { width: 16px; height: 16px; display: block; }
 
   .header-rename {
@@ -367,7 +367,7 @@
   .rename-input {
     flex: 1;
     min-width: 0;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--input-bg);
     border: 1px solid var(--accent);
     border-radius: 8px;
     color: var(--text);
@@ -417,8 +417,8 @@
     border-radius: 6px;
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
-  .text-action:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
-  .text-action.danger:hover { color: #ff5b5b; background: rgba(255, 91, 91, 0.08); }
+  .text-action:hover { color: var(--text); background: var(--glass-dark); }
+  .text-action.danger:hover { color: var(--danger); background: var(--danger-bg); }
 
   .col-list {
     flex: 1;
@@ -454,10 +454,10 @@
       background-color var(--dur-fast) var(--ease-out);
     animation: row-in var(--dur-base) var(--ease-out);
   }
-  .row:hover { background: rgba(255, 255, 255, 0.04); }
+  .row:hover { background: var(--glass-dark); }
   .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .row.active {
-    background: rgba(230, 184, 77, 0.1);
+    background: var(--glass);
   }
   .row.active::before {
     content: '';
@@ -508,7 +508,7 @@
   .row-tag {
     padding: 1px 6px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-dark);
     font-size: 0.68rem;
   }
 
@@ -524,8 +524,8 @@
     line-height: 1;
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
-  .row-action:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
-  .row-action.danger:hover { color: #ff5b5b; background: rgba(255, 91, 91, 0.1); }
+  .row-action:hover { color: var(--text); background: var(--glass); }
+  .row-action.danger:hover { color: var(--danger); background: var(--danger-bg); }
   .row-delete {
     opacity: 0;
     align-self: center;

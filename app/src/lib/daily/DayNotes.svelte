@@ -151,7 +151,7 @@
     width: 28px;
     height: 28px;
     padding: 0;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-dark);
     border: 1px solid var(--line);
     border-radius: 6px;
     color: var(--muted);
@@ -165,7 +165,7 @@
     opacity: 1;
     color: var(--text);
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--glass);
   }
   .history-toggle:disabled { opacity: 0.4; cursor: default; }
   .editor-loading {

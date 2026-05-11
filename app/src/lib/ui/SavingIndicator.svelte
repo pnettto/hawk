@@ -64,7 +64,7 @@
     100% { transform: scale(0.8); opacity: 0.5; }
   }
   .saving-indicator.error {
-    color: #ff4444;
+    color: var(--danger);
     font-weight: bold;
   }
 </style>
