@@ -11,6 +11,9 @@
   import Toast from './lib/ui/Toast.svelte'
   import ZenMode from './lib/ui/ZenMode.svelte'
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
+  import AboutDialog from './lib/ui/AboutDialog.svelte'
+
+  let aboutOpen = $state(false)
 
   // Routes are lazy-loaded so Tiptap (~150KB gz) doesn't block initial paint.
   const routeLoaders = {
@@ -91,7 +94,15 @@
 {:else}
   <div class="container" class:wide={$appStore.currentPage === 'notes'}>
     <nav>
-      <span class="nav-logo" aria-hidden="true"></span>
+      <button
+        class="nav-logo-btn"
+        type="button"
+        onclick={() => (aboutOpen = true)}
+        aria-label="About Hawk"
+        title="About Hawk"
+      >
+        <span class="nav-logo" aria-hidden="true"></span>
+      </button>
       <button
         class:active={$appStore.currentPage === 'app'}
         onclick={() => appStore.setCurrentPage('app')}>Journal</button
@@ -134,6 +145,10 @@
 <SavingIndicator />
 <Toast />
 
+{#if aboutOpen}
+  <AboutDialog onClose={() => (aboutOpen = false)} />
+{/if}
+
 <style>
   .container {
     display: flex;
@@ -175,16 +190,30 @@
     margin-bottom: 2rem;
     font-family: var(--font-ui, inherit);
   }
+  .nav-logo-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin-right: 0.7rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 999px;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .nav-logo-btn:hover .nav-logo { opacity: 1; }
   .nav-logo {
     display: inline-block;
     width: 1.6rem;
     height: 1.6rem;
-    margin-right: 0.7rem;
     opacity: 0.8;
     flex-shrink: 0;
     background-color: var(--logo-color);
     -webkit-mask: url(/logo.svg) center / contain no-repeat;
             mask: url(/logo.svg) center / contain no-repeat;
+    transition: opacity var(--dur-fast) var(--ease-out);
   }
   @media (max-width: 600px) {
     nav {
