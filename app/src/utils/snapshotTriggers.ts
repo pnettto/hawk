@@ -21,17 +21,23 @@ export function bindSnapshotTriggers(
   // focusout bubbles. We only fire when focus genuinely leaves `el` — i.e.,
   // the new focus target is outside the editor block. Tabbing between the
   // title input and the rich editor inside `el` shouldn't trigger.
+  //
+  // `setTimeout(0)` defers fire() out of the current task. focusout can be
+  // dispatched in the middle of Svelte's reactive flush (e.g. when a click
+  // removes the focused element from the DOM via a store-driven re-render),
+  // and `fire()` itself mutates the savingStore writable — running that during
+  // the flush trips Svelte's state_unsafe_mutation guard.
   function onFocusOut(e: FocusEvent) {
     const next = e.relatedTarget as Node | null
     if (next && el.contains(next)) return
     if (!shouldFire()) return
-    fire()
+    setTimeout(() => fire(), 0)
   }
 
   function onVisibility() {
     if (document.visibilityState !== 'hidden') return
     if (!shouldFire()) return
-    fire()
+    setTimeout(() => fire(), 0)
   }
 
   function onBeforeUnload() {
