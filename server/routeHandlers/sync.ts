@@ -31,9 +31,9 @@ async function readTail(): Promise<bigint> {
   return res.value?.value ?? 0n;
 }
 
-export function streamSync(c: Context) {
+export async function streamSync(c: Context) {
   const token = c.req.query("token");
-  if (!isValidToken(token)) {
+  if (!(await isValidToken(token))) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 

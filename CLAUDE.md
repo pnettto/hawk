@@ -56,9 +56,9 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 - Notes schema migration: `ensureNotesMigrated()` runs once (flag `["notes", "schema"] = 2`) on the first notes request. It turned legacy collections (`["notes", "collections"]`, `["notes", "collection", cid]`) into a `#tag` line appended to each note, and copied day notes out of the day blob (with their history). Legacy keys are left in place, unread.
 - Day log: `["logs", dateStr]` — tasks only for current clients (a legacy `notes` array may still be there; it's no longer read).
 - Versions: `server/utils/versioning.ts` is the single helper for snapshotting notes, day-notes, and day-tasks. It keeps a sliding window of `MAX_VERSIONS = 15` per entity, **coalesces** edits within a 60s window into the latest snapshot unless the change is "substantial", and prunes oldest on every write. New version-history endpoints should call this helper, not roll their own keys.
-- Sync log: `["sync", "event", <ulid>]` (90s TTL) plus `["sync", "version"]` (`Deno.KvU64`).
+- Sync log: `["sync", "queue", N]` (90s TTL) plus `["sync", "tail"]` (`Deno.KvU64`, the latest N).
 
-**Cross-device sync.** Every mutating route handler should call `emitSyncEvent({ type, ref, cid?, originClientId })` from `server/utils/syncEvents.ts`. That atomically increments the version counter and writes a TTL'd event row. Clients open `/api/sync/stream` (`server/routeHandlers/sync.ts`) which `kv.watch`es the version key and `kv.list`s events past their last-seen ULID. **Echo suppression** is by `originClientId`: handlers grab it via `getClientIdFromCtx(c)` (reads `X-Client-Id` header set by `app/src/api/client.ts`), and the client ignores events whose `originClientId` matches its own. If you add a new mutating route without emitting an event, other tabs/devices won't see the change live — they'll only catch up on their next manual fetch.
+**Cross-device sync.** Every mutating route handler should call `emitSyncEvent({ type, ref, cid?, originClientId })` from `server/utils/syncEvents.ts`. That atomically increments the version counter and writes a TTL'd event row. Clients open `/api/sync/stream` (`server/routeHandlers/sync.ts`), which polls the `["sync", "tail"]` counter and reads each new `["sync", "queue", N]` event (not `kv.watch`/`kv.list`, which Deploy's KV proxy rejects intermittently; see `server/utils/syncEvents.ts`). **Echo suppression** is by `originClientId`: handlers grab it via `getClientIdFromCtx(c)` (reads `X-Client-Id` header set by `app/src/api/client.ts`), and the client ignores events whose `originClientId` matches its own. If you add a new mutating route without emitting an event, other tabs/devices won't see the change live — they'll only catch up on their next manual fetch.
 
 **Frontend = Svelte 5 + Tiptap.** Lazy-loaded routes under `app/src/routes/`, building blocks under `app/src/lib/`. State lives in stores (`app/src/stores/`):
 
@@ -72,42 +72,4 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 
 ## Production environment
 
-**Platform:** Deno Deploy (new console at https://console.deno.com), org `pnettto`, app `hawk`. Public URL: https://hawk.pnettto.deno.net. Observability/logs: https://console.deno.com/pnettto/hawk/observability/logs.
-
-**Stack:**
-- Backend: Hono (`npm:hono@^4.11.1`), entry point `main.ts`, run with `deno run --allow-net --allow-env --allow-read --unstable-kv --env main.ts`.
-- Frontend: Svelte 5 + Vite, source in `app/`, built to `app/dist/`, served as static assets by the same Hono app in prod (same-origin).
-- Storage: Deno KV via `Deno.openKv()` (no URL → native Deploy KV). Connection lives in `server/utils/kvConn.ts`.
-
-**KV on Deploy:**
-- Database: `Zbc218-production`, instance currently attached to Production timeline is named `backup` (yes, oddly named). Created ~4 months ago. There's also a `Zbc218-preview` DB for preview/branch timelines.
-- Auth tokens are baked into a deployment at build time. After detaching/swapping a KV instance, **redeploy** — otherwise the running runtime gets `InvalidAuthorizationHeader` calling `kvdb.localhost` (Deploy's internal KV proxy host). The SSE sync stream (`server/routeHandlers/sync.ts`, `kv.watch` + `kv.list`) is the loudest symptom.
-
-**Env vars on prod (set in console.deno.com → Settings → Environment Variables):**
-- `ALLOWED_ORIGINS` = `https://hawk.pnettto.deno.net`
-- `API_KEY` — secret
-- `BACKUP_KEY` — secret
-- `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — Cloudflare R2 credentials for file storage (uploads return 503 without them).
-- `KV_URL` — **not set** (intentional; lets `Deno.openKv()` pick native KV).
-
-**Local env** (`.env` at repo root) carries `API_KEY` and the `R2_*` vars and is loaded by `--env` on the dev server task. CORS in `main.ts:58` is `origin: "*"` so cross-origin clients (Chrome extension, alt domains) are accepted.
-
-**Deploy flow:**
-- `deno task deploy` runs `deno task build` then `deno deploy --org pnettto --app hawk --prod`. The deploy wrapper temporarily un-ignores `app/dist` in `.gitignore`/`app/.gitignore` so Vite's build output ships (because `deno deploy` respects `.gitignore` — denoland/deploy_feedback#940) — `trap` restores them after.
-- `deno task build` does `cd app && npm install && npm run build` (Vite build into `app/dist`).
-- There is **no preview/branch deploy task** — `deno deploy` without `--prod` would target a preview timeline if invoked.
-
-**Dev topology:**
-- `deno task dev` runs two processes via `concurrently`: Hono on `:8000` and Vite on `:5173`. Vite proxies `/api`, `/shared`, `/kv` → `localhost:8000`. Configure backend port with `BACKEND_PORT` env (default 8000).
-
-**Chrome extension (Hawk):** `app/public/manifest.json` — new-tab override, MV3. `host_permissions` lists only `https://hawk.pnettto.deno.net/*`. The same Svelte SPA is loaded as the extension page; `app/src/api/client.ts` detects `location.protocol === 'chrome-extension:'` and hardcodes API base to the prod URL unless overridden by `VITE_API_BASE` (build-time) or a `hawk_api_base` localStorage key (runtime). To point a built extension at a local backend you must add `http://localhost:8000/*` to `host_permissions` and rebuild.
-
-**Routes that matter for ops:**
-- `/api/sync/stream` (SSE) — exempt from auth middleware (auths from query string) and rate limit; reconnects with jittered backoff client-side (`app/src/stores/sync.ts`).
-- `/api/login` — its own stricter rate-limit bucket.
-- `/api/public/notes/:id` — public sharing endpoint, served without auth when a note's `isPublic` is true.
-
-**Things to remember when touching prod:**
-- A stale KV token after console-side changes ⇒ redeploy fixes it.
-- Don't set `KV_URL` on Deploy unless you mean to bypass native KV.
-- The Production instance attachment is named `backup` — don't "fix" the name without confirming; renaming/swapping instances detaches the active token until a redeploy.
+Deployment details (accounts, database instances, env vars, deploy quirks) live in `CLAUDE.local.md`, which is git-ignored because this repo is public. Don't move them back here, and don't commit secrets, data exports, or personal notes.

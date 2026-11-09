@@ -7,3 +7,14 @@ app/dist
 
 # Wrangler (Cloudflare CLI) local state
 .wrangler/
+
+# KV → D1 migration data (contains every note — never commit)
+kv-export*.json
+seed*.sql
+migration-data/
+
+# Wrangler local secrets
+.dev.vars*
+
+# Private Claude Code notes (prod details)
+CLAUDE.local.md

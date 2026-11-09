@@ -43,11 +43,6 @@ import {
   saveNote,
   trashNote,
 } from "./server/routeHandlers/notes.ts";
-import {
-  deleteEntry,
-  listEntries,
-  setEntry,
-} from "./server/routeHandlers/kv.ts";
 import { authCheck, login, logout } from "./server/routeHandlers/auth.ts";
 import {
   getPreferences,
@@ -160,11 +155,6 @@ app.get("/api/public/collections/:cid", getPublicCollection);
 // Public Note View (SSR Page)
 app.get("/shared/:nid", getSharedNotePage);
 app.get("/shared/collection/:cid", getSharedCollectionPage);
-
-// KV Entries (existing)
-app.get("/api/entries", listEntries);
-app.post("/api/entries", setEntry);
-app.delete("/api/entries", deleteEntry);
 
 // Preferences (theme + future settings)
 app.get("/api/preferences", getPreferences);

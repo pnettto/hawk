@@ -1,25 +1,18 @@
 import { Context } from "hono";
-import { setCookie, getCookie } from "hono/cookie";
-
-const API_KEY = Deno.env.get("API_KEY") || "";
-
-async function hash(str: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { setCookie } from "hono/cookie";
+import {
+  isValidPassword,
+  isValidToken,
+  sessionToken,
+  tokenFromRequest,
+} from "../middleware/auth.ts";
 
 export async function login(c: Context) {
   const { password } = await c.req.json().catch(() => ({}));
   if (!password) return c.json({ error: "Missing password" }, 400);
 
-  const hashedInput = await hash(password);
-
-  // Check against plain API_KEY or hashed API_KEY
-  if (hashedInput === API_KEY || password === API_KEY) {
-    const tokenValue = hashedInput === API_KEY ? hashedInput : password;
+  if (await isValidPassword(password)) {
+    const tokenValue = await sessionToken();
     // Set cookie for browser-based access if needed, but return token for extensions
     setCookie(c, "hawk_token", tokenValue, {
       path: "/",
@@ -43,18 +36,6 @@ export function logout(c: Context) {
   return c.json({ success: true });
 }
 
-export function authCheck(c: Context) {
-  const authHeader = c.req.header("Authorization");
-  const cookieToken = getCookie(c, "hawk_token");
-  
-  const API_KEY = Deno.env.get("API_KEY") || "";
-  const token = authHeader?.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : cookieToken;
-
-  if (token === API_KEY) {
-    return c.json({ authenticated: true });
-  }
-  
-  return c.json({ authenticated: false });
+export async function authCheck(c: Context) {
+  return c.json({ authenticated: await isValidToken(tokenFromRequest(c)) });
 }
