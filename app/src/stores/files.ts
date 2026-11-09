@@ -5,7 +5,7 @@ import { showError, showToast } from './toast'
 import { confirm } from './confirm'
 import type { FileMeta } from '../types/models'
 
-export const MAX_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_FILE_BYTES = 100 * 1024 * 1024
 
 export interface Upload {
   key: string
@@ -49,7 +49,7 @@ function createFilesStore() {
     const name = file.name || `Pasted file ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`
     update((s) => ({ ...s, uploads: [...s.uploads, { key, name, size: file.size, progress: 0 }] }))
     if (file.size > MAX_FILE_BYTES) {
-      setUpload(key, { error: 'Too large (max 25 MB)' })
+      setUpload(key, { error: 'Too large (max 100 MB)' })
       setTimeout(() => setUpload(key, null), 5000)
       return
     }

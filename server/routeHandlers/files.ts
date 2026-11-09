@@ -19,7 +19,7 @@ import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 // id is a random UUID, so the URL is a capability link.
 
 const CHUNK_SIZE = 60 * 1024;
-export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 export interface FileMeta {
   id: string;
@@ -81,28 +81,33 @@ export async function listFiles(c: Context) {
 
 // Read a stream into memory, bailing out as soon as it passes `limit`.
 // Uploads are buffered rather than streamed to R2 because R2's PutObject needs
-// a known Content-Length; at 25 MB max that's cheap.
-async function readCapped(body: ReadableStream<Uint8Array>, limit: number): Promise<Uint8Array<ArrayBuffer>> {
-  const parts: Uint8Array[] = [];
+// a known Content-Length; at 100 MB max that's acceptable. `sizeHint` (the
+// declared Content-Length) lets us allocate once and fill in place, so peak
+// memory is ~1× the file rather than 2× from collecting parts and joining.
+async function readCapped(
+  body: ReadableStream<Uint8Array>,
+  limit: number,
+  sizeHint = 0,
+): Promise<Uint8Array<ArrayBuffer>> {
+  let buf = new Uint8Array(Math.min(sizeHint > 0 ? sizeHint : 1024 * 1024, limit));
   let size = 0;
   const reader = body.getReader();
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
+    if (size + value.byteLength > limit) {
       await reader.cancel();
       throw new RangeError("too large");
     }
-    parts.push(value);
+    if (size + value.byteLength > buf.byteLength) {
+      const grown = new Uint8Array(Math.min(Math.max(buf.byteLength * 2, size + value.byteLength), limit));
+      grown.set(buf.subarray(0, size));
+      buf = grown;
+    }
+    buf.set(value, size);
+    size += value.byteLength;
   }
-  const out = new Uint8Array(size);
-  let off = 0;
-  for (const p of parts) {
-    out.set(p, off);
-    off += p.byteLength;
-  }
-  return out;
+  return size === buf.byteLength ? buf : buf.subarray(0, size);
 }
 
 // Raw body upload. Name comes in the X-File-Name header (URI-encoded),
@@ -111,7 +116,7 @@ export async function uploadFile(c: Context) {
   if (!r2Enabled) return c.json({ error: "File storage is not configured" }, 503);
   const declared = Number(c.req.header("Content-Length") ?? "0");
   if (declared > MAX_FILE_BYTES) {
-    return c.json({ error: "File is too large (max 25 MB)" }, 413);
+    return c.json({ error: "File is too large (max 100 MB)" }, 413);
   }
   const body = c.req.raw.body;
   if (!body) return c.json({ error: "Empty body" }, 400);
@@ -123,10 +128,10 @@ export async function uploadFile(c: Context) {
 
   let bytes: Uint8Array<ArrayBuffer>;
   try {
-    bytes = await readCapped(body, MAX_FILE_BYTES);
+    bytes = await readCapped(body, MAX_FILE_BYTES, declared);
   } catch (e) {
     if (e instanceof RangeError) {
-      return c.json({ error: "File is too large (max 25 MB)" }, 413);
+      return c.json({ error: "File is too large (max 100 MB)" }, 413);
     }
     throw e;
   }
@@ -255,7 +260,7 @@ export async function migrateFilesToR2(c: Context) {
   const failed: { id: string; error: string }[] = [];
   for (const meta of legacy.slice(0, limit)) {
     try {
-      const bytes = await readCapped(streamChunks(meta), Infinity);
+      const bytes = await readCapped(streamChunks(meta), Infinity, meta.size);
       await putObject(objectKey(meta.id), bytes, meta.type || "application/octet-stream");
       const { chunks, ...rest } = meta;
       await kv.set(metaKey(meta.id), { ...rest, size: bytes.byteLength, storage: "r2" });

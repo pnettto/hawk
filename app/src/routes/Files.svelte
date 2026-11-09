@@ -369,7 +369,7 @@
         <path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M4 19h16" />
       </svg>
       <span class="dz-head">Drop files here</span>
-      <span class="dz-sub">or click to choose · paste works too · up to 25 MB each</span>
+      <span class="dz-sub">or click to choose · paste works too · up to 100 MB each</span>
     </button>
   {:else}
     <div class="toolbar" class:selecting={selected.size > 0}>
