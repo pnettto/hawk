@@ -429,7 +429,7 @@
             <button type="button" role="radio" aria-checked={sort === id} onclick={() => setSort(id as Sort)}>{label}</button>
           {/each}
         </div>
-        <label class="media-switch" in:fade={{ duration: 120 }} title="Images and videos added from notes">
+        <label class="media-switch" in:fade={{ duration: 120 }} title="Images, videos and files added from notes">
           <input type="checkbox" role="switch" checked={noteMedia} onchange={(e) => setNoteMedia(e.currentTarget.checked)} />
           <span class="track" aria-hidden="true"><span class="knob"></span></span>
           <span>Note media</span>

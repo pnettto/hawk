@@ -1,6 +1,6 @@
 // The block types offered by the "+" button and the "/" menu.
 
-export type BlockId = 'h3' | 'p' | 'lead' | 'ul' | 'ol' | 'todo' | 'table' | 'image' | 'video'
+export type BlockId = 'h3' | 'p' | 'lead' | 'ul' | 'ol' | 'todo' | 'table' | 'image' | 'video' | 'file'
 
 export interface BlockItem {
   id: BlockId
@@ -21,6 +21,7 @@ export const BLOCKS: BlockItem[] = [
   { id: 'table', label: 'Table', k: 'grid rows columns' },
   { id: 'image', label: 'Image', desc: 'Upload a picture or paste a link', k: 'picture photo img' },
   { id: 'video', label: 'Video', desc: 'Upload a clip or paste a YouTube link', k: 'youtube movie clip mp4' },
+  { id: 'file', label: 'Attach file', desc: 'Upload a document or any other file', k: 'attachment upload pdf document' },
 ]
 
 export function filterBlocks(query: string): BlockItem[] {

@@ -5,7 +5,7 @@ import Youtube from '@tiptap/extension-youtube'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
-import { Lead, Video } from './nodes'
+import { Attachment, Lead, Video } from './nodes'
 
 interface MarkdownState {
   write(s: string): void
@@ -71,5 +71,6 @@ export function contentExtensions() {
     TaskItem.configure({ nested: true }),
     Lead,
     Video,
+    Attachment,
   ]
 }

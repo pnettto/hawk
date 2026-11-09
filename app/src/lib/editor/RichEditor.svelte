@@ -165,33 +165,40 @@
 
   // ---- uploads -----------------------------------------------------------
 
+  const isImageFile = (f: File) => f.type.startsWith('image/')
   const isVideoFile = (f: File) => f.type.startsWith('video/')
-  const mediaFiles = (list: FileList | File[] | null | undefined) =>
-    Array.from(list ?? []).filter((f) => f.type.startsWith('image/') || isVideoFile(f))
+  const fileList = (list: FileList | File[] | null | undefined) => Array.from(list ?? [])
 
-  // Upload pasted/dropped/picked media to Files and insert it where the user
-  // was. Positions are mapped through edits made while uploading.
+  // Upload pasted/dropped/picked files to Files (under Note media) and insert
+  // them where the user was: images and videos inline, anything else as an
+  // attachment. Positions are mapped through edits made while uploading.
   async function insertUploads(view: EditorView, files: File[], at: number) {
     const tracker = { pos: at }
     const follow = ({ transaction }: { transaction: Transaction }) => {
       tracker.pos = transaction.mapping.map(tracker.pos)
     }
     editor?.on('transaction', follow)
-    const noun = files.every(isVideoFile) ? 'video' : files.some(isVideoFile) ? 'file' : 'image'
+    const noun = files.every(isImageFile) ? 'image' : files.every(isVideoFile) ? 'video' : 'file'
     const dismiss = showToast(files.length > 1 ? `Uploading ${files.length} ${noun}s…` : `Uploading ${noun}…`, {
       duration: 60_000,
     })
     try {
       for (const file of files) {
-        const video = isVideoFile(file)
+        const kind = isImageFile(file) ? 'image' : isVideoFile(file) ? 'video' : 'file'
         const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
-        const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') ?? (video ? 'mp4' : 'png')
-        const name = file.name && file.name !== 'image.png' ? file.name : `Pasted ${video ? 'video' : 'image'} ${stamp}.${ext}`
+        const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') ?? (kind === 'video' ? 'mp4' : kind === 'image' ? 'png' : 'bin')
+        const name = file.name && file.name !== 'image.png' ? file.name : `Pasted ${kind} ${stamp}.${ext}`
         const meta = await uploadFile(file, name, { inline: true })
         if (!editor || editor.isDestroyed) return
         const src = publicFileUrl(meta.id)
         const { nodes } = view.state.schema
-        tracker.pos = placeBlock(view, video ? nodes.video.create({ src }) : nodes.image.create({ src, alt: '' }), tracker.pos)
+        const node =
+          kind === 'image'
+            ? nodes.image.create({ src, alt: '' })
+            : kind === 'video'
+              ? nodes.video.create({ src })
+              : nodes.attachment.create({ href: src, name: meta.name, size: meta.size })
+        tracker.pos = placeBlock(view, node, tracker.pos)
       }
     } catch (e) {
       console.error('Upload failed', e)
@@ -205,7 +212,7 @@
   // ---- paste -----------------------------------------------------------
 
   // Paste rules, in order:
-  // 1. Image/video files → upload + insert.
+  // 1. Files → upload + insert (images/videos inline, others as attachments).
   // 2. Plain text that looks like markdown, unless the HTML beside it has
   //    real structure (VS Code & co., chat boxes and other ProseMirror
   //    editors holding literal **markdown**, "•" bullet text) → parse as
@@ -227,10 +234,10 @@
               const data = event.clipboardData
               // Synthetic events from view.pasteHTML below have no clipboardData.
               if (!data) return false
-              const media = mediaFiles(data.files)
-              if (media.length) {
+              const files = fileList(data.files)
+              if (files.length) {
                 event.preventDefault()
-                void insertUploads(view, media, view.state.selection.from)
+                void insertUploads(view, files, view.state.selection.from)
                 return true
               }
               const html = data.getData('text/html')
@@ -260,11 +267,11 @@
               return false
             },
             handleDrop: (view, event) => {
-              const media = mediaFiles(event.dataTransfer?.files)
-              if (!media.length) return false
+              const files = fileList(event.dataTransfer?.files)
+              if (!files.length) return false
               event.preventDefault()
               const hit = view.posAtCoords({ left: event.clientX, top: event.clientY })
-              void insertUploads(view, media, hit?.pos ?? view.state.selection.from)
+              void insertUploads(view, files, hit?.pos ?? view.state.selection.from)
               return true
             },
           },
@@ -430,6 +437,7 @@
   function onTransaction({ transaction }: { transaction: Transaction }) {
     if (transaction.docChanged) {
       if (media) media.pos = transaction.mapping.map(media.pos)
+      if (attachPos !== null) attachPos = transaction.mapping.map(attachPos)
       if (menu?.mode === 'gutter') menu.pos = transaction.mapping.map(menu.pos)
     }
     // Focus changes can fire while Svelte is mid-render (an editor that had
@@ -554,7 +562,27 @@
         if (dom) media = { kind: id, pos, anchor: rectOf(dom) }
         break
       }
+      case 'file':
+        attachPos = pos
+        attachInput?.click()
+        break
     }
+  }
+
+  // ---- attach file -------------------------------------------------------
+
+  let attachInput = $state<HTMLInputElement | null>(null)
+  // Block the picker was opened from; mapped through edits like `media.pos`.
+  let attachPos: number | null = null
+
+  function onAttachPicked() {
+    const files = fileList(attachInput?.files)
+    const pos = attachPos
+    attachPos = null
+    if (attachInput) attachInput.value = ''
+    if (!files.length || pos === null || !editor) return
+    editor.commands.focus()
+    void insertUploads(editor.view, files, pos + 1)
   }
 
   // ---- image / video prompt ----------------------------------------------
@@ -948,6 +976,8 @@
   />
 {/if}
 
+<input bind:this={attachInput} type="file" hidden multiple onchange={onAttachPicked} />
+
 {#if media}
   <MediaPrompt kind={media.kind} anchor={media.anchor} onUrl={onMediaUrl} onFiles={onMediaFiles} onCancel={onMediaCancel} />
 {/if}
@@ -1030,6 +1060,36 @@
     background: #000;
   }
   :global(.rich-editor .tiptap iframe) { aspect-ratio: 16 / 9; }
+  :global(.rich-editor .tiptap .attachment) { margin: 0.75rem 0; }
+  :global(.rich-editor .tiptap .attachment a) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--glass);
+    color: var(--text) !important;
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+  :global(.rich-editor .tiptap .attachment a:hover) { border-color: var(--accent); }
+  :global(.rich-editor .tiptap .attachment.ProseMirror-selectednode a) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :global(.rich-editor .tiptap .attachment-icon) {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13.5 7.5l-5.6 5.6a3.4 3.4 0 01-4.8-4.8l5.9-5.9a2.2 2.2 0 013.2 3.2l-5.9 5.9a1.1 1.1 0 01-1.6-1.6l5.4-5.4' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13.5 7.5l-5.6 5.6a3.4 3.4 0 01-4.8-4.8l5.9-5.9a2.2 2.2 0 013.2 3.2l-5.9 5.9a1.1 1.1 0 01-1.6-1.6l5.4-5.4' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  :global(.rich-editor .tiptap .attachment-name) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :global(.rich-editor .tiptap .attachment-size) { flex: none; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
   :global(.rich-editor .tiptap video) { max-height: 70vh; }
   :global(.rich-editor .tiptap h1) { font-size: 2rem; font-weight: 800; margin: 1.5rem 0 0.8rem; line-height: 1.2; }
   :global(.rich-editor .tiptap h2) { font-size: 1.5rem; font-weight: 700; margin: 1.2rem 0 0.6rem; line-height: 1.3; }

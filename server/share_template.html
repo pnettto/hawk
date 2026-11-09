@@ -135,6 +135,20 @@
       .tiptap iframe {
         aspect-ratio: 16 / 9;
       }
+      .tiptap [data-attachment] {
+        margin: 1rem 0;
+      }
+      .tiptap [data-attachment] a {
+        display: inline-block;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--glass);
+        text-decoration: none;
+      }
+      .tiptap [data-attachment] a::before {
+        content: "📎 ";
+      }
       .tiptap table {
         width: 100%;
         border-collapse: collapse;

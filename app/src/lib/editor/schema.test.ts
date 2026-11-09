@@ -57,6 +57,14 @@ describe('body markdown round-trip', () => {
     expect(editor.getJSON().content?.[1].attrs?.src).toBe('https://x.test/v.mp4')
   })
 
+  it('keeps file attachments with name and size', () => {
+    const input = 'Before\n\n<div data-attachment="" data-size="2048"><a href="https://x.test/f" target="_blank" rel="noopener noreferrer">Q3 report &amp; notes.pdf</a></div>\n\nAfter'
+    const { first, second, editor } = roundTrip(input)
+    expect(second).toBe(first)
+    expect(editor.getJSON().content?.map((n) => n.type)).toEqual(['paragraph', 'attachment', 'paragraph'])
+    expect(editor.getJSON().content?.[1].attrs).toEqual({ href: 'https://x.test/f', name: 'Q3 report & notes.pdf', size: 2048 })
+  })
+
   it('ends block images so the next block starts on its own', () => {
     editor = new Editor({ extensions: contentExtensions(), content: '' })
     editor.commands.setContent({

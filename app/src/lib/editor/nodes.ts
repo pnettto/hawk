@@ -9,6 +9,9 @@ declare module '@tiptap/core' {
     video: {
       setVideo: (attrs: { src: string }) => ReturnType
     }
+    attachment: {
+      setAttachment: (attrs: { href: string; name: string; size?: number | null }) => ReturnType
+    }
   }
 }
 
@@ -48,6 +51,94 @@ export const Video = Node.create({
   addCommands() {
     return {
       setVideo:
+        (attrs) =>
+        ({ commands }) =>
+          commands.insertContent({ type: this.name, attrs }),
+    }
+  },
+})
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+// Any other file uploaded into a note: a download chip.
+//   <div data-attachment data-size="1234"><a href="…">report.pdf</a></div>
+export const Attachment = Node.create({
+  name: 'attachment',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      href: { default: null },
+      name: { default: 'File' },
+      size: {
+        default: null,
+        parseHTML: (el: HTMLElement) => {
+          const n = Number(el.getAttribute('data-size'))
+          return Number.isFinite(n) && n > 0 ? n : null
+        },
+      },
+    }
+  },
+  parseHTML() {
+    return [
+      {
+        tag: 'div[data-attachment]',
+        getAttrs: (el: HTMLElement) => {
+          const a = el.querySelector('a')
+          if (!a?.getAttribute('href')) return false
+          return { href: a.getAttribute('href'), name: a.textContent?.trim() || 'File' }
+        },
+      },
+    ]
+  },
+  renderHTML({ node }) {
+    const { href, name, size } = node.attrs
+    return [
+      'div',
+      size ? { 'data-attachment': '', 'data-size': String(size) } : { 'data-attachment': '' },
+      ['a', { href, target: '_blank', rel: 'noopener noreferrer' }, name],
+    ]
+  },
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement('div')
+      dom.className = 'attachment'
+      dom.contentEditable = 'false'
+      const a = document.createElement('a')
+      a.href = node.attrs.href
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.draggable = false
+      const icon = document.createElement('span')
+      icon.className = 'attachment-icon'
+      icon.setAttribute('aria-hidden', 'true')
+      const name = document.createElement('span')
+      name.className = 'attachment-name'
+      name.textContent = node.attrs.name
+      a.append(icon, name)
+      if (node.attrs.size) {
+        const size = document.createElement('span')
+        size.className = 'attachment-size'
+        size.textContent = formatBytes(node.attrs.size)
+        a.append(size)
+      }
+      // Open in a new tab rather than letting the editor swallow the click.
+      a.addEventListener('click', (e) => {
+        e.preventDefault()
+        window.open(node.attrs.href, '_blank', 'noopener')
+      })
+      dom.append(a)
+      return { dom }
+    }
+  },
+  addCommands() {
+    return {
+      setAttachment:
         (attrs) =>
         ({ commands }) =>
           commands.insertContent({ type: this.name, attrs }),
