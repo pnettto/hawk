@@ -166,26 +166,42 @@ function streamChunks(meta: FileMeta): ReadableStream<Uint8Array> {
   });
 }
 
+// R2-backed files honour Range requests, which <video> needs to seek (and
+// Safari needs to play at all). Legacy KV-chunked files always go out whole.
 async function streamFile(c: Context, meta: FileMeta, download: boolean) {
   let stream: ReadableStream<Uint8Array> | null;
+  let status = 200;
+  let length = String(meta.size);
+  let contentRange: string | null = null;
   if (meta.storage === "r2") {
-    const obj = await getObject(objectKey(meta.id));
+    const range = c.req.header("Range");
+    const obj = await getObject(objectKey(meta.id), range);
     if (!obj) return c.json({ error: "Not found" }, 404);
+    if (obj.status === 416) {
+      await obj.body?.cancel();
+      return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${meta.size}` } });
+    }
     stream = obj.body;
+    if (obj.status === 206) {
+      status = 206;
+      contentRange = obj.headers.get("Content-Range");
+      length = obj.headers.get("Content-Length") ?? length;
+    }
   } else {
     stream = streamChunks(meta);
   }
   const encoded = encodeURIComponent(meta.name);
-  return new Response(stream, {
-    headers: {
-      "Content-Type": meta.type || "application/octet-stream",
-      "Content-Length": String(meta.size),
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encoded}`,
-      // Content never changes for a given id.
-      "Cache-Control": "private, max-age=31536000, immutable",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": meta.type || "application/octet-stream",
+    "Content-Length": length,
+    "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encoded}`,
+    // Content never changes for a given id.
+    "Cache-Control": "private, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+  };
+  if (meta.storage === "r2") headers["Accept-Ranges"] = "bytes";
+  if (contentRange) headers["Content-Range"] = contentRange;
+  return new Response(stream, { status, headers });
 }
 
 export async function getFile(c: Context) {

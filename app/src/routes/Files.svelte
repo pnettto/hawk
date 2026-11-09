@@ -501,7 +501,6 @@
       {/each}
     </ul>
     {/each}
-    <p class="hint">Drop or paste files anywhere on this page.</p>
   {/if}
 </section>
 
@@ -777,7 +776,6 @@
   .dz-head { font-size: 0.95rem; }
   .dz-sub { font-size: 0.75rem; opacity: 0.7; }
   .empty { padding: 2rem; text-align: center; color: var(--muted); font-size: 0.875rem; }
-  .hint { margin-top: 1.5rem; text-align: center; font-size: 0.75rem; color: var(--muted); opacity: 0.5; }
 
   .drop-overlay {
     position: fixed;

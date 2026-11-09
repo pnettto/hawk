@@ -46,14 +46,16 @@ export async function putObject(key: string, body: Uint8Array<ArrayBuffer>, cont
   await res.body?.cancel();
 }
 
-// Returns null on 404 so callers can answer "Not found" themselves.
-export async function getObject(key: string): Promise<Response | null> {
-  const res = await r2().fetch(objectUrl(key));
+// Returns null on 404 so callers can answer "Not found" themselves. Pass a
+// `range` (an HTTP Range header value) to get a 206 partial response.
+export async function getObject(key: string, range?: string): Promise<Response | null> {
+  const res = await r2().fetch(objectUrl(key), range ? { headers: { Range: range } } : undefined);
   if (res.status === 404) {
     await res.body?.cancel();
     return null;
   }
-  if (!res.ok) throw new Error(`R2 get ${key} failed: ${res.status} ${await res.text()}`);
+  // 416: the caller asked for a range past the end; let them answer it.
+  if (!res.ok && res.status !== 416) throw new Error(`R2 get ${key} failed: ${res.status} ${await res.text()}`);
   return res;
 }
 
