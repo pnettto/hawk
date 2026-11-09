@@ -17,8 +17,10 @@
     placeholder?: string
     // Day notes: show a delete button (the list in Notepad has its own).
     onDelete?: () => void
+    // Journal tabs carry the title (double-click to rename), so no field here.
+    hideTitle?: boolean
   }
-  let { nid, variant = 'page', placeholder, onDelete }: Props = $props()
+  let { nid, variant = 'page', placeholder, onDelete, hideTitle = false }: Props = $props()
 
   let showSharePopover = $state(false)
   let showHistoryPopover = $state(false)
@@ -136,7 +138,7 @@
 </script>
 
 {#if note}
-<div class="editor-root {variant}" bind:this={rootEl}>
+<div class="editor-root {variant}" class:no-title={hideTitle} bind:this={rootEl}>
   <div class="editor-header">
     {#if variant === 'page'}
       <button
@@ -148,6 +150,9 @@
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8H3.5M7.5 4L3.5 8l4 4" /></svg>
       </button>
     {/if}
+    {#if hideTitle}
+      <span class="title-spacer"></span>
+    {:else}
     <input
       type="text"
       class="note-title"
@@ -158,6 +163,7 @@
       oninput={onTitleInput}
       onkeydown={onTitleKeydown}
     />
+    {/if}
     <div class="header-actions">
       {#if variant === 'page' && note.day}
         <button type="button" class="day-chip" onclick={openDay} title="Open this day in Journal">
@@ -277,6 +283,8 @@
     min-width: 0;
     text-overflow: ellipsis;
   }
+  .title-spacer { flex: 1; }
+  .no-title .editor-header { margin-bottom: 0; }
   .day .note-title { font-size: 1.1rem; font-weight: 700; }
   .note-title::placeholder { color: var(--muted); opacity: 0.35; }
   .day .note-title::placeholder { opacity: 0.45; font-weight: 600; }

@@ -5,8 +5,9 @@
   import { notesStore, sortDayNotes } from '../../stores/notes'
   import { preferencesStore } from '../../stores/preferences'
   import { formatDate } from '../../utils/date'
+  import { showError } from '../../stores/toast'
   import NoteEditor from '../notes/NoteEditor.svelte'
-  import type { NoteMetadata } from '../../types/models'
+  import type { Note, NoteMetadata } from '../../types/models'
 
   // A day's notes are regular notes with `day` set — the same ones Notepad
   // lists under Day Notes, edited with the same editor.
@@ -44,7 +45,30 @@
     const id = notesStore.createNote({ day: dateStr, dayOrder: order, select: false })
     select(id)
     await tick()
-    document.querySelector<HTMLInputElement>(`[data-nid="${id}"] .note-title`)?.focus()
+    if (view === 'tabs') startRename(id)
+    else document.querySelector<HTMLInputElement>(`[data-nid="${id}"] .note-title`)?.focus()
+  }
+
+  // ---- tab rename ----------------------------------------------------------
+
+  let renaming = $state<string | null>(null)
+  let renameValue = $state('')
+
+  async function startRename(id: string) {
+    renaming = id
+    renameValue = notes.find((n) => n.id === id)?.title ?? ''
+    await tick()
+    const el = document.querySelector<HTMLInputElement>('.tab-rename')
+    el?.focus()
+    el?.select()
+  }
+
+  function commitRename() {
+    if (!renaming) return
+    const id = renaming
+    renaming = null
+    const title = renameValue.trim()
+    if (notes.find((n) => n.id === id)?.title !== title) notesStore.setTitle(id, title)
   }
 
   function removeNote(id: string) {
@@ -56,6 +80,34 @@
 
   const deleteFor = (id: string) => (notes.length > 1 ? () => removeNote(id) : undefined)
 
+  // ---- copy ----------------------------------------------------------------
+
+  // Tabs: the open note. List: every note of the day, titled when there are
+  // several.
+  let copied = $state(false)
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+  async function copyNotes() {
+    const picked = view === 'tabs' ? notes.filter((n) => n.id === activeId) : notes
+    await Promise.all(picked.map((n) => notesStore.loadBody(n.id)))
+    const body = (id: string) => (($notesStore.allNotes.find((x) => x.id === id) as Note | undefined)?.content ?? '').trim()
+    const text =
+      picked.length === 1
+        ? body(picked[0].id)
+        : picked
+            .map((n) => [`## ${label(n, notes.indexOf(n))}`, body(n.id)].filter(Boolean).join('\n\n'))
+            .join('\n\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      copied = true
+      clearTimeout(copiedTimer)
+      copiedTimer = setTimeout(() => (copied = false), 1500)
+    } catch (e) {
+      console.error('Failed to copy', e)
+      showError('Couldn’t copy to the clipboard.')
+    }
+  }
+
   function onTabKeydown(e: KeyboardEvent, i: number) {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
     e.preventDefault()
@@ -66,22 +118,40 @@
 </script>
 
 <section class="day-notes" aria-label="Day notes">
-  <div class="bar">
+  <div class="bar" class:tabs-view={view === 'tabs'}>
     {#if view === 'tabs'}
       <div class="tabs" role="tablist" aria-label="Notes">
         {#each notes as n, i (n.id)}
-          <button
-            type="button"
-            class="tab"
-            role="tab"
-            data-tab={n.id}
-            aria-selected={n.id === activeId}
-            tabindex={n.id === activeId ? 0 : -1}
-            onclick={() => select(n.id)}
-            onkeydown={(e) => onTabKeydown(e, i)}
-          >
-            {label(n, i)}
-          </button>
+          {#if renaming === n.id}
+            <input
+              class="tab tab-rename"
+              bind:value={renameValue}
+              placeholder={label(n, i)}
+              aria-label="Note name"
+              onblur={commitRename}
+              onkeydown={(e) => {
+                if (e.isComposing) return
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') renaming = null
+              }}
+              size={Math.max(6, renameValue.length + 1)}
+            />
+          {:else}
+            <button
+              type="button"
+              class="tab"
+              role="tab"
+              data-tab={n.id}
+              aria-selected={n.id === activeId}
+              tabindex={n.id === activeId ? 0 : -1}
+              title="Double-click to rename"
+              onclick={() => select(n.id)}
+              ondblclick={() => startRename(n.id)}
+              onkeydown={(e) => onTabKeydown(e, i)}
+            >
+              {label(n, i)}
+            </button>
+          {/if}
         {/each}
         <button type="button" class="tab add-tab" onclick={addNote} title="New note" aria-label="New note">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
@@ -91,6 +161,22 @@
       <span class="count">{notes.length} {notes.length === 1 ? 'note' : 'notes'}</span>
     {/if}
 
+    <div class="bar-actions">
+    <button
+      type="button"
+      class="copy-btn"
+      class:copied
+      title={view === 'tabs' ? 'Copy note as markdown' : 'Copy the day’s notes as markdown'}
+      aria-label={view === 'tabs' ? 'Copy note as markdown' : 'Copy the day’s notes as markdown'}
+      disabled={!loaded || !notes.length}
+      onclick={copyNotes}
+    >
+      {#if copied}
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="8.5" height="10" rx="1.5" /><path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7" /></svg>
+      {/if}
+    </button>
     <div class="view-toggle" role="radiogroup" aria-label="Layout">
       <button
         type="button"
@@ -117,6 +203,7 @@
         </svg>
       </button>
     </div>
+    </div>
   </div>
 
   {#if !loaded || !activeId}
@@ -128,7 +215,7 @@
   {:else if view === 'tabs'}
     {#key `${dateStr}/${activeId}`}
       <div class="note" role="tabpanel" data-nid={activeId} in:fade={{ duration: 120 }}>
-        <NoteEditor nid={activeId} variant="day" onDelete={deleteFor(activeId)} />
+        <NoteEditor nid={activeId} variant="day" hideTitle onDelete={deleteFor(activeId)} />
       </div>
     {/key}
   {:else}
@@ -158,6 +245,27 @@
     min-height: 32px;
     margin-bottom: 1.25rem;
   }
+  /* The tab already names the note; the editor's action row sits right under it. */
+  .bar.tabs-view { margin-bottom: 0.5rem; }
+  .bar-actions { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+  .copy-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .copy-btn svg { width: 14px; height: 14px; }
+  .copy-btn:hover:not(:disabled) { color: var(--text); background: var(--glass-dark); }
+  .copy-btn.copied { color: var(--accent); }
+  .copy-btn:disabled { opacity: 0.4; cursor: default; }
   .tabs {
     display: flex;
     align-items: center;
@@ -192,6 +300,14 @@
   }
   .tab:hover { color: var(--text); background: var(--glass-dark); }
   .tab[aria-selected='true'] { color: var(--accent); background: var(--glass); }
+  .tab-rename {
+    cursor: text;
+    color: var(--text);
+    background: var(--input-bg-strong);
+    border-color: var(--accent);
+    outline: none;
+    max-width: 16rem;
+  }
   .add-tab {
     width: 28px;
     padding: 0;
