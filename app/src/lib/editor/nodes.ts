@@ -64,6 +64,15 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+// Set on the transaction when an attachment's ✕ removes it, so the editor can
+// offer to delete the stored file too (see RichEditor).
+export const REMOVE_ATTACHMENT = 'hawkRemoveAttachment'
+
+// The stored file behind an attachment link, if it's one of ours.
+export function attachmentFileId(href: string | null | undefined): string | null {
+  return href?.match(/\/api\/(?:public\/)?files\/([^/?#]+)/)?.[1] ?? null
+}
+
 // Any other file uploaded into a note: a download chip.
 //   <div data-attachment data-size="1234"><a href="…">report.pdf</a></div>
 export const Attachment = Node.create({
@@ -105,7 +114,7 @@ export const Attachment = Node.create({
     ]
   },
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, getPos, editor }) => {
       const dom = document.createElement('div')
       dom.className = 'attachment'
       dom.contentEditable = 'false'
@@ -132,8 +141,24 @@ export const Attachment = Node.create({
         e.preventDefault()
         window.open(node.attrs.href, '_blank', 'noopener')
       })
-      dom.append(a)
-      return { dom }
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'attachment-remove'
+      remove.title = 'Remove from note'
+      remove.setAttribute('aria-label', 'Remove from note')
+      remove.innerHTML =
+        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>'
+      remove.addEventListener('mousedown', (e) => e.preventDefault())
+      remove.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = typeof getPos === 'function' ? getPos() : undefined
+        if (pos == null || !editor.isEditable) return
+        const tr = editor.state.tr.delete(pos, pos + node.nodeSize).setMeta(REMOVE_ATTACHMENT, true)
+        editor.view.dispatch(tr)
+      })
+      dom.append(a, remove)
+      return { dom, stopEvent: (e: Event) => remove.contains(e.target as globalThis.Node) }
     }
   },
   addCommands() {

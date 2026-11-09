@@ -9,24 +9,23 @@
   }
   let { note, onClose }: Props = $props()
 
-  let copiedKind = $state<'page' | 'api' | null>(null)
+  let copied = $state(false)
 
   async function setShare(value: boolean) {
     await notesStore.setPublic(note.id, value)
   }
 
-  async function copy(text: string, kind: 'page' | 'api') {
+  async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      copiedKind = kind
-      setTimeout(() => (copiedKind = null), 1500)
+      copied = true
+      setTimeout(() => (copied = false), 1500)
     } catch (e) {
       console.error('copy failed', e)
     }
   }
 
   let pageUrl = $derived(`${apiOrigin()}/shared/${note.id}`)
-  let apiUrl = $derived(`${apiOrigin()}/api/public/notes/${note.id}`)
 </script>
 
 <div class="share-popover">
@@ -38,16 +37,10 @@
 
   {#if note.isPublic}
     <div class="grid">
-      <label for="share-page">Public Page</label>
+      <label for="share-page">Public address</label>
       <input id="share-page" class="share-link-input" readonly value={pageUrl} />
-      <button class="btn-primary" class:copied={copiedKind === 'page'} onclick={() => copy(pageUrl, 'page')}>
-        {copiedKind === 'page' ? '✓ Copied' : 'Copy'}
-      </button>
-
-      <label for="share-api">API Endpoint</label>
-      <input id="share-api" class="share-link-input" readonly value={apiUrl} />
-      <button class="btn-primary" class:copied={copiedKind === 'api'} onclick={() => copy(apiUrl, 'api')}>
-        {copiedKind === 'api' ? '✓ Copied' : 'Copy'}
+      <button class="btn-primary" class:copied onclick={() => copy(pageUrl)}>
+        {copied ? '✓ Copied' : 'Copy'}
       </button>
     </div>
     <div class="actions">
@@ -91,9 +84,7 @@
     font-size: 0.75rem;
     color: var(--muted);
     margin-bottom: -0.25rem;
-    margin-top: 0.5rem;
   }
-  label:first-of-type { margin-top: 0; }
   .share-link-input {
     width: 100%;
     background: var(--input-bg);

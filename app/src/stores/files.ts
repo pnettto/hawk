@@ -111,7 +111,12 @@ function createFilesStore() {
       danger: true,
     })
     if (!ok) return false
-    const idSet = new Set(targets.map((f) => f.id))
+    return purge(targets.map((f) => f.id))
+  }
+
+  // Deletes for real, no questions — callers have already asked.
+  async function purge(ids: string[]): Promise<boolean> {
+    const idSet = new Set(ids)
     update((s) => ({ ...s, files: s.files.filter((f) => !idSet.has(f.id)) }))
     try {
       await savingStore.track(filesApi.deleteFiles([...idSet]))
@@ -120,7 +125,7 @@ function createFilesStore() {
         blobUrls.delete(id)
         if (url) url.then((u) => URL.revokeObjectURL(u)).catch(() => {})
       }
-      showToast(targets.length === 1 ? 'File deleted' : `${targets.length} files deleted`)
+      showToast(idSet.size === 1 ? 'File deleted' : `${idSet.size} files deleted`)
       return true
     } catch (e) {
       console.error('[files] delete failed', e)
@@ -198,7 +203,7 @@ function createFilesStore() {
     if (get({ subscribe }).loaded) void load()
   }
 
-  return { subscribe, load, upload, rename, remove, blobUrl, download, downloadMany, applySyncEvent }
+  return { subscribe, load, upload, rename, remove, purge, blobUrl, download, downloadMany, applySyncEvent }
 }
 
 export const filesStore = createFilesStore()

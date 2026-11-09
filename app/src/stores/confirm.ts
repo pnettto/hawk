@@ -4,6 +4,9 @@ export interface ConfirmRequest {
   title: string
   message?: string
   confirmLabel?: string
+  cancelLabel?: string
+  // Start on the cancel button, so a stray Enter takes the safe way out.
+  focusCancel?: boolean
   danger?: boolean
   resolve: (ok: boolean) => void
 }

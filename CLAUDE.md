@@ -16,6 +16,16 @@ Run commands yourself instead of handing the user step lists. Default to acting;
 
 Routine actions that should be run without asking: building (`deno task build`), starting the dev server (`deno task dev`), running tests (`deno task test`), type-checking (`cd app && npm run check`), editing files, restarting local processes.
 
+## UI copy
+
+Write interface text (labels, buttons, tooltips, dialogs, toasts, empty states, errors) the way a person would say it: direct, natural, and only what needs saying.
+
+- Cut anything the reader can already see. In a confirm dialog the title asks, the buttons answer, and the body only adds what neither says — usually the consequence ("This can't be undone."). If there's nothing to add, leave the body out.
+- Name actions by what they do: "Keep in Files" / "Delete file", not "OK" / "Cancel" when the choice is less obvious.
+- Plain words, sentence case, no exclamation marks, no filler ("Please", "Successfully", "Are you sure you want to…").
+- Errors say what went wrong in a few words ("Couldn't copy to the clipboard."); toasts confirm the result ("File deleted").
+- Reuse existing phrasing for the same situation so the app speaks with one voice.
+
 ## Commands
 
 | Task | Command |

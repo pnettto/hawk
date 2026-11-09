@@ -3,6 +3,7 @@
   import { notesStore, tagCounts, dayLabel } from '../../stores/notes'
   import { appStore } from '../../stores/app'
   import { authStore } from '../../stores/auth'
+  import { showError } from '../../stores/toast'
   import NoteSharePopover from './NoteSharePopover.svelte'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import RichEditor from '../editor/RichEditor.svelte'
@@ -19,8 +20,20 @@
     onDelete?: () => void
     // Journal tabs carry the title (double-click to rename), so no field here.
     hideTitle?: boolean
+    // Journal tabs put history/delete/reading in the tab bar instead.
+    hideActions?: boolean
+    // Reading mode: the note fills the window, everything else hidden.
+    reading?: boolean
   }
-  let { nid, variant = 'page', placeholder, onDelete, hideTitle = false }: Props = $props()
+  let {
+    nid,
+    variant = 'page',
+    placeholder,
+    onDelete,
+    hideTitle = false,
+    hideActions = false,
+    reading = $bindable(false),
+  }: Props = $props()
 
   let showSharePopover = $state(false)
   let showHistoryPopover = $state(false)
@@ -30,6 +43,9 @@
   let teardownTriggers: (() => void) | null = null
 
   let note = $derived(($notesStore.allNotes.find((n) => n.id === nid) as Note | undefined) ?? null)
+
+  // Day tabs carry the title; reading mode shows it only if there is one.
+  let showTitle = $derived(!hideTitle || (reading && !!note?.title?.trim()))
 
   // Tags from other notes, most used first — offered when typing "#". This
   // note's own are left out: the half-typed tag would suggest itself.
@@ -104,6 +120,36 @@
     if (!inside) showSharePopover = false
   }
 
+  let copied = $state(false)
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+  async function copyNote() {
+    await notesStore.loadBody(nid)
+    const text = (($notesStore.allNotes.find((n) => n.id === nid) as Note | undefined)?.content ?? '').trim()
+    try {
+      await navigator.clipboard.writeText(text)
+      copied = true
+      clearTimeout(copiedTimer)
+      copiedTimer = setTimeout(() => (copied = false), 1500)
+    } catch (e) {
+      console.error('Failed to copy', e)
+      showError('Couldn’t copy to the clipboard.')
+    }
+  }
+
+  // Focus the overlay on entry so Escape (handled on the root, below any
+  // popover or editor menu that claims it first) can leave reading mode.
+  $effect(() => {
+    if (!reading || !rootEl) return
+    if (!rootEl.contains(document.activeElement)) rootEl.focus({ preventScroll: true })
+  })
+
+  function onRootKeydown(e: KeyboardEvent) {
+    if (!reading || e.key !== 'Escape' || e.defaultPrevented) return
+    if (showHistoryPopover || showSharePopover) return
+    reading = false
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key !== 'Escape' || !showSharePopover) return
     showSharePopover = false
@@ -138,7 +184,18 @@
 </script>
 
 {#if note}
-<div class="editor-root {variant}" class:no-title={hideTitle} bind:this={rootEl}>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_no_noninteractive_tabindex -->
+<div
+  class="editor-root {variant}"
+  class:no-title={!showTitle}
+  class:reading
+  role={reading ? 'dialog' : undefined}
+  aria-label={reading ? 'Reading mode' : undefined}
+  tabindex={reading ? -1 : undefined}
+  bind:this={rootEl}
+  onkeydown={onRootKeydown}
+>
+  {#if showTitle || !hideActions || reading}
   <div class="editor-header">
     {#if variant === 'page'}
       <button
@@ -150,7 +207,7 @@
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8H3.5M7.5 4L3.5 8l4 4" /></svg>
       </button>
     {/if}
-    {#if hideTitle}
+    {#if !showTitle}
       <span class="title-spacer"></span>
     {:else}
     <input
@@ -164,6 +221,7 @@
       onkeydown={onTitleKeydown}
     />
     {/if}
+    {#if !hideActions || reading}
     <div class="header-actions">
       {#if variant === 'page' && note.day}
         <button type="button" class="day-chip" onclick={openDay} title="Open this day in Journal">
@@ -171,6 +229,21 @@
           <span>{dayLabel(note.day)}</span>
         </button>
       {/if}
+      <button
+        type="button"
+        class="icon-btn copy-btn"
+        class:ghost={variant === 'day'}
+        class:copied
+        title="Copy note as markdown"
+        aria-label="Copy note as markdown"
+        onclick={copyNote}
+      >
+        {#if copied}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>
+        {:else}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="8.5" height="10" rx="1.5" /><path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7" /></svg>
+        {/if}
+      </button>
       <div class="history-wrap">
         <button
           type="button"
@@ -201,13 +274,17 @@
         <div class="share-wrap">
           <button
             type="button"
-            class="share-toggle share-btn"
+            class="share-toggle icon-btn"
             class:active={note.isPublic}
+            title={note.isPublic ? 'Public — share settings' : 'Share'}
+            aria-label={note.isPublic ? 'Public — share settings' : 'Share'}
             aria-haspopup="dialog"
             aria-expanded={showSharePopover}
             onclick={() => (showSharePopover = !showSharePopover)}
           >
-            {note.isPublic ? 'Public' : 'Share'}
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 10V2.5M5 5.5l3-3 3 3" /><path d="M5.5 7.5H4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1h-1.5" />
+            </svg>
           </button>
           {#if showSharePopover}
             <NoteSharePopover note={note} onClose={() => (showSharePopover = false)} />
@@ -221,8 +298,26 @@
           </svg>
         </button>
       {/if}
+      <button
+        type="button"
+        class="icon-btn"
+        class:ghost={variant === 'day'}
+        class:reading-toggle={variant === 'page'}
+        title={reading ? 'Exit reading mode (Esc)' : 'Reading mode'}
+        aria-label={reading ? 'Exit reading mode' : 'Reading mode'}
+        aria-pressed={reading}
+        onclick={() => (reading = !reading)}
+      >
+        {#if reading}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5V6H2.5M10 2.5V6h3.5M6 13.5V10H2.5M10 13.5V10h3.5" /></svg>
+        {:else}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
+        {/if}
+      </button>
     </div>
+    {/if}
   </div>
+  {/if}
 
   {#if !session}
     <div class="editor-loading" aria-busy="true">
@@ -245,6 +340,28 @@
 
 <style>
   .editor-root { display: flex; flex-direction: column; min-width: 0; }
+  /* Reading mode: fixed over the whole app, just under popovers so history,
+     share and the editor's own menus still open on top. */
+  .editor-root.reading {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-popover) - 1);
+    overflow-y: auto;
+    padding: 3rem 1.5rem 0;
+    background: var(--bg);
+    outline: none;
+  }
+  .reading > .editor-header,
+  .reading > .editor-loading,
+  .reading > :global(.rich-editor) {
+    width: 100%;
+    max-width: calc(70ch + 2rem);
+    margin-inline: auto;
+  }
+  .reading .mobile-back { display: none !important; }
+  .reading-toggle,
+  .page .copy-btn { width: 30px; height: 30px; }
+  .copy-btn.copied { color: var(--accent); }
   .editor-header {
     display: flex;
     align-items: center;
@@ -326,32 +443,8 @@
   .history-wrap { position: relative; }
   .history-toggle { width: 30px; height: 30px; }
   .share-wrap { position: relative; }
-  .share-btn {
-    font-family: var(--font-ui);
-    font-size: 0.8125rem;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-    background: var(--glass-dark);
-    color: var(--text);
-    cursor: pointer;
-    white-space: nowrap;
-    transition:
-      background-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
-  }
-  .share-btn:hover {
-    background: var(--glass);
-    border-color: var(--accent);
-  }
-  .share-btn.active {
-    background: var(--glass);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 500;
-  }
+  .share-toggle { width: 30px; height: 30px; }
+  .share-toggle.active { color: var(--accent); border-color: var(--accent); }
   .editor-loading {
     display: flex;
     flex-direction: column;

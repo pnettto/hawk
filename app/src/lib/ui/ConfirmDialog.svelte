@@ -4,6 +4,7 @@
   import { confirmStore } from '../../stores/confirm'
 
   let confirmBtn = $state<HTMLButtonElement | null>(null)
+  let cancelBtn = $state<HTMLButtonElement | null>(null)
   let dialogEl = $state<HTMLDivElement | null>(null)
 
   function close(ok: boolean) {
@@ -15,7 +16,8 @@
   $effect(() => {
     if (!$confirmStore) return
     const opener = document.activeElement as HTMLElement | null
-    queueMicrotask(() => confirmBtn?.focus())
+    const focusCancel = $confirmStore.focusCancel
+    queueMicrotask(() => (focusCancel ? cancelBtn : confirmBtn)?.focus())
     return () => opener?.focus?.()
   })
 
@@ -58,7 +60,9 @@
         <p id="confirm-message">{$confirmStore.message}</p>
       {/if}
       <div class="actions">
-        <button type="button" class="btn-secondary" onclick={() => close(false)}>Cancel</button>
+        <button type="button" class="btn-secondary" bind:this={cancelBtn} onclick={() => close(false)}>
+          {$confirmStore.cancelLabel ?? 'Cancel'}
+        </button>
         <button
           type="button"
           class="btn-primary"

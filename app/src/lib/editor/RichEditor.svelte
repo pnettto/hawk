@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
+  import { get } from 'svelte/store'
   import { Editor, InputRule, Extension, createDocument } from '@tiptap/core'
   import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
   import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
@@ -8,10 +9,14 @@
   import type { DocSession, EditorBridge } from '../../sync/docSession'
   import { uploadFile, publicFileUrl } from '../../api/files'
   import { showError, showToast } from '../../stores/toast'
+  import { confirm } from '../../stores/confirm'
+  import { filesStore } from '../../stores/files'
+  import { authStore } from '../../stores/auth'
   import type { AnchorRect } from '../utils/portal'
   import { bulletsToMarkdown, looksLikeMarkdown, normalizePastedHtml, splitSoftBreaks } from './paste'
   import { TAG_TYPING_RE } from '../notes/tags'
   import { contentExtensions } from './schema'
+  import { REMOVE_ATTACHMENT, attachmentFileId } from './nodes'
   import { filterBlocks, isYoutubeUrl, normalizeUrl, slashQuery, type BlockId, type BlockItem } from './blocks'
   import InsertMenu from './InsertMenu.svelte'
   import MediaPrompt from './MediaPrompt.svelte'
@@ -283,7 +288,26 @@
   function getMarkdown(): string {
     if (!editor) return ''
     // tiptap-markdown stores its serializer here; it isn't part of the typed editor surface.
-    return (editor.storage as { markdown?: { getMarkdown: () => string } }).markdown?.getMarkdown() ?? ''
+    const md = (editor.storage as { markdown?: { getMarkdown: () => string } }).markdown?.getMarkdown() ?? ''
+    // Leading blank lines don't survive a reload anyway; dropping them keeps
+    // the line padTagOnlyBody adds from counting as an edit.
+    return md.replace(/^\n+/, '')
+  }
+
+  const TAG_LINE = /^\s*(#[^\s#]+\s*)+$/u
+
+  // A body that's only tags (a new note made under a tag filter) opens with
+  // an empty line above them to write in. Local-only: not an edit, not undoable.
+  function padTagOnlyBody() {
+    if (!editor) return
+    const { state, view } = editor
+    let tagsOnly = state.doc.childCount > 0
+    state.doc.forEach((n) => {
+      if (n.type.name !== 'paragraph' || !TAG_LINE.test(n.textContent)) tagsOnly = false
+    })
+    if (!tagsOnly) return
+    const tr = state.tr.insert(0, state.schema.nodes.paragraph.create())
+    view.dispatch(tr.setMeta(REMOTE, true).setMeta('addToHistory', false))
   }
 
   // ---- floating UI -------------------------------------------------------
@@ -508,7 +532,7 @@
     if (!editor) return
     const { state, view } = editor
     const first = state.doc.firstChild
-    const tagLine = first?.type.name === 'paragraph' && /^\s*(#[^\s#]+\s*)+$/u.test(first.textContent)
+    const tagLine = first?.type.name === 'paragraph' && TAG_LINE.test(first.textContent)
     if (tagLine) {
       const tr = state.tr.insert(0, state.schema.nodes.paragraph.create())
       view.dispatch(tr.setSelection(TextSelection.create(tr.doc, 1)))
@@ -719,8 +743,46 @@
 
   // ---- keyboard / mouse --------------------------------------------------
 
+  // ---- removed attachments --------------------------------------------------
+  // Taking an attachment out of a note (its ✕, or Backspace/Delete) asks
+  // whether to delete the stored file too. Cut, drag and remote edits don't.
+
+  let deleteKeyDown = false
+
+  function attachedFiles(doc: PMNode): Map<string, string> {
+    const out = new Map<string, string>()
+    doc.descendants((n) => {
+      if (n.type.name !== 'attachment') return
+      const id = attachmentFileId(n.attrs.href)
+      if (id) out.set(id, n.attrs.name)
+    })
+    return out
+  }
+
+  async function offerFileDelete(tr: Transaction) {
+    if (get(authStore).isGuest) return
+    const after = attachedFiles(tr.doc)
+    const gone = [...attachedFiles(tr.before)].filter(([id]) => !after.has(id))
+    if (!gone.length) return
+    const one = gone.length === 1
+    const ok = await confirm({
+      title: one ? `Also delete “${gone[0][1]}” from Files?` : `Also delete these ${gone.length} files from Files?`,
+      message: 'This can’t be undone.',
+      confirmLabel: one ? 'Delete file' : 'Delete files',
+      cancelLabel: 'Keep in Files',
+      danger: true,
+      focusCancel: true,
+    })
+    if (ok) await filesStore.purge(gone.map(([id]) => id))
+  }
+
   function handleKeyDown(_view: EditorView, e: KeyboardEvent): boolean {
     if (e.isComposing) return false
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Read by onUpdate for the transaction this key produces, synchronously.
+      deleteKeyDown = true
+      queueMicrotask(() => (deleteKeyDown = false))
+    }
     if (tagMenu && tagItems.length) {
       const n = tagItems.length
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -880,6 +942,7 @@
       onUpdate: ({ transaction }) => {
         if (transaction.getMeta(REMOTE)) return
         session.touch()
+        if (transaction.getMeta(REMOVE_ATTACHMENT) || deleteKeyDown) void offerFileDelete(transaction)
       },
       onTransaction,
       onFocus: () => queueMicrotask(refresh),
@@ -894,6 +957,7 @@
       canApply: () => !!editor && !editor.view.composing,
     }
     session.attach(bridge)
+    padTagOnlyBody()
 
     document.addEventListener('scroll', onScroll, { capture: true, passive: true })
     document.addEventListener('mousedown', onDocMouseDown)
@@ -1060,7 +1124,31 @@
     background: #000;
   }
   :global(.rich-editor .tiptap iframe) { aspect-ratio: 16 / 9; }
-  :global(.rich-editor .tiptap .attachment) { margin: 0.75rem 0; }
+  :global(.rich-editor .tiptap .attachment) { display: flex; align-items: center; gap: 4px; margin: 0.75rem 0; }
+  :global(.rich-editor .tiptap .attachment-remove) {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  }
+  :global(.rich-editor .tiptap .attachment-remove svg) { width: 13px; height: 13px; }
+  :global(.rich-editor .tiptap .attachment:hover .attachment-remove),
+  :global(.rich-editor .tiptap .attachment.ProseMirror-selectednode .attachment-remove),
+  :global(.rich-editor .tiptap .attachment-remove:focus-visible) { opacity: 1; }
+  :global(.rich-editor .tiptap .attachment-remove:hover) { color: var(--danger); background: var(--danger-bg); }
+  @media (hover: none) {
+    :global(.rich-editor .tiptap .attachment-remove) { opacity: 1; }
+  }
   :global(.rich-editor .tiptap .attachment a) {
     display: inline-flex;
     align-items: center;

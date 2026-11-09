@@ -7,6 +7,7 @@
   import { formatDate } from '../../utils/date'
   import { showError } from '../../stores/toast'
   import NoteEditor from '../notes/NoteEditor.svelte'
+  import HistoryPopover from '../ui/HistoryPopover.svelte'
   import type { Note, NoteMetadata } from '../../types/models'
 
   // A day's notes are regular notes with `day` set — the same ones Notepad
@@ -79,6 +80,20 @@
   }
 
   const deleteFor = (id: string) => (notes.length > 1 ? () => removeNote(id) : undefined)
+
+  // ---- tabs: note actions in the bar ---------------------------------------
+
+  // In tabs view the open note's history, delete and reading mode sit beside
+  // copy; the editor itself shows no action row.
+  let reading = $state(false)
+  let showHistory = $state(false)
+  let historyAnchorEl = $state<HTMLButtonElement | null>(null)
+
+  $effect(() => {
+    void activeId
+    void dateStr
+    showHistory = false
+  })
 
   // ---- copy ----------------------------------------------------------------
 
@@ -177,6 +192,43 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="8.5" height="10" rx="1.5" /><path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7" /></svg>
       {/if}
     </button>
+    {#if view === 'tabs' && loaded && activeId}
+      <div class="history-wrap">
+        <button
+          type="button"
+          class="icon-btn ghost"
+          title="Version history"
+          aria-label="Version history"
+          bind:this={historyAnchorEl}
+          onclick={() => (showHistory = !showHistory)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        {#if showHistory}
+          <HistoryPopover
+            kind="note"
+            entityId={activeId}
+            anchor={historyAnchorEl}
+            prepare={() => notesStore.triggerSnapshot(activeId, true)}
+            onClose={() => (showHistory = false)}
+          />
+        {/if}
+      </div>
+      {#if notes.length > 1}
+        <button type="button" class="icon-btn ghost danger" title="Delete note" aria-label="Delete note" onclick={() => removeNote(activeId)}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+          </svg>
+        </button>
+      {/if}
+      <button type="button" class="icon-btn ghost" title="Reading mode" aria-label="Reading mode" onclick={() => (reading = true)}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
+      </button>
+    {/if}
     <div class="view-toggle" role="radiogroup" aria-label="Layout">
       <button
         type="button"
@@ -215,7 +267,7 @@
   {:else if view === 'tabs'}
     {#key `${dateStr}/${activeId}`}
       <div class="note" role="tabpanel" data-nid={activeId} in:fade={{ duration: 120 }}>
-        <NoteEditor nid={activeId} variant="day" hideTitle onDelete={deleteFor(activeId)} />
+        <NoteEditor nid={activeId} variant="day" hideTitle hideActions bind:reading onDelete={deleteFor(activeId)} />
       </div>
     {/key}
   {:else}
@@ -245,9 +297,11 @@
     min-height: 32px;
     margin-bottom: 1.25rem;
   }
-  /* The tab already names the note; the editor's action row sits right under it. */
-  .bar.tabs-view { margin-bottom: 0.5rem; }
-  .bar-actions { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+  /* The tab already names the note and the bar holds its actions. */
+  .bar.tabs-view { margin-bottom: 0.75rem; }
+  .bar-actions { display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0; }
+  .bar-actions .view-toggle { margin-left: 0.2rem; }
+  .history-wrap { position: relative; }
   .copy-btn {
     width: 28px;
     height: 28px;
