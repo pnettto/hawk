@@ -16,7 +16,7 @@
     nid: string
     variant?: 'page' | 'day'
     placeholder?: string
-    // Day notes: show a delete button (the list in Notepad has its own).
+    // Shows a delete button next to version history.
     onDelete?: () => void
     // Journal tabs carry the title (double-click to rename), so no field here.
     hideTitle?: boolean
@@ -270,6 +270,20 @@
           />
         {/if}
       </div>
+      {#if onDelete}
+        <button
+          type="button"
+          class="icon-btn danger"
+          class:ghost={variant === 'day'}
+          title="Delete note"
+          aria-label="Delete note"
+          onclick={onDelete}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+          </svg>
+        </button>
+      {/if}
       {#if variant === 'page' && !$authStore.isGuest}
         <div class="share-wrap">
           <button
@@ -290,13 +304,6 @@
             <NoteSharePopover note={note} onClose={() => (showSharePopover = false)} />
           {/if}
         </div>
-      {/if}
-      {#if onDelete}
-        <button type="button" class="icon-btn ghost danger" title="Delete note" aria-label="Delete note" onclick={onDelete}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
-          </svg>
-        </button>
       {/if}
       <button
         type="button"

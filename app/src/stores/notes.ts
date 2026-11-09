@@ -21,8 +21,12 @@ interface NotesState {
   allNotes: NoteMetadata[]
   selectedNid: string | null
   filter: NotesFilter
+  // How All notes and tag views are ordered: last edit or creation.
+  sort: NotesSort
   loaded: boolean
 }
+
+export type NotesSort = 'changed' | 'added'
 
 const FILTER_KEY = 'hawk_notes_filter'
 
@@ -42,6 +46,16 @@ function writeFilter(f: NotesFilter) {
     localStorage.setItem(FILTER_KEY, JSON.stringify(f))
   } catch {
     // Not worth surfacing.
+  }
+}
+
+const SORT_KEY = 'hawk_notes_sort'
+
+function readSort(): NotesSort {
+  try {
+    return localStorage.getItem(SORT_KEY) === 'added' ? 'added' : 'changed'
+  } catch {
+    return 'changed'
   }
 }
 
@@ -121,6 +135,7 @@ function createNotesStore() {
     allNotes: [],
     selectedNid: null,
     filter: readFilter(),
+    sort: readSort(),
     loaded: false,
   })
 
@@ -310,6 +325,15 @@ function createNotesStore() {
     update((s) => ({ ...s, filter, selectedNid: null }))
   }
 
+  function setSort(sort: NotesSort) {
+    try {
+      localStorage.setItem(SORT_KEY, sort)
+    } catch {
+      // Not worth surfacing.
+    }
+    update((s) => ({ ...s, sort }))
+  }
+
   function clearSelectedNote() {
     const prev = get({ subscribe }).selectedNid
     if (prev) void sessions.get(prev)?.flush()
@@ -442,31 +466,42 @@ function createNotesStore() {
   }
 
   function trashNote(nid: string) {
-    const note = find(nid)
-    if (!note) return
+    trashNotes([nid])
+  }
+
+  // Move several notes to trash at once, with one toast and one Undo.
+  function trashNotes(nids: string[]) {
+    const notes = nids.map((id) => find(id)).filter((n): n is Note => !!n && !n.deletedAt)
+    if (notes.length === 0) return
+    const ids = new Set(notes.map((n) => n.id))
     const original = JSON.parse(JSON.stringify(get({ subscribe }).allNotes)) as NoteMetadata[]
-    inFlightOps.add(nid)
+    for (const id of ids) inFlightOps.add(id)
+    const now = Date.now()
     update((s) => ({
       ...s,
-      allNotes: s.allNotes.map((n) => (n.id === nid ? { ...n, deletedAt: Date.now() } : n)),
-      selectedNid: s.selectedNid === nid ? null : s.selectedNid,
+      allNotes: s.allNotes.map((n) => (ids.has(n.id) ? { ...n, deletedAt: now } : n)),
+      selectedNid: s.selectedNid && ids.has(s.selectedNid) ? null : s.selectedNid,
     }))
     // Land pending typing first, so a note that was never saved exists to trash.
-    Promise.resolve(sessions.get(nid)?.flush())
-      .then(() => notesApi.trashNote(nid))
+    Promise.all(
+      notes.map((n) => Promise.resolve(sessions.get(n.id)?.flush()).then(() => notesApi.trashNote(n.id))),
+    )
       .then(() => {
-        inFlightOps.delete(nid)
-        showToast(`Moved “${noteLabel(note)}” to trash`, {
+        for (const id of ids) inFlightOps.delete(id)
+        const msg = notes.length === 1 ? `Moved “${noteLabel(notes[0])}” to trash` : `Moved ${notes.length} notes to trash`
+        showToast(msg, {
           action: 'Undo',
           duration: UNDO_MS,
-          onAction: () => restoreNote(nid),
+          onAction: () => {
+            for (const id of ids) restoreNote(id)
+          },
         })
       })
       .catch((e) => {
         console.error('Failed to trash note:', e)
-        inFlightOps.delete(nid)
+        for (const id of ids) inFlightOps.delete(id)
         update((s) => ({ ...s, allNotes: original }))
-        showError('Failed to delete note.')
+        showError(notes.length === 1 ? 'Failed to delete note.' : 'Failed to delete notes.')
       })
   }
 
@@ -580,6 +615,7 @@ function createNotesStore() {
     load,
     refresh,
     setFilter,
+    setSort,
     selectNote,
     clearSelectedNote,
     loadBody,
@@ -593,6 +629,7 @@ function createNotesStore() {
     triggerSnapshot,
     restoreVersion,
     trashNote,
+    trashNotes,
     restoreNote,
     permanentlyDeleteNote,
     emptyTrash,

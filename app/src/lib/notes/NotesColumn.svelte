@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import { safeFlip } from '../../utils/safeFlip'
   import { notesStore, isDayDraft, noteLabel, dayLabel } from '../../stores/notes'
   import { formatDate } from '../../utils/date'
@@ -13,8 +13,14 @@
     type DateBucket,
   } from '../utils/relativeTime'
 
-  // Day notes sort and group by their day, everything else by last edit.
+  // Day notes sort and group by their day, everything else by last edit or
+  // creation, whichever sort is picked.
   const dayTime = (n: NoteMetadata) => (n.day ? Date.parse(n.day + 'T12:00:00') : n.updatedAt || 0)
+  let listTime = $derived(
+    $notesStore.sort === 'added'
+      ? (n: NoteMetadata) => n.createdAt || n.updatedAt || 0
+      : (n: NoteMetadata) => n.updatedAt || n.createdAt || 0,
+  )
 
   let visibleNotes = $derived.by<NoteMetadata[]>(() => {
     const { allNotes, filter } = $notesStore
@@ -30,7 +36,7 @@
         .sort((a, b) => dayTime(b) - dayTime(a) || (a.dayOrder ?? 0) - (b.dayOrder ?? 0))
     }
     const shown = filter.kind === 'tag' ? live.filter((n) => n.tags?.includes(filter.tag)) : live
-    return shown.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    return shown.sort((a, b) => listTime(b) - listTime(a))
   })
 
   let groups = $derived.by(() => {
@@ -39,7 +45,7 @@
     const now = Date.now()
     const map = new Map<DateBucket, NoteMetadata[]>()
     for (const n of visibleNotes) {
-      const ts = filter.kind === 'day' ? dayTime(n) : n.updatedAt || n.createdAt || now
+      const ts = filter.kind === 'day' ? dayTime(n) : listTime(n)
       const key = dateBucket(ts, now)
       const arr = map.get(key) ?? []
       arr.push(n)
@@ -56,6 +62,62 @@
     return (n.tags ?? []).filter((t) => !(f.kind === 'tag' && f.tag === t)).slice(0, 3)
   }
 
+  // Multi-select: "Select" in the header, or Cmd/Ctrl/Shift-click a row.
+  let selecting = $state(false)
+  let picked = $state(new Set<string>())
+  let anchorId: string | null = null
+
+  // A new view starts with nothing picked. Keyed by value: the store updates
+  // on every edit, and that shouldn't drop the selection.
+  let filterKey = $derived(JSON.stringify($notesStore.filter))
+  $effect(() => {
+    void filterKey
+    untrack(stopSelecting)
+  })
+
+  function stopSelecting() {
+    selecting = false
+    picked = new Set()
+    anchorId = null
+  }
+
+  function togglePick(id: string, range: boolean) {
+    const next = new Set(picked)
+    const ids = visibleNotes.map((n) => n.id)
+    const a = anchorId ? ids.indexOf(anchorId) : -1
+    const b = ids.indexOf(id)
+    if (range && a !== -1 && b !== -1) {
+      for (const x of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x)
+    } else {
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      anchorId = id
+    }
+    picked = next
+  }
+
+  function onRowClick(e: MouseEvent, id: string) {
+    if (selecting || e.metaKey || e.ctrlKey || e.shiftKey) {
+      if (!selecting) {
+        selecting = true
+        // Start from the open note, so Cmd-click adds to it.
+        const open = $notesStore.selectedNid
+        if (open && open !== id && visibleNotes.some((n) => n.id === open)) {
+          picked = new Set([open])
+          anchorId = open
+        }
+      }
+      togglePick(id, e.shiftKey)
+      return
+    }
+    notesStore.selectNote(id)
+  }
+
+  function deletePicked() {
+    notesStore.trashNotes([...picked])
+    stopSelecting()
+  }
+
   async function onCreate() {
     const { filter, allNotes } = $notesStore
     if (filter.kind === 'day') {
@@ -70,7 +132,7 @@
   }
 </script>
 
-<section class="notes-col">
+<section class="notes-col" class:selecting>
   <header class="col-header">
     <NotesFilter />
     <div class="col-actions">
@@ -78,7 +140,15 @@
         {#if visibleNotes.length > 0}
           <button class="text-action danger" onclick={() => notesStore.emptyTrash()}>Empty trash</button>
         {/if}
+      {:else if selecting}
+        <button class="text-action danger" disabled={picked.size === 0} onclick={deletePicked}>
+          Delete{picked.size ? ` ${picked.size}` : ''}
+        </button>
+        <button class="text-action" onclick={stopSelecting}>Done</button>
       {:else}
+        {#if visibleNotes.length > 0}
+          <button class="text-action" onclick={() => (selecting = true)}>Select</button>
+        {/if}
         <button class="icon-btn primary" title="New note" aria-label="New note" onclick={onCreate}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
         </button>
@@ -143,19 +213,35 @@
           {#each group.items as n (n.id)}
             <div
               class="row"
-              class:active={n.id === $notesStore.selectedNid}
+              class:active={!selecting && n.id === $notesStore.selectedNid}
+              class:picked={picked.has(n.id)}
               role="button"
+              aria-pressed={selecting ? picked.has(n.id) : undefined}
               tabindex="0"
               animate:safeFlip={{ duration: 180 }}
-              onclick={() => notesStore.selectNote(n.id)}
+              onmousedown={(e) => {
+                // Keep Shift-click from highlighting text.
+                if (e.shiftKey) e.preventDefault()
+              }}
+              onclick={(e) => onRowClick(e, n.id)}
               onkeydown={(e) => {
                 if (e.target !== e.currentTarget) return
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  notesStore.selectNote(n.id)
+                  if (selecting) togglePick(n.id, e.shiftKey)
+                  else notesStore.selectNote(n.id)
+                } else if (e.key === 'Escape' && selecting) {
+                  stopSelecting()
                 }
               }}
             >
+              {#if selecting}
+                <span class="check" aria-hidden="true">
+                  {#if picked.has(n.id)}
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>
+                  {/if}
+                </span>
+              {/if}
               <div class="row-body">
                 <div class="row-title">{noteLabel(n)}</div>
                 {#if n.preview}
@@ -167,19 +253,13 @@
                   {#if n.day && n.title.trim() && $notesStore.filter.kind !== 'day'}
                     <span class="row-tag day">{dayLabel(n.day)}</span>
                   {:else}
-                    <span>{relativeTime(n.updatedAt)}</span>
+                    <span>{relativeTime($notesStore.filter.kind === 'day' ? n.updatedAt : listTime(n))}</span>
                   {/if}
                   {#each rowTags(n) as t (t)}
                     <span class="row-tag">#{t}</span>
                   {/each}
                 </div>
               </div>
-              <button
-                class="row-action danger row-delete"
-                title="Move to trash"
-                aria-label="Move to trash"
-                onclick={(e) => { e.stopPropagation(); notesStore.trashNote(n.id) }}
-              ><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
             </div>
           {/each}
         </div>
@@ -250,10 +330,13 @@
     font-size: 0.78rem;
     padding: 6px 8px;
     border-radius: 6px;
+    white-space: nowrap;
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
   .text-action:hover { color: var(--text); background: var(--glass-dark); }
-  .text-action.danger:hover { color: var(--danger); background: var(--danger-bg); }
+  .text-action.danger:hover:not(:disabled) { color: var(--danger); background: var(--danger-bg); }
+  .text-action:disabled { opacity: 0.4; cursor: default; }
+  .text-action:disabled:hover { background: none; color: var(--muted); }
 
   .col-list {
     flex: 1;
@@ -365,17 +448,23 @@
   }
   .row-action:hover { color: var(--text); background: var(--glass); }
   .row-action.danger:hover { color: var(--danger); background: var(--danger-bg); }
-  .row-delete {
-    opacity: 0;
-    align-self: center;
-    transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  .row.picked { background: var(--glass); }
+  .selecting .row { user-select: none; }
+  .check {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    border: 1.5px solid var(--line);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   }
-  .row:hover .row-delete,
-  .row:focus-within .row-delete { opacity: 0.65; }
-  .row:hover .row-delete:hover { opacity: 1; }
-  @media (hover: none) {
-    .row-delete { opacity: 0.5; }
-  }
+  .row.picked .check { background: var(--accent); border-color: var(--accent); }
+  .check svg { width: 12px; height: 12px; display: block; }
 
   .trash-row { font-style: normal; }
   .trash-row .row-title { opacity: 0.85; }
@@ -408,7 +497,6 @@
     .icon-btn svg { width: 18px; height: 18px; }
     .text-action { padding: 10px 12px; font-size: 0.85rem; }
     .row { padding: 0.6rem 0.75rem; }
-    .row-delete { opacity: 0.5; }
     .row-action { width: 40px; height: 40px; }
   }
 </style>

@@ -1,14 +1,14 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import { notesStore, tagCounts, isDayDraft, type NotesFilter } from '../../stores/notes'
+  import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: All notes, Day Notes, one #tag, or Trash.
+  // The Notepad list's view picker: All notes, Day Notes, one #tag, or Trash,
+  // plus the sort order for views that are listed by date.
 
   let open = $state(false)
-  let query = $state('')
   let sel = $state(0)
   let rootEl = $state<HTMLDivElement | null>(null)
-  let inputEl = $state<HTMLInputElement | null>(null)
+  let menuEl = $state<HTMLDivElement | null>(null)
 
   let counts = $derived.by(() => {
     let all = 0
@@ -24,10 +24,14 @@
     return { all, day, trash, tags: tagCounts($notesStore.allNotes) }
   })
 
-  type Item = { filter: NotesFilter; label: string; count: number; key: string }
+  type Item =
+    | { filter: NotesFilter; label: string; count: number; key: string }
+    | { sort: NotesSort; label: string; key: string }
+
+  // Day Notes sort by day and Trash by deletion, so only the others offer a sort.
+  let sortable = $derived($notesStore.filter.kind === 'all' || $notesStore.filter.kind === 'tag')
 
   let items = $derived.by<Item[]>(() => {
-    const q = query.trim().replace(/^#/, '').toLowerCase()
     const fixed: Item[] = [
       { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'day' }, label: 'Day Notes', count: counts.day, key: 'day' },
@@ -39,9 +43,19 @@
       key: `tag:${tag}`,
     }))
     const trash: Item = { filter: { kind: 'trash' }, label: 'Trash', count: counts.trash, key: 'trash' }
-    if (!q) return [...fixed, ...tags, trash]
-    return [...fixed, ...tags, trash].filter((i) => i.label.toLowerCase().includes(q))
+    const sorts: Item[] = sortable
+      ? [
+          { sort: 'changed', label: 'Last changed', key: 'sort:changed' },
+          { sort: 'added', label: 'Date added', key: 'sort:added' },
+        ]
+      : []
+    return [...fixed, ...tags, trash, ...sorts]
   })
+
+  const kindOf = (item: Item) => ('sort' in item ? 'sort' : item.filter.kind)
+
+  const isCurrent = (item: Item) =>
+    'sort' in item ? item.sort === $notesStore.sort : item.key === keyOf($notesStore.filter)
 
   let current = $derived.by(() => {
     const f = $notesStore.filter
@@ -56,16 +70,16 @@
   async function toggle() {
     open = !open
     if (!open) return
-    query = ''
     sel = Math.max(0, items.findIndex((i) => i.key === keyOf($notesStore.filter)))
     await tick()
-    inputEl?.focus()
+    menuEl?.focus()
     rootEl?.querySelector('.item.selected')?.scrollIntoView({ block: 'nearest' })
   }
 
   function pick(item: Item) {
     open = false
-    notesStore.setFilter(item.filter)
+    if ('sort' in item) notesStore.setSort(item.sort)
+    else notesStore.setFilter(item.filter)
     rootEl?.querySelector<HTMLElement>('.filter-btn')?.focus()
   }
 
@@ -111,42 +125,36 @@
 
   {#if open}
     <div class="menu">
-      <input
-        bind:this={inputEl}
-        bind:value={query}
-        class="search"
-        type="text"
-        placeholder="Find a tag…"
-        aria-label="Find a tag"
-        oninput={() => (sel = 0)}
-        onkeydown={onKeydown}
-      />
-      <div class="items" role="listbox" aria-label="Show">
+      <div class="items" role="listbox" aria-label="Show" tabindex="-1" bind:this={menuEl} onkeydown={onKeydown}>
         {#each items as item, i (item.key)}
-          {#if item.filter.kind === 'tag' && (i === 0 || items[i - 1].filter.kind !== 'tag')}
+          {#if kindOf(item) === 'tag' && (i === 0 || kindOf(items[i - 1]) !== 'tag')}
             <div class="section">Tags</div>
-          {:else if item.filter.kind === 'trash' && i > 0}
+          {:else if kindOf(item) === 'trash'}
+            {#if counts.tags.length === 0}
+              <div class="hint">Type <code>#word</code> in a note to tag it.</div>
+            {/if}
             <div class="divider" aria-hidden="true"></div>
+          {:else if 'sort' in item && i > 0 && kindOf(items[i - 1]) !== 'sort'}
+            <div class="divider" aria-hidden="true"></div>
+            <div class="section">Sort by</div>
           {/if}
           <button
             type="button"
             class="item"
             class:selected={i === sel}
-            class:current={item.key === keyOf($notesStore.filter)}
+            class:current={isCurrent(item)}
             role="option"
-            aria-selected={item.key === keyOf($notesStore.filter)}
+            aria-selected={isCurrent(item)}
+            tabindex="-1"
             onmousemove={() => (sel = i)}
             onclick={() => pick(item)}
           >
             <span class="item-label">{item.label}</span>
-            <span class="item-count">{item.count}</span>
+            {#if 'count' in item}
+              <span class="item-count">{item.count}</span>
+            {/if}
           </button>
-        {:else}
-          <div class="none">No tag matches “{query}”.</div>
         {/each}
-        {#if !query && counts.tags.length === 0}
-          <div class="hint">Type <code>#word</code> in a note to tag it.</div>
-        {/if}
       </div>
     </div>
   {/if}
@@ -199,19 +207,7 @@
     transform-origin: top left;
     overflow: hidden;
   }
-  .search {
-    display: block;
-    width: 100%;
-    padding: 10px 12px;
-    border: none;
-    border-bottom: 1px solid var(--line);
-    background: none;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 0.85rem;
-    outline: none;
-  }
-  .search::placeholder { color: var(--muted); opacity: 0.7; }
+  .items:focus { outline: none; }
   .items { max-height: min(360px, 60vh); overflow-y: auto; padding: 6px; }
   .section {
     font-size: 0.65rem;
@@ -241,7 +237,6 @@
   .item.current .item-label { color: var(--accent); font-weight: 600; }
   .item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .item-count { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .none,
   .hint { padding: 8px 10px; font-size: 0.8rem; color: var(--muted); }
   .hint code { font-family: var(--font-mono); font-size: 0.75rem; }
   @media (pointer: coarse) {

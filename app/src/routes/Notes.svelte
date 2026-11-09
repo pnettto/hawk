@@ -37,7 +37,7 @@
   <div class="editor-main">
     {#if $notesStore.selectedNid}
       {#key $notesStore.selectedNid}
-        <NoteEditor nid={$notesStore.selectedNid} />
+        <NoteEditor nid={$notesStore.selectedNid} onDelete={() => $notesStore.selectedNid && notesStore.trashNote($notesStore.selectedNid)} />
       {/key}
     {:else}
       <div class="empty-state">Select or create a note</div>
