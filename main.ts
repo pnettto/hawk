@@ -22,6 +22,7 @@ import {
   getFile,
   getPublicFile,
   listFiles,
+  migrateFilesToR2,
   renameFile,
   uploadFile,
 } from "./server/routeHandlers/files.ts";
@@ -152,8 +153,9 @@ app.delete("/api/notes/collections/:cid/trash", emptyTrash);
 // Files
 app.get("/api/files", listFiles);
 app.post("/api/files", uploadFile);
-// Registered before /api/files/:id so "delete" isn't read as a file id.
+// Registered before /api/files/:id so "delete"/"migrate" aren't read as file ids.
 app.post("/api/files/delete", deleteFiles);
+app.post("/api/files/migrate", migrateFilesToR2);
 app.get("/api/files/:id", getFile);
 app.post("/api/files/:id", renameFile);
 app.delete("/api/files/:id", deleteFile);

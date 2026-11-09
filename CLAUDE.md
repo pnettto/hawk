@@ -40,7 +40,7 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 
 **Middleware order in `main.ts`:** CORS → rate-limit (with carve-outs for `/api/sync/stream`, `/api/login`'s stricter bucket, and the cheap `/api/auth-check`/`/api/logout`) → auth (skipped for `/api/public/*`, login/logout/auth-check, and the SSE stream which authenticates from its own query string). When adding a new route, decide which buckets it falls into rather than re-implementing the carve-out.
 
-**Storage = Deno KV only.** Connection lives in `server/utils/kvConn.ts`: `Deno.openKv(KV_URL)` if set, else native KV. Don't introduce a second store. Key shapes are scattered across `server/routeHandlers/*.ts`; the patterns to know are:
+**Storage = Deno KV, plus Cloudflare R2 for file bodies.** KV connection lives in `server/utils/kvConn.ts`: `Deno.openKv(KV_URL)` if set, else native KV. Uploaded file *bodies* go to an R2 bucket via its S3 API (`server/utils/r2.ts`, `aws4fetch`, object key `files/<id>`); file *metadata* stays in KV at `["files", "meta", id]`. Legacy files without `storage: "r2"` still read from KV chunks; `POST /api/files/migrate` moves them. Don't introduce any other store. Key shapes are scattered across `server/routeHandlers/*.ts`; the patterns to know are:
 
 - Notes: `["notes", "note", nid]`, `["notes", "index", cid, nid]`, trash mirrors under `["notes", "trash", …]`.
 - Day log: `["logs", "day", dateStr]` with separate "notes" / "tasks" components.
@@ -76,9 +76,10 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 - `ALLOWED_ORIGINS` = `https://hawk.pnettto.deno.net`
 - `API_KEY` — secret
 - `BACKUP_KEY` — secret
+- `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — Cloudflare R2 credentials for file storage (uploads return 503 without them).
 - `KV_URL` — **not set** (intentional; lets `Deno.openKv()` pick native KV).
 
-**Local env** (`.env` at repo root) only carries `API_KEY` and is loaded by `--env` on the dev server task. CORS in `main.ts:58` is `origin: "*"` so cross-origin clients (Chrome extension, alt domains) are accepted.
+**Local env** (`.env` at repo root) carries `API_KEY` and the `R2_*` vars and is loaded by `--env` on the dev server task. CORS in `main.ts:58` is `origin: "*"` so cross-origin clients (Chrome extension, alt domains) are accepted.
 
 **Deploy flow:**
 - `deno task deploy` runs `deno task build` then `deno deploy --org pnettto --app hawk --prod`. The deploy wrapper temporarily un-ignores `app/dist` in `.gitignore`/`app/.gitignore` so Vite's build output ships (because `deno deploy` respects `.gitignore` — denoland/deploy_feedback#940) — `trap` restores them after.

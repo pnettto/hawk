@@ -4,3 +4,6 @@ node_modules
 app/dist
 # Playwright MCP test artifacts
 .playwright-mcp/
+
+# Wrangler (Cloudflare CLI) local state
+.wrangler/

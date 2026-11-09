@@ -5,6 +5,7 @@
   },
   "imports": {
     "hono": "npm:hono@^4.11.1",
+    "aws4fetch": "npm:aws4fetch@^1.0.20",
     "marked": "npm:marked@^17.0.1"
   },
   "tasks": {
@@ -25,3 +26,4 @@
     "test": "sh -c 'cd app && npm test'"
   }
 }
+
