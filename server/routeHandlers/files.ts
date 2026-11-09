@@ -187,6 +187,23 @@ export async function renameFile(c: Context) {
   return c.json(meta);
 }
 
+// Body: { ids: string[] }. One request and one sync event for a whole selection.
+export async function deleteFiles(c: Context) {
+  const { ids } = await c.req.json().catch(() => ({})) as { ids?: unknown };
+  if (!Array.isArray(ids)) return c.json({ error: "ids must be an array" }, 400);
+  const deleted: string[] = [];
+  for (const id of ids) {
+    if (typeof id !== "string") continue;
+    const res = await kv.get<FileMeta>(metaKey(id));
+    if (!res.value) continue;
+    await kv.delete(metaKey(id));
+    await deleteChunks(id, res.value.chunks);
+    deleted.push(id);
+  }
+  if (deleted.length) await emitFilesChanged(c, deleted.join(","));
+  return c.json({ deleted });
+}
+
 export async function deleteFile(c: Context) {
   const id = c.req.param("id");
   if (!id) return c.json({ error: "Missing id" }, 400);

@@ -8,6 +8,7 @@
   import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
   import { parseQuickTask } from './quickTask'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
+  import TimePicker from '../ui/TimePicker.svelte'
   import type { Task } from '../../types/models'
 
   let dateStr = $derived(formatDate($appStore.selectedDate))
@@ -49,15 +50,58 @@
 
   // ---- add -----------------------------------------------------------------
 
+  // A new task can get its time and comment before it's created. An explicit
+  // pick from the time picker wins over a time typed into the text.
   let draft = $state('')
+  let draftTime = $state<string | undefined>(undefined)
+  let draftComment = $state('')
+  let draftCommentOpen = $state(false)
   let addInput = $state<HTMLInputElement | null>(null)
   let draftParsed = $derived(parseQuickTask(draft))
+  let effectiveTime = $derived(draftTime ?? draftParsed.time)
+
+  function resetDraft() {
+    draft = ''
+    draftTime = undefined
+    draftComment = ''
+    draftCommentOpen = false
+  }
 
   function addFromDraft() {
     const parsed = parseQuickTask(draft)
-    if (!parsed.text) return
-    logsStore.addTask(dateStr, { text: parsed.text, time: parsed.time })
-    draft = ''
+    if (!parsed.text) {
+      addInput?.focus()
+      return
+    }
+    logsStore.addTask(dateStr, {
+      text: parsed.text,
+      time: draftTime ?? parsed.time,
+      comment: draftComment.trim() || undefined,
+    })
+    resetDraft()
+    addInput?.focus()
+  }
+
+  async function toggleDraftComment() {
+    draftCommentOpen = !draftCommentOpen
+    if (draftCommentOpen) {
+      await tick()
+      document.querySelector<HTMLTextAreaElement>('.add-comment')?.focus()
+    } else {
+      draftComment = ''
+      addInput?.focus()
+    }
+  }
+
+  // Enter adds the task; Shift+Enter is a newline in the comment.
+  function onDraftCommentKeydown(e: KeyboardEvent) {
+    if (e.isComposing) return
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      addFromDraft()
+    } else if (e.key === 'Escape') {
+      toggleDraftComment()
+    }
   }
 
   function onAddKeydown(e: KeyboardEvent) {
@@ -66,7 +110,7 @@
       e.preventDefault()
       addFromDraft()
     } else if (e.key === 'Escape') {
-      draft = ''
+      resetDraft()
       addInput?.blur()
     } else if (e.key === 'ArrowUp' && tasks.length) {
       e.preventDefault()
@@ -78,7 +122,6 @@
 
   let listEl = $state<HTMLElement | null>(null)
   let openComments = $state(new Set<string>())
-  let editingTime = $state<string | null>(null)
 
   function focusTask(id: string, caret: 'end' | 'start' = 'end') {
     const el = listEl?.querySelector<HTMLInputElement>(`[data-task-input="${id}"]`)
@@ -131,24 +174,6 @@
     fit()
     el.addEventListener('input', fit)
     return { destroy: () => el.removeEventListener('input', fit) }
-  }
-
-  async function startTimeEdit(id: string) {
-    editingTime = id
-    await tick()
-    const el = listEl?.querySelector<HTMLInputElement>(`[data-task-time="${id}"]`)
-    el?.focus()
-    try {
-      el?.showPicker?.()
-    } catch {
-      /* showPicker needs a user gesture in some browsers */
-    }
-  }
-
-  function commitTime(task: Task, value: string) {
-    editingTime = null
-    const time = /^\d{2}:\d{2}$/.test(value) ? value : undefined
-    if (time !== task.time) logsStore.editTask(dateStr, task.id, { time }, { immediate: true })
   }
 
   // ---- history / checkpoints -----------------------------------------------
@@ -240,37 +265,11 @@
               onkeydown={(e) => onTextKeydown(e, task, i)}
             />
 
-            {#if editingTime === task.id}
-              <input
-                type="time"
-                class="time-input"
-                data-task-time={task.id}
-                value={task.time ?? ''}
-                onblur={(e) => commitTime(task, e.currentTarget.value)}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter') commitTime(task, e.currentTarget.value)
-                  if (e.key === 'Escape') editingTime = null
-                }}
-              />
-            {:else}
-              <button
-                type="button"
-                class="time"
-                class:set={!!task.time}
-                title={task.time ? 'Change time' : 'Add time'}
-                aria-label={task.time ? `Time ${task.time}, change` : 'Add time'}
-                onclick={() => startTimeEdit(task.id)}
-              >
-                {#if task.time}
-                  {task.time}
-                {:else}
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-                    <circle cx="8" cy="8" r="5.5" />
-                    <path d="M8 5v3l2 1.5" />
-                  </svg>
-                {/if}
-              </button>
-            {/if}
+            <TimePicker
+              class="time"
+              value={task.time}
+              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+            />
 
             <button
               type="button"
@@ -322,21 +321,57 @@
     </ul>
   {/key}
 
-  <div class="add" class:has-draft={!!draft}>
-    <span class="add-icon" aria-hidden="true">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9" /></svg>
-    </span>
-    <input
-      class="add-input"
-      bind:this={addInput}
-      bind:value={draft}
-      placeholder={tasks.length ? 'Add a task' : 'Add your first task — try “14:30 Gym”'}
-      aria-label="Add a task"
-      enterkeyhint="done"
-      onkeydown={onAddKeydown}
-    />
-    {#if draftParsed.time}
-      <span class="draft-time" transition:fade={{ duration: 120 }}>{draftParsed.time}</span>
+  <div class="add" class:has-draft={!!draft || !!draftTime || draftCommentOpen}>
+    <div class="row">
+      <button type="button" class="add-icon" aria-label="Add task" title="Add task (Enter)" onclick={addFromDraft}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+      </button>
+      <input
+        class="add-input"
+        bind:this={addInput}
+        bind:value={draft}
+        placeholder={tasks.length ? 'Add a task' : 'Add your first task — try “14:30 Gym”'}
+        aria-label="Add a task"
+        enterkeyhint="done"
+        onkeydown={onAddKeydown}
+      />
+      {#if !draftTime && draftParsed.time}
+        <span class="draft-time" title="Time from your text" transition:fade={{ duration: 120 }}>{draftParsed.time}</span>
+      {/if}
+      <TimePicker
+        class="time add-time"
+        value={draftTime}
+        label={effectiveTime ? `Change time (${effectiveTime})` : 'Set a time'}
+        onChange={(t) => {
+          draftTime = t
+          addInput?.focus()
+        }}
+      />
+      <button
+        type="button"
+        class="icon-btn ghost comment-toggle add-comment-toggle"
+        class:active={draftCommentOpen}
+        title="Add a comment"
+        aria-label="Add a comment"
+        aria-expanded={draftCommentOpen}
+        onclick={toggleDraftComment}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z" />
+        </svg>
+      </button>
+    </div>
+    {#if draftCommentOpen}
+      <textarea
+        class="comment add-comment"
+        rows="1"
+        placeholder="Comment — Enter to add, Shift+Enter for a new line"
+        aria-label="Comment for the new task"
+        bind:value={draftComment}
+        use:autosize
+        onkeydown={onDraftCommentKeydown}
+        transition:slide={{ duration: 140 }}
+      ></textarea>
     {/if}
   </div>
 
@@ -466,51 +501,12 @@
     text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
   }
 
-  .time {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2rem;
-    height: 1.75rem;
-    padding: 0 0.5rem;
-    border: 0;
-    border-radius: 999px;
-    background: none;
-    color: var(--muted);
-    font-family: var(--font-ui);
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
-    cursor: pointer;
-    opacity: 0;
-    transition:
-      opacity var(--dur-fast) var(--ease-out),
-      background-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out);
-  }
-  .time svg { width: 14px; height: 14px; display: block; }
-  .time.set {
-    opacity: 1;
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-  }
-  .task:hover .time,
-  .task:focus-within .time { opacity: 0.7; }
-  .task:hover .time.set,
-  .task:focus-within .time.set { opacity: 1; }
-  .time:hover { opacity: 1 !important; color: var(--text); background: var(--glass); }
-  .time-input {
-    flex-shrink: 0;
-    height: 1.75rem;
-    border: 1px solid var(--accent);
-    border-radius: 999px;
-    background: var(--input-bg-strong);
-    color: var(--text);
-    font-family: var(--font-ui);
-    font-size: 0.8rem;
-    padding: 0 0.5rem;
-    color-scheme: dark light;
-  }
+  /* Untimed rows only show the clock on hover/focus. */
+  .task :global(.time:not(.set)) { opacity: 0; }
+  .task:hover :global(.time:not(.set)),
+  .task:focus-within :global(.time:not(.set)) { opacity: 0.7; }
+  .task :global(.time:not(.set):hover),
+  .task :global(.time.open) { opacity: 1; }
 
   .comment-toggle,
   .remove { opacity: 0; }
@@ -522,7 +518,7 @@
   .comment-toggle:hover,
   .remove:hover { opacity: 1 !important; }
   @media (hover: none) {
-    .time,
+    .task :global(.time:not(.set)),
     .comment-toggle,
     .remove { opacity: 0.45; }
   }
@@ -567,27 +563,41 @@
   }
 
   .add {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    min-height: var(--row-h);
     margin-top: 0.25rem;
-    padding: 0 0.25rem 0 0.4rem;
     border-radius: 8px;
     transition: background-color var(--dur-fast) var(--ease-out);
   }
-  .add:focus-within { background: var(--glass-dark); }
+  .add:focus-within,
+  .add.has-draft { background: var(--glass-dark); }
   .add-icon {
     width: 1.75rem;
     height: 1.75rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
     color: var(--muted);
     opacity: 0.6;
     flex-shrink: 0;
-    transition: color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      opacity var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
   }
+  .add-icon:hover { background: var(--glass); opacity: 1; color: var(--accent); }
+  /* The add row's time/comment controls stay discoverable (dimmed). */
+  .add .comment-toggle { opacity: 0.45; }
+  .add :global(.time:not(.set)) { opacity: 0.55; }
+  .add:focus-within .comment-toggle,
+  .add.has-draft .comment-toggle,
+  .add:focus-within :global(.time:not(.set)),
+  .add.has-draft :global(.time:not(.set)) { opacity: 0.85; }
+  .add .comment-toggle.active { opacity: 1; color: var(--accent); }
+  .add .add-comment { margin-top: -0.25rem; padding-bottom: 0.5rem; }
   .add-icon svg { width: 14px; height: 14px; }
   .add:focus-within .add-icon,
   .add.has-draft .add-icon { color: var(--accent); opacity: 1; }

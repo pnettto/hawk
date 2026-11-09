@@ -18,6 +18,7 @@ import {
 } from "./server/routeHandlers/app.ts";
 import {
   deleteFile,
+  deleteFiles,
   getFile,
   getPublicFile,
   listFiles,
@@ -151,6 +152,8 @@ app.delete("/api/notes/collections/:cid/trash", emptyTrash);
 // Files
 app.get("/api/files", listFiles);
 app.post("/api/files", uploadFile);
+// Registered before /api/files/:id so "delete" isn't read as a file id.
+app.post("/api/files/delete", deleteFiles);
 app.get("/api/files/:id", getFile);
 app.post("/api/files/:id", renameFile);
 app.delete("/api/files/:id", deleteFile);

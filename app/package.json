@@ -32,6 +32,7 @@
     "@tiptap/extension-youtube": "^3.22.5",
     "@tiptap/pm": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "fflate": "^0.8.2",
     "markdown-it": "^14.1.1",
     "node-diff3": "^3.1.2",
     "tiptap-markdown": "^0.9.0"

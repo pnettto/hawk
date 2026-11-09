@@ -14,6 +14,7 @@
   import ZenMode from './lib/ui/ZenMode.svelte'
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
   import AboutDialog from './lib/ui/AboutDialog.svelte'
+  import ConfirmDialog from './lib/ui/ConfirmDialog.svelte'
 
   let aboutOpen = $state(false)
 
@@ -203,6 +204,7 @@
 {/if}
 
 <Toast />
+<ConfirmDialog />
 
 {#if aboutOpen}
   <AboutDialog onClose={() => (aboutOpen = false)} />

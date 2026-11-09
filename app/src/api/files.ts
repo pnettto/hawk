@@ -8,6 +8,9 @@ export const renameFile = (id: string, name: string) =>
 
 export const deleteFile = (id: string) => api.del(`/api/files/${id}`)
 
+export const deleteFiles = (ids: string[]) =>
+  api.post<{ deleted: string[] }>('/api/files/delete', { ids })
+
 // XHR rather than fetch so we get upload progress events.
 export function uploadFile(
   file: File | Blob,

@@ -19,32 +19,9 @@
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv --env main.ts",
     // `deno deploy` respects .gitignore (denoland/deploy_feedback#940), so we
     // temporarily un-ignore app/dist (built by Vite) for the upload, then restore.
-    "deploy": "deno task build && sh -c 'trap \"git checkout -- .gitignore app/.gitignore\" EXIT; sed -i.bak \"\\|^app/dist$|d\" .gitignore && sed -i.bak \"\\|^dist$|d\" app/.gitignore && rm -f .gitignore.bak app/.gitignore.bak && deno deploy --org pnettto --app hawk --prod'",
+    // `deno deploy` also leaves extra trailing blank lines in this file on each
+    // run; `deno fmt` in the trap strips them.
+    "deploy": "deno task build && sh -c 'trap \"git checkout -- .gitignore app/.gitignore; deno fmt -q deno.jsonc\" EXIT; sed -i.bak \"\\|^app/dist$|d\" .gitignore && sed -i.bak \"\\|^dist$|d\" app/.gitignore && rm -f .gitignore.bak app/.gitignore.bak && deno deploy --org pnettto --app hawk --prod'",
     "test": "sh -c 'cd app && npm test'"
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

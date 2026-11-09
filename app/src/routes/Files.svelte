@@ -12,12 +12,122 @@
   let renameValue = $state('')
   let preview = $state<{ file: FileMeta; url: string | null; text?: string } | null>(null)
 
+  // ---- sorting / grouping ----------------------------------------------
+
+  type Sort = 'day' | 'added' | 'size'
+  const SORT_KEY = 'hawk_files_sort'
+  let sort = $state<Sort>(readSort())
+  function readSort(): Sort {
+    try {
+      const v = localStorage.getItem(SORT_KEY)
+      if (v === 'day' || v === 'added' || v === 'size') return v
+    } catch {
+      /* ignore */
+    }
+    return 'day'
+  }
+  function setSort(v: Sort) {
+    sort = v
+    try {
+      localStorage.setItem(SORT_KEY, v)
+    } catch {
+      /* ignore */
+    }
+  }
+
   let files = $derived.by(() => {
     const q = query.trim().toLowerCase()
     const all = $filesStore.files
-    return q ? all.filter((f) => f.name.toLowerCase().includes(q)) : all
+    const list = q ? all.filter((f) => f.name.toLowerCase().includes(q)) : [...all]
+    return sort === 'size'
+      ? list.sort((a, b) => b.size - a.size || b.createdAt - a.createdAt)
+      : list.sort((a, b) => b.createdAt - a.createdAt)
+  })
+
+  function dayTitle(ms: number): string {
+    const d = new Date(ms)
+    const today = new Date()
+    const yesterday = new Date()
+    yesterday.setDate(today.getDate() - 1)
+    if (d.toDateString() === today.toDateString()) return 'Today'
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+    return d.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+    })
+  }
+
+  // 'day' groups under date headings; the other sorts are one flat group.
+  let groups = $derived.by(() => {
+    if (sort !== 'day') return [{ key: sort, title: '', items: files }]
+    const out: { key: string; title: string; items: FileMeta[] }[] = []
+    for (const f of files) {
+      const key = new Date(f.createdAt).toDateString()
+      const last = out[out.length - 1]
+      if (last?.key === key) last.items.push(f)
+      else out.push({ key, title: dayTitle(f.createdAt), items: [f] })
+    }
+    return out
   })
   let totalBytes = $derived($filesStore.files.reduce((n, f) => n + f.size, 0))
+
+  // ---- selection -------------------------------------------------------
+
+  let selected = $state(new Set<string>())
+  let lastToggled: string | null = null
+  // Drop ids that no longer exist (deleted here or on another device).
+  $effect(() => {
+    const ids = new Set($filesStore.files.map((f) => f.id))
+    if ([...selected].some((id) => !ids.has(id))) {
+      selected = new Set([...selected].filter((id) => ids.has(id)))
+    }
+  })
+  let selectedFiles = $derived(files.filter((f) => selected.has(f.id)))
+  let allVisibleSelected = $derived(files.length > 0 && files.every((f) => selected.has(f.id)))
+
+  // Shift-click selects the range from the last toggled row.
+  function toggle(f: FileMeta, e?: MouseEvent) {
+    const next = new Set(selected)
+    if (e?.shiftKey && lastToggled) {
+      const a = files.findIndex((x) => x.id === lastToggled)
+      const b = files.findIndex((x) => x.id === f.id)
+      if (a > -1 && b > -1) {
+        const on = !selected.has(f.id)
+        for (const x of files.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+          if (on) next.add(x.id)
+          else next.delete(x.id)
+        }
+        selected = next
+        lastToggled = f.id
+        return
+      }
+    }
+    if (next.has(f.id)) next.delete(f.id)
+    else next.add(f.id)
+    selected = next
+    lastToggled = f.id
+  }
+
+  function toggleAll() {
+    selected = allVisibleSelected ? new Set() : new Set(files.map((f) => f.id))
+  }
+
+  // Day heading checkbox: select (or deselect) every file of that day.
+  function toggleGroup(items: FileMeta[]) {
+    const next = new Set(selected)
+    const all = items.every((f) => next.has(f.id))
+    for (const f of items) {
+      if (all) next.delete(f.id)
+      else next.add(f.id)
+    }
+    selected = next
+  }
+
+  async function deleteSelected() {
+    if (await filesStore.remove([...selected])) selected = new Set()
+  }
 
   onMount(() => {
     void filesStore.load()
@@ -141,7 +251,20 @@
   }
 
   function onWindowKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && preview) preview = null
+    // Already handled by a dialog/popover (e.g. Escape closing the confirm).
+    if (e.defaultPrevented) return
+    if (e.key === 'Escape') {
+      if (preview) preview = null
+      else if (selected.size) selected = new Set()
+      return
+    }
+    // Cmd/Ctrl+A selects all files when not typing.
+    const t = e.target as HTMLElement | null
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a' && !t?.closest('input, textarea, [contenteditable="true"]')) {
+      if (!files.length || preview) return
+      e.preventDefault()
+      selected = new Set(files.map((f) => f.id))
+    }
   }
 
   // Thumbnails load as rows scroll into view.
@@ -170,6 +293,16 @@
   onpaste={onPaste}
   onkeydown={onWindowKey}
 />
+
+{#snippet checkMark(on: boolean, mixed: boolean)}
+  <span class="box" class:on class:mixed aria-hidden="true">
+    {#if on}
+      <svg viewBox="0 0 16 16"><path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+    {:else if mixed}
+      <svg viewBox="0 0 16 16"><path d="M4.5 8h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+    {/if}
+  </span>
+{/snippet}
 
 {#snippet icon(kind: Kind)}
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -238,14 +371,88 @@
       <span class="dz-head">Drop files here</span>
       <span class="dz-sub">or click to choose · paste works too · up to 25 MB each</span>
     </button>
-  {:else if !files.length}
-    <div class="empty">No files match “{query}”.</div>
   {:else}
+    <div class="toolbar" class:selecting={selected.size > 0}>
+      <button
+        type="button"
+        class="check all"
+        role="checkbox"
+        aria-checked={allVisibleSelected ? 'true' : selected.size ? 'mixed' : 'false'}
+        aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
+        title={allVisibleSelected ? 'Deselect all' : 'Select all'}
+        onclick={toggleAll}
+        disabled={!files.length}
+      >
+        {@render checkMark(allVisibleSelected, selected.size > 0 && !allVisibleSelected)}
+      </button>
+      {#if selected.size}
+        <span class="sel-count" in:fade={{ duration: 120 }}>{selected.size} selected</span>
+        <div class="sel-actions" in:fade={{ duration: 120 }}>
+          <button type="button" class="btn-secondary" onclick={() => filesStore.downloadMany(selectedFiles)}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8M4.5 7.5L8 11l3.5-3.5M3 13h10" /></svg>
+            Download
+          </button>
+          <button type="button" class="btn-secondary danger" onclick={deleteSelected}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" /></svg>
+            Delete
+          </button>
+          <button type="button" class="icon-btn ghost" aria-label="Clear selection" title="Clear selection (Esc)" onclick={() => (selected = new Set())}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg>
+          </button>
+        </div>
+      {:else}
+        <div class="segmented" role="radiogroup" aria-label="Sort by" in:fade={{ duration: 120 }}>
+          {#each [['day', 'By day'], ['added', 'Recently added'], ['size', 'Largest']] as [id, label] (id)}
+            <button type="button" role="radio" aria-checked={sort === id} onclick={() => setSort(id as Sort)}>{label}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    {#if !files.length}
+      <div class="empty">No files match “{query}”.</div>
+    {/if}
+    {#each groups as group (group.key)}
+      {#if group.title}
+        {@const groupAll = group.items.every((f) => selected.has(f.id))}
+        {@const groupSome = !groupAll && group.items.some((f) => selected.has(f.id))}
+        <h2 class="group-title" class:has-selection={groupAll || groupSome}>
+          <button
+            type="button"
+            class="check"
+            role="checkbox"
+            aria-checked={groupAll ? 'true' : groupSome ? 'mixed' : 'false'}
+            aria-label="{groupAll ? 'Deselect' : 'Select'} all files from {group.title}"
+            title="{groupAll ? 'Deselect' : 'Select'} this day"
+            onclick={() => toggleGroup(group.items)}
+          >
+            {@render checkMark(groupAll, groupSome)}
+          </button>
+          <span>{group.title}</span>
+          <span class="group-meta">{group.items.length} · {fmtSize(group.items.reduce((n, f) => n + f.size, 0))}</span>
+        </h2>
+      {/if}
     <ul class="list">
-      {#each files as f (f.id)}
+      {#each group.items as f (f.id)}
         {@const kind = kindOf(f)}
-        <li class="row" animate:safeFlip={{ duration: 180 }} transition:fade={{ duration: 140 }}>
-          <button type="button" class="open" onclick={() => open(f)} title={previewable(f) ? 'Preview' : 'Download'}>
+        <li class="row" class:selected={selected.has(f.id)} animate:safeFlip={{ duration: 180 }} transition:fade={{ duration: 140 }}>
+          <button
+            type="button"
+            class="check"
+            role="checkbox"
+            aria-checked={selected.has(f.id)}
+            aria-label="Select {f.name}"
+            onclick={(e) => toggle(f, e)}
+          >
+            {@render checkMark(selected.has(f.id), false)}
+          </button>
+          <button
+            type="button"
+            class="open"
+            onclick={() => open(f)}
+            title={previewable(f) ? 'Preview' : 'Download'}
+            aria-label="{previewable(f) ? 'Preview' : 'Download'} {f.name}"
+          >
             <span class="thumb" class:image={kind === 'image'}>
               {#if kind === 'image'}
                 <img alt="" use:thumb={f.id} />
@@ -284,7 +491,7 @@
                 <path d="M10.5 3l2.5 2.5L6 12.5H3.5V10z" />
               </svg>
             </button>
-            <button type="button" class="icon-btn ghost danger" title="Delete" aria-label="Delete {f.name}" onclick={() => filesStore.remove(f.id)}>
+            <button type="button" class="icon-btn ghost danger" title="Delete" aria-label="Delete {f.name}" onclick={() => filesStore.remove([f.id])}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
               </svg>
@@ -293,6 +500,7 @@
         </li>
       {/each}
     </ul>
+    {/each}
     <p class="hint">Drop or paste files anywhere on this page.</p>
   {/if}
 </section>
@@ -386,11 +594,105 @@
   .upload.failed { background: var(--danger-bg); }
   .upload-error { color: var(--danger); font-size: 0.75rem; }
 
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 34px;
+    margin-bottom: 0.75rem;
+    padding-left: 0.5rem;
+  }
+  .sel-count { font-size: 0.8125rem; color: var(--text); font-variant-numeric: tabular-nums; }
+  .sel-actions { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
+  .btn-secondary.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
+  .segmented {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: var(--r-pill);
+    background: var(--glass-dark);
+  }
+  .segmented button {
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .segmented button:hover { color: var(--text); }
+  .segmented button[aria-checked='true'] { color: var(--accent); background: var(--glass); }
+
+  .group-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 1.25rem 0 0.35rem;
+    padding-left: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .group-title:first-of-type { margin-top: 0.25rem; }
+  .group-meta { opacity: 0.55; font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+  /* Day checkbox: same reveal rules as the row checkboxes. */
+  .group-title .check { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+  .group-title:hover .check,
+  .group-title .check:focus-visible,
+  .group-title.has-selection .check,
+  .files:has(.toolbar.selecting) .group-title .check { opacity: 1; }
+  @media (hover: none) { .group-title .check { opacity: 1; } }
+
+  .check {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    border-radius: var(--r-xs);
+  }
+  .check:disabled { cursor: default; opacity: 0.4; }
+  .box {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    border: 1.5px solid color-mix(in srgb, var(--muted) 55%, transparent);
+    color: var(--on-accent);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .box svg { width: 12px; height: 12px; }
+  .check:hover .box { border-color: var(--accent); }
+  .box.on,
+  .box.mixed { background: var(--accent); border-color: var(--accent); }
+  /* Row checkboxes stay out of the way until hovered or in selection mode. */
+  .row .check { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+  .row:hover .check,
+  .row:focus-within .check,
+  .row.selected .check,
+  .files:has(.toolbar.selecting) .row .check { opacity: 1; }
+  @media (hover: none) { .row .check { opacity: 1; } }
+  .row.selected { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
     padding: 0.4rem 0.4rem 0.4rem 0.5rem;
     border-radius: var(--r-md);
     transition: background-color var(--dur-fast) var(--ease-out);
@@ -548,6 +850,8 @@
   .lb-loading { width: 100%; padding: 3rem; }
 
   @media (max-width: 600px) {
+    .sel-actions .btn-secondary { padding: 0 0.6rem; }
+    .segmented button { padding: 0.3rem 0.6rem; }
     .search { width: 100%; }
     .head-actions { width: 100%; }
     .bar { width: 4rem; }

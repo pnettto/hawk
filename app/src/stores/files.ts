@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store'
 import * as filesApi from '../api/files'
 import { savingStore } from './saving'
 import { showError, showToast } from './toast'
+import { confirm } from './confirm'
 import type { FileMeta } from '../types/models'
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024
@@ -20,18 +21,14 @@ interface FilesState {
   loaded: boolean
 }
 
-const UNDO_MS = 6000
-
 function createFilesStore() {
   const { subscribe, update } = writable<FilesState>({ files: [], uploads: [], loaded: false })
-  // Files hidden while their delete waits out the Undo window.
-  const pendingDeletes = new Map<string, ReturnType<typeof setTimeout>>()
   const blobUrls = new Map<string, Promise<string>>()
 
   async function load() {
     try {
       const files = await filesApi.listFiles()
-      update((s) => ({ ...s, files: files.filter((f) => !pendingDeletes.has(f.id)), loaded: true }))
+      update((s) => ({ ...s, files, loaded: true }))
     } catch (e) {
       console.error('[files] load failed', e)
       update((s) => ({ ...s, loaded: true }))
@@ -99,37 +96,38 @@ function createFilesStore() {
     }
   }
 
-  function remove(id: string) {
-    const original = get({ subscribe }).files
-    const file = original.find((f) => f.id === id)
-    if (!file) return
-    update((s) => ({ ...s, files: s.files.filter((f) => f.id !== id) }))
-    const timer = setTimeout(async () => {
-      pendingDeletes.delete(id)
-      try {
-        await savingStore.track(filesApi.deleteFile(id))
+  // Asks first, then deletes for real — no undo window.
+  async function remove(ids: string[]): Promise<boolean> {
+    const all = get({ subscribe }).files
+    const targets = all.filter((f) => ids.includes(f.id))
+    if (!targets.length) return false
+    const ok = await confirm({
+      title: targets.length === 1 ? `Delete “${targets[0].name}”?` : `Delete ${targets.length} files?`,
+      message:
+        targets.some((f) => f.inline)
+          ? 'This can’t be undone. Notes that show these images will show a broken image.'
+          : 'This can’t be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return false
+    const idSet = new Set(targets.map((f) => f.id))
+    update((s) => ({ ...s, files: s.files.filter((f) => !idSet.has(f.id)) }))
+    try {
+      await savingStore.track(filesApi.deleteFiles([...idSet]))
+      for (const id of idSet) {
         const url = blobUrls.get(id)
         blobUrls.delete(id)
-        if (url) URL.revokeObjectURL(await url)
-      } catch (e) {
-        console.error('[files] delete failed', e)
-        showError('Couldn’t delete file.')
-        void load()
+        if (url) url.then((u) => URL.revokeObjectURL(u)).catch(() => {})
       }
-    }, UNDO_MS)
-    pendingDeletes.set(id, timer)
-    showToast(`Deleted “${file.name}”`, {
-      action: 'Undo',
-      duration: UNDO_MS,
-      onAction: () => {
-        clearTimeout(timer)
-        pendingDeletes.delete(id)
-        update((s) => ({
-          ...s,
-          files: [...s.files, file].sort((a, b) => b.createdAt - a.createdAt),
-        }))
-      },
-    })
+      showToast(targets.length === 1 ? 'File deleted' : `${targets.length} files deleted`)
+      return true
+    } catch (e) {
+      console.error('[files] delete failed', e)
+      showError('Couldn’t delete files.')
+      void load()
+      return false
+    }
   }
 
   // Authenticated object URL for previews/thumbnails; cached per file id.
@@ -143,18 +141,56 @@ function createFilesStore() {
     return p
   }
 
+  function saveBlobUrl(url: string, name: string) {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
   async function download(file: FileMeta) {
     try {
-      const url = await blobUrl(file.id)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.name
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
+      saveBlobUrl(await blobUrl(file.id), file.name)
     } catch (e) {
       console.error('[files] download failed', e)
       showError('Couldn’t download file.')
+    }
+  }
+
+  // Several files → one zip (browsers block or nag about a burst of
+  // separate downloads). Stored uncompressed: most uploads are already
+  // compressed media, and it keeps zipping instant.
+  async function downloadMany(files: FileMeta[]) {
+    if (files.length === 1) return download(files[0])
+    const dismiss = showToast(`Preparing ${files.length} files…`, { duration: 120_000 })
+    try {
+      const { zip } = await import('fflate')
+      const entries: Record<string, Uint8Array> = {}
+      const used = new Set<string>()
+      for (const f of files) {
+        const blob = await (await fetch(await blobUrl(f.id))).blob()
+        // Keep names unique inside the archive: "a.png", "a (2).png", …
+        let name = f.name
+        for (let n = 2; used.has(name.toLowerCase()); n++) {
+          const dot = f.name.lastIndexOf('.')
+          name = dot > 0 ? `${f.name.slice(0, dot)} (${n})${f.name.slice(dot)}` : `${f.name} (${n})`
+        }
+        used.add(name.toLowerCase())
+        entries[name] = new Uint8Array(await blob.arrayBuffer())
+      }
+      const data = await new Promise<Uint8Array>((resolve, reject) =>
+        zip(entries, { level: 0 }, (err, out) => (err ? reject(err) : resolve(out))),
+      )
+      const url = URL.createObjectURL(new Blob([data as BlobPart], { type: 'application/zip' }))
+      saveBlobUrl(url, `hawk-files-${new Date().toISOString().slice(0, 10)}.zip`)
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      console.error('[files] zip download failed', e)
+      showError('Couldn’t download files.')
+    } finally {
+      dismiss()
     }
   }
 
@@ -162,7 +198,7 @@ function createFilesStore() {
     if (get({ subscribe }).loaded) void load()
   }
 
-  return { subscribe, load, upload, rename, remove, blobUrl, download, applySyncEvent }
+  return { subscribe, load, upload, rename, remove, blobUrl, download, downloadMany, applySyncEvent }
 }
 
 export const filesStore = createFilesStore()

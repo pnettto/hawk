@@ -2,3 +2,5 @@
 .DS_Store
 node_modules
 app/dist
+# Playwright MCP test artifacts
+.playwright-mcp/
