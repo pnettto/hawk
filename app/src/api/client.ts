@@ -37,6 +37,27 @@ export const apiOrigin = (): string => getApiBase() || location.origin
 // Used by stores/sync.ts to build the SSE URL.
 export const apiBase = (): string => getApiBase()
 
+// Guest mode ("Let me test it"): requests go to the in-browser stand-in in
+// guest.ts instead of the server. Remembered so a reload stays in the demo.
+const GUEST_KEY = 'hawk_guest'
+let guestMode = (() => {
+  try {
+    return localStorage.getItem(GUEST_KEY) === '1'
+  } catch {
+    return false
+  }
+})()
+export const isGuestMode = (): boolean => guestMode
+export function setGuestMode(on: boolean): void {
+  guestMode = on
+  try {
+    if (on) localStorage.setItem(GUEST_KEY, '1')
+    else localStorage.removeItem(GUEST_KEY)
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
 export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY)
 export const saveToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token)
 export const removeToken = (): void => localStorage.removeItem(TOKEN_KEY)
@@ -78,6 +99,10 @@ interface RequestOptions {
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal, keepalive } = opts
+  if (guestMode) {
+    const { guestRequest } = await import('./guest')
+    return guestRequest<T>(method, path, body)
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Client-Id': getClientId(),

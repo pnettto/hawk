@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte'
   import { notesStore, tagCounts, dayLabel } from '../../stores/notes'
   import { appStore } from '../../stores/app'
+  import { authStore } from '../../stores/auth'
   import NoteSharePopover from './NoteSharePopover.svelte'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import RichEditor from '../editor/RichEditor.svelte'
@@ -190,7 +191,7 @@
           />
         {/if}
       </div>
-      {#if variant === 'page'}
+      {#if variant === 'page' && !$authStore.isGuest}
         <div class="share-wrap">
           <button
             type="button"

@@ -46,9 +46,6 @@
     <button type="submit" disabled={submitting}>
       {submitting ? '…' : 'Log in'}
     </button>
-    <p>
-      The correct password is needed to save the information, but you can go in and test it out.
-    </p>
     <button type="button" class="guest" onclick={handleGuest}>Let me test it</button>
     <p>
       Author: <a href="https://pnetto.com" style="color: inherit;">Pedro Netto</a>

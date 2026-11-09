@@ -1,4 +1,4 @@
-import { api, apiBase, ApiError, getClientId, getToken } from './client'
+import { api, apiBase, ApiError, getClientId, getToken, isGuestMode } from './client'
 import type { FileMeta } from '../types/models'
 
 export const listFiles = () => api.get<FileMeta[]>('/api/files')
@@ -17,6 +17,7 @@ export function uploadFile(
   name: string,
   opts: { inline?: boolean; onProgress?: (fraction: number) => void } = {},
 ): Promise<FileMeta> {
+  if (isGuestMode()) return Promise.reject(new ApiError(403, 'Uploads aren’t available in the demo'))
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${apiBase()}/api/files${opts.inline ? '?inline=1' : ''}`)

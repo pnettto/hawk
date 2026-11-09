@@ -160,10 +160,12 @@
         class:active={$appStore.currentPage === 'notes'}
         onclick={() => appStore.setCurrentPage('notes')}>Notepad</button
       >
-      <button
-        class:active={$appStore.currentPage === 'files'}
-        onclick={() => appStore.setCurrentPage('files')}>Files</button
-      >
+      {#if !$authStore.isGuest}
+        <button
+          class:active={$appStore.currentPage === 'files'}
+          onclick={() => appStore.setCurrentPage('files')}>Files</button
+        >
+      {/if}
       <span class="nav-spacer"></span>
       <SavingIndicator />
       <button
@@ -178,7 +180,14 @@
           <path d="M8 1.5v1.6M8 12.9v1.6M14.5 8h-1.6M3.1 8H1.5M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1M12.6 12.6l-1.1-1.1M4.5 4.5L3.4 3.4"/>
         </svg>
       </button>
-      {#if !$authStore.isGuest}
+      {#if $authStore.isGuest}
+        <button class="nav-logout" onclick={() => authStore.logout()} aria-label="Exit demo" title="Exit demo">
+          <span class="logout-label">Exit demo</span>
+          <svg class="logout-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 13.5H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h2.5M10.5 11l3-3-3-3M13.5 8H6.5" />
+          </svg>
+        </button>
+      {:else}
         <button class="nav-logout" onclick={() => authStore.logout()} aria-label="Log out" title="Log out">
           <span class="logout-label">Logout</span>
           <svg class="logout-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
