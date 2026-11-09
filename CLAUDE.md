@@ -42,8 +42,9 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 
 **Storage = Deno KV, plus Cloudflare R2 for file bodies.** KV connection lives in `server/utils/kvConn.ts`: `Deno.openKv(KV_URL)` if set, else native KV. Uploaded file *bodies* go to an R2 bucket via its S3 API (`server/utils/r2.ts`, `aws4fetch`, object key `files/<id>`); file *metadata* stays in KV at `["files", "meta", id]`. Legacy files without `storage: "r2"` still read from KV chunks; `POST /api/files/migrate` moves them. Don't introduce any other store. Key shapes are scattered across `server/routeHandlers/*.ts`; the patterns to know are:
 
-- Notes: `["notes", "note", nid]`, `["notes", "index", cid, nid]`, trash mirrors under `["notes", "trash", …]`.
-- Day log: `["logs", "day", dateStr]` with separate "notes" / "tasks" components.
+- Notes: `["notes", "note", nid]` (full note) + `["notes", "meta", nid]` (list row), always written together by `server/utils/notesStore.ts` helpers. There are no folders: **tags are `#words` in the body**, parsed on save (`server/utils/tags.ts`, mirrored client-side in `app/src/lib/notes/tags.ts`). Trash is a `deletedAt` field. A note with `day: "YYYY-MM-DD"` is a journal day note — Journal's Day Notes tab and Notepad's "Day Notes" view show the same notes; the day's first note has the fixed id `day-<date>`.
+- Notes schema migration: `ensureNotesMigrated()` runs once (flag `["notes", "schema"] = 2`) on the first notes request. It turned legacy collections (`["notes", "collections"]`, `["notes", "collection", cid]`) into a `#tag` line appended to each note, and copied day notes out of the day blob (with their history). Legacy keys are left in place, unread.
+- Day log: `["logs", dateStr]` — tasks only for current clients (a legacy `notes` array may still be there; it's no longer read).
 - Versions: `server/utils/versioning.ts` is the single helper for snapshotting notes, day-notes, and day-tasks. It keeps a sliding window of `MAX_VERSIONS = 15` per entity, **coalesces** edits within a 60s window into the latest snapshot unless the change is "substantial", and prunes oldest on every write. New version-history endpoints should call this helper, not roll their own keys.
 - Sync log: `["sync", "event", <ulid>]` (90s TTL) plus `["sync", "version"]` (`Deno.KvU64`).
 
@@ -57,7 +58,7 @@ If port 8000 is taken, override both ports together: `PORT=8001 BACKEND_PORT=800
 
 **API base resolution (`app/src/api/client.ts`).** Order: `localStorage['hawk_api_base']` → build-time `VITE_API_BASE` → `PROD_API_BASE` if `location.protocol === 'chrome-extension:'` → `''` (same-origin). Each tab also gets a `sessionStorage`-scoped `clientId` (UUID) so two tabs in the same browser receive each other's edits live — switching to localStorage would coalesce them into one origin and break that.
 
-**Public sharing.** `/shared/:nid` and `/shared/collection/:cid` are SSR pages rendered server-side with `marked` (templates in `server/share_template.html` and `server/shared_collection_template.html`). The matching unauth'd JSON endpoints under `/api/public/*` only serve notes/collections whose `isPublic` flag is true — protect that flag carefully on writes.
+**Public sharing.** `/shared/:nid` and `/shared/collection/:cid` (legacy: reads schema-1 collection keys, nothing in the UI links to it anymore) are SSR pages rendered server-side with `marked` (templates in `server/share_template.html` and `server/shared_collection_template.html`). The matching unauth'd JSON endpoints under `/api/public/*` only serve notes/collections whose `isPublic` flag is true — protect that flag carefully on writes.
 
 ## Production environment
 

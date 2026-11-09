@@ -1,7 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import { safeFlip } from '../../utils/safeFlip'
-  import { notesStore } from '../../stores/notes'
+  import { notesStore, isDayDraft, noteLabel, dayLabel } from '../../stores/notes'
+  import { formatDate } from '../../utils/date'
+  import NotesFilter from './NotesFilter.svelte'
   import type { NoteMetadata } from '../../types/models'
   import {
     relativeTime,
@@ -11,35 +13,34 @@
     type DateBucket,
   } from '../utils/relativeTime'
 
-  let isRenaming = $state(false)
-  let renameValue = $state('')
-  let isConfirmingDelete = $state(false)
+  // Day notes sort and group by their day, everything else by last edit.
+  const dayTime = (n: NoteMetadata) => (n.day ? Date.parse(n.day + 'T12:00:00') : n.updatedAt || 0)
 
   let visibleNotes = $derived.by<NoteMetadata[]>(() => {
-    const s = $notesStore
-    if (s.view === 'trash') {
-      return s.allNotes
+    const { allNotes, filter } = $notesStore
+    if (filter.kind === 'trash') {
+      return allNotes
         .filter((n) => !!n.deletedAt)
         .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0))
     }
-    if (s.view === 'all') {
-      return s.allNotes
-        .filter((n) => !n.deletedAt)
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    const live = allNotes.filter((n) => !n.deletedAt && !isDayDraft(n))
+    if (filter.kind === 'day') {
+      return live
+        .filter((n) => n.day)
+        .sort((a, b) => dayTime(b) - dayTime(a) || (a.dayOrder ?? 0) - (b.dayOrder ?? 0))
     }
-    if (!s.selectedCid) return []
-    return s.allNotes
-      .filter((n) => n.cid === s.selectedCid && !n.deletedAt)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    const shown = filter.kind === 'tag' ? live.filter((n) => n.tags?.includes(filter.tag)) : live
+    return shown.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
   })
 
   let groups = $derived.by(() => {
-    const s = $notesStore
-    if (s.view === 'trash') return null
+    const { filter } = $notesStore
+    if (filter.kind === 'trash') return null
     const now = Date.now()
     const map = new Map<DateBucket, NoteMetadata[]>()
     for (const n of visibleNotes) {
-      const key = dateBucket(n.updatedAt || n.createdAt || now, now)
+      const ts = filter.kind === 'day' ? dayTime(n) : n.updatedAt || n.createdAt || now
+      const key = dateBucket(ts, now)
       const arr = map.get(key) ?? []
       arr.push(n)
       map.set(key, arr)
@@ -49,155 +50,40 @@
       .filter((g) => g.items.length > 0)
   })
 
-  let collectionsById = $derived.by(() => {
-    const m = new Map<string, string>()
-    for (const c of $notesStore.collections) m.set(c.id, c.name)
-    return m
-  })
-
-  let header = $derived.by(() => {
-    const s = $notesStore
-    if (s.view === 'trash') return { title: 'Trash', subtitle: '' }
-    if (s.view === 'all') return { title: 'All Notes', subtitle: '' }
-    const name = collectionsById.get(s.selectedCid ?? '') ?? ''
-    return { title: name || 'Notes', subtitle: '' }
-  })
+  // Tags worth showing on a row: the one being filtered on is implied.
+  function rowTags(n: NoteMetadata): string[] {
+    const f = $notesStore.filter
+    return (n.tags ?? []).filter((t) => !(f.kind === 'tag' && f.tag === t)).slice(0, 3)
+  }
 
   async function onCreate() {
-    const s = $notesStore
-    // In 'all' view with no selectedCid, fall back to first collection.
-    if (!s.selectedCid && s.collections.length > 0) {
-      notesStore.selectCollection(s.collections[0].id)
+    const { filter, allNotes } = $notesStore
+    if (filter.kind === 'day') {
+      const day = formatDate(new Date())
+      const order = Math.max(-1, ...allNotes.filter((n) => n.day === day).map((n) => n.dayOrder ?? 0)) + 1
+      notesStore.createNote({ day, dayOrder: order })
+    } else {
+      notesStore.createNote({ tag: filter.kind === 'tag' ? filter.tag : undefined })
     }
-    notesStore.createNote()
     await tick()
-    const el = document.querySelector<HTMLInputElement>('.note-title')
-    el?.focus()
-    el?.select()
-  }
-
-  function canCreate(): boolean {
-    const s = $notesStore
-    if (s.view === 'trash') return false
-    return s.collections.length > 0
-  }
-
-  let activeCollection = $derived.by(() => {
-    const s = $notesStore
-    if (s.view !== 'collection' || !s.selectedCid) return null
-    return s.collections.find((c) => c.id === s.selectedCid) ?? null
-  })
-
-  let canManageCollection = $derived(activeCollection !== null)
-
-  let activeNoteCount = $derived.by(() => {
-    const s = $notesStore
-    if (!activeCollection) return 0
-    return s.allNotes.filter((n) => n.cid === activeCollection!.id && !n.deletedAt).length
-  })
-
-  async function startRename() {
-    if (!activeCollection) return
-    isConfirmingDelete = false
-    renameValue = activeCollection.name
-    isRenaming = true
-    await tick()
-    const el = document.querySelector<HTMLInputElement>('#col-rename-input')
-    el?.focus()
-    el?.select()
-  }
-
-  async function submitRename() {
-    if (!isRenaming) return
-    const target = activeCollection
-    const name = renameValue.trim()
-    isRenaming = false
-    if (target && name && name !== target.name) {
-      await notesStore.renameCollection(target.id, name)
-    }
-  }
-
-  function cancelRename() {
-    isRenaming = false
-  }
-
-  function startConfirmDelete() {
-    if (!activeCollection) return
-    isRenaming = false
-    isConfirmingDelete = true
-  }
-
-  function cancelConfirmDelete() {
-    isConfirmingDelete = false
-  }
-
-  function confirmDelete() {
-    const target = activeCollection
-    isConfirmingDelete = false
-    if (target) notesStore.deleteCollection(target.id)
+    document.querySelector<HTMLInputElement>('.editor-main .note-title')?.focus()
   }
 </script>
 
 <section class="notes-col">
-  <header class="col-header" class:editing={isRenaming || isConfirmingDelete}>
-    {#if isRenaming && activeCollection}
-      <form class="header-rename" onsubmit={(e) => { e.preventDefault(); submitRename() }}>
-        <input
-          id="col-rename-input"
-          type="text"
-          class="rename-input"
-          bind:value={renameValue}
-          onblur={submitRename}
-          onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); cancelRename() } }}
-        />
-        <button type="button" class="text-action" onmousedown={(e) => e.preventDefault()} onclick={cancelRename}>Cancel</button>
-      </form>
-    {:else if isConfirmingDelete && activeCollection}
-      <div class="header-confirm">
-        <div class="confirm-message">
-          <span class="confirm-title">Delete "{activeCollection.name}"?</span>
-          {#if activeNoteCount > 0}
-            <span class="confirm-sub">
-              {activeNoteCount} {activeNoteCount === 1 ? 'note' : 'notes'} will be lost.
-            </span>
-          {/if}
-        </div>
-        <div class="col-actions">
-          <button type="button" class="text-action" onclick={cancelConfirmDelete}>Cancel</button>
-          <button type="button" class="text-action danger strong" onclick={confirmDelete}>Delete</button>
-        </div>
-      </div>
-    {:else}
-      <div class="col-title-wrap">
-        <h2 class="col-title">{header.title}</h2>
-        <span class="col-count">{visibleNotes.length}</span>
-      </div>
-      <div class="col-actions">
-        {#if canManageCollection}
-          <button class="icon-btn ghost" title="Rename collection" aria-label="Rename collection" onclick={startRename}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M11 2.2l2.8 2.8-8.4 8.4H2.6v-2.8l8.4-8.4z"/>
-              <path d="M10 3.2l2.8 2.8"/>
-            </svg>
-          </button>
-          <button class="icon-btn ghost danger" title="Delete collection" aria-label="Delete collection" onclick={startConfirmDelete}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2.5 4.5h11"/>
-              <path d="M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5"/>
-              <path d="M3.7 4.5l.7 9.3a1 1 0 0 0 1 .9h5.2a1 1 0 0 0 1-.9l.7-9.3"/>
-              <path d="M6.5 7.5v4M9.5 7.5v4"/>
-            </svg>
-          </button>
+  <header class="col-header">
+    <NotesFilter />
+    <div class="col-actions">
+      {#if $notesStore.filter.kind === 'trash'}
+        {#if visibleNotes.length > 0}
+          <button class="text-action danger" onclick={() => notesStore.emptyTrash()}>Empty trash</button>
         {/if}
-        {#if $notesStore.view === 'trash'}
-          {#if visibleNotes.length > 0}
-            <button class="text-action danger" onclick={() => notesStore.emptyTrash()}>Empty trash</button>
-          {/if}
-        {:else if canCreate()}
-          <button class="icon-btn primary" title="New note" aria-label="New note" onclick={onCreate}>+</button>
-        {/if}
-      </div>
-    {/if}
+      {:else}
+        <button class="icon-btn primary" title="New note" aria-label="New note" onclick={onCreate}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+        </button>
+      {/if}
+    </div>
   </header>
 
   <div class="col-list">
@@ -205,31 +91,31 @@
       <div class="empty">
         {#if !$notesStore.loaded}
           <div class="empty-headline">Loading…</div>
-        {:else if $notesStore.view === 'trash'}
+        {:else if $notesStore.filter.kind === 'trash'}
           <div class="empty-headline">Trash is empty</div>
           <div class="empty-sub">Notes you delete will rest here.</div>
-        {:else if $notesStore.collections.length === 0}
-          <div class="empty-headline">No collections yet</div>
-          <div class="empty-sub">Create one in the rail to get started.</div>
+        {:else if $notesStore.filter.kind === 'day'}
+          <div class="empty-headline">No day notes yet</div>
+          <div class="empty-sub">Notes you write in Journal land here.</div>
         {:else}
           <div class="empty-headline">No notes here</div>
           <div class="empty-sub">Hit + above to start writing.</div>
         {/if}
       </div>
-    {:else if $notesStore.view === 'trash'}
+    {:else if $notesStore.filter.kind === 'trash'}
       <div class="rows">
         {#each visibleNotes as n (n.id)}
           <div class="row trash-row">
             <div class="row-body">
-              <div class="row-title">{n.title || 'Untitled'}</div>
+              <div class="row-title">{noteLabel(n)}</div>
               {#if n.preview}
                 <div class="row-preview">{n.preview}</div>
               {/if}
               <div class="row-meta">
                 <span>{relativeTime(n.deletedAt ?? n.updatedAt)}</span>
-                {#if collectionsById.get(n.cid)}
+                {#if n.day}
                   <span class="meta-dot" aria-hidden="true">·</span>
-                  <span class="row-tag">{collectionsById.get(n.cid)}</span>
+                  <span class="row-tag">Day note</span>
                 {/if}
               </div>
             </div>
@@ -271,18 +157,21 @@
               }}
             >
               <div class="row-body">
-                <div class="row-title">{n.title || 'Untitled'}</div>
+                <div class="row-title">{noteLabel(n)}</div>
                 {#if n.preview}
                   <div class="row-preview">{n.preview}</div>
                 {:else}
                   <div class="row-preview muted">No content yet</div>
                 {/if}
                 <div class="row-meta">
-                  <span>{relativeTime(n.updatedAt)}</span>
-                  {#if $notesStore.view === 'all' && collectionsById.get(n.cid)}
-                    <span class="meta-dot" aria-hidden="true">·</span>
-                    <span class="row-tag">{collectionsById.get(n.cid)}</span>
+                  {#if n.day && n.title.trim() && $notesStore.filter.kind !== 'day'}
+                    <span class="row-tag day">{dayLabel(n.day)}</span>
+                  {:else}
+                    <span>{relativeTime(n.updatedAt)}</span>
                   {/if}
+                  {#each rowTags(n) as t (t)}
+                    <span class="row-tag">#{t}</span>
+                  {/each}
                 </div>
               </div>
               <button
@@ -319,21 +208,6 @@
     border-bottom: 1px solid var(--line);
     gap: 0.75rem;
   }
-  .col-title-wrap { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
-  .col-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin: 0;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .col-count {
-    font-size: 0.75rem;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
   .col-actions { display: flex; gap: 0.4rem; align-items: center; min-height: 32px; }
 
   .icon-btn {
@@ -365,60 +239,8 @@
     outline-offset: 1px;
   }
   .icon-btn.primary { color: var(--text); }
-  .icon-btn.ghost { border-color: transparent; }
-  .icon-btn.ghost:hover { border-color: var(--line); }
-  .icon-btn.ghost.danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
-  .icon-btn svg { width: 16px; height: 16px; display: block; }
+  .icon-btn svg { width: 15px; height: 15px; display: block; }
 
-  .header-rename {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-    min-width: 0;
-  }
-  .rename-input {
-    flex: 1;
-    min-width: 0;
-    background: var(--input-bg);
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 1rem;
-    font-weight: 700;
-    padding: 6px 10px;
-    outline: none;
-  }
-
-  .header-confirm {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex: 1;
-    min-width: 0;
-  }
-  .confirm-message {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    gap: 1px;
-  }
-  .confirm-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .confirm-sub {
-    font-size: 0.72rem;
-    color: var(--muted);
-    opacity: 0.85;
-  }
-  .text-action.strong { font-weight: 700; }
   .text-action {
     background: none;
     border: none;
@@ -516,12 +338,15 @@
     margin-top: 2px;
   }
   .meta-dot { opacity: 0.6; }
+  .row-meta { min-width: 0; overflow: hidden; }
   .row-tag {
     padding: 1px 6px;
     border-radius: 4px;
     background: var(--glass-dark);
     font-size: 0.68rem;
+    white-space: nowrap;
   }
+  .row-tag.day { color: var(--accent); }
 
   .row-actions { display: flex; gap: 2px; align-items: flex-start; }
   .row-action {
@@ -582,7 +407,6 @@
     .icon-btn { width: 40px; height: 40px; }
     .icon-btn svg { width: 18px; height: 18px; }
     .text-action { padding: 10px 12px; font-size: 0.85rem; }
-    .col-title { font-size: 1.05rem; }
     .row { padding: 0.6rem 0.75rem; }
     .row-delete { opacity: 0.5; }
     .row-action { width: 40px; height: 40px; }

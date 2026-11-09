@@ -1,6 +1,6 @@
 // The block types offered by the "+" button and the "/" menu.
 
-export type BlockId = 'h3' | 'p' | 'lead' | 'ul' | 'ol' | 'table' | 'image' | 'video'
+export type BlockId = 'h3' | 'p' | 'lead' | 'ul' | 'ol' | 'todo' | 'table' | 'image' | 'video'
 
 export interface BlockItem {
   id: BlockId
@@ -17,6 +17,7 @@ export const BLOCKS: BlockItem[] = [
   { id: 'lead', label: 'Lead paragraph', desc: 'Larger opening text', k: 'intro' },
   { id: 'ul', label: 'Bulleted list', hint: '-', k: 'bullet list' },
   { id: 'ol', label: 'Numbered list', hint: '1.', k: 'number ordered list' },
+  { id: 'todo', label: 'Checklist', hint: '[ ]', k: 'todo task check checkbox' },
   { id: 'table', label: 'Table', k: 'grid rows columns' },
   { id: 'image', label: 'Image', desc: 'Upload a picture or paste a link', k: 'picture photo img' },
   { id: 'video', label: 'Video', desc: 'Upload a clip or paste a YouTube link', k: 'youtube movie clip mp4' },

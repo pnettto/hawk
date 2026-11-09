@@ -1,5 +1,13 @@
 * {
-    box-sizing: border-box
+    box-sizing: border-box;
+    /* Thin, theme-tinted scrollbars instead of the chunky platform default.
+       Elements that hide theirs (scrollbar-width: none) still win. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+}
+
+*:hover {
+    scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
 }
 
 html {

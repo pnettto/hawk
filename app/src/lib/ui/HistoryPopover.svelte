@@ -9,10 +9,8 @@
 
   interface Props {
     kind: SnapshotKind
-    // Note id for kind 'note'; the date for day kinds.
+    // Note id for kind 'note'; the date for 'day-tasks'.
     entityId: string
-    // Which day note, for kind 'day-notes'.
-    noteId?: string
     // Element to anchor the popover under. Required so we can position with
     // `position: fixed` and bypass any parent `overflow: hidden/auto` clipping.
     anchor: HTMLElement | null
@@ -23,11 +21,7 @@
     onRestore?: () => void
     onClose: () => void
   }
-  let { kind, entityId, noteId, anchor, prepare, onRestore, onClose }: Props = $props()
-
-  let dayTarget = $derived<logsApi.DayHistoryTarget>(
-    kind === 'day-notes' ? { section: 'notes', noteId: noteId ?? 'main' } : { section: 'tasks' },
-  )
+  let { kind, entityId, anchor, prepare, onRestore, onClose }: Props = $props()
 
   let versions = $state<SnapshotMeta[]>([])
   let loading = $state(true)
@@ -71,7 +65,7 @@
       if (kind === 'note') {
         versions = await notesApi.listNoteVersions(entityId)
       } else {
-        versions = await logsApi.listDayVersions(entityId, dayTarget)
+        versions = await logsApi.listDayVersions(entityId)
       }
     } catch (e) {
       console.error('Failed to load versions:', e)
@@ -109,22 +103,17 @@
         const res = await notesApi.getNoteVersion(entityId, v.savedAt)
         previewText = stripMarkdown(res?.content?.content ?? '')
       } else {
-        const res = await logsApi.getDayVersion(entityId, dayTarget, v.savedAt)
-        if (kind === 'day-notes') {
-          const title = res?.content?.title ? `${res.content.title}\n\n` : ''
-          previewText = title + stripMarkdown(res?.content?.markdown ?? '')
-        } else {
-          const tasks = sortTasks(res?.content?.tasks ?? [])
-          const lines: string[] = []
-          for (const t of tasks) {
-            lines.push(`${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
-            // Indent comments so they nest visually under their task.
-            for (const cline of (t.comment ?? '').split('\n').filter(Boolean)) {
-              lines.push(`    ${cline}`)
-            }
+        const res = await logsApi.getDayVersion(entityId, v.savedAt)
+        const tasks = sortTasks(res?.content?.tasks ?? [])
+        const lines: string[] = []
+        for (const t of tasks) {
+          lines.push(`${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
+          // Indent comments so they nest visually under their task.
+          for (const cline of (t.comment ?? '').split('\n').filter(Boolean)) {
+            lines.push(`    ${cline}`)
           }
-          previewText = lines.join('\n') || '(empty)'
         }
+        previewText = lines.join('\n') || '(empty)'
       }
     } catch (e) {
       console.error('Failed to load version:', e)
@@ -142,7 +131,7 @@
       if (kind === 'note') {
         ok = await notesStore.restoreVersion(entityId, selected.savedAt)
       } else {
-        ok = await logsStore.restoreVersion(entityId, dayTarget, selected.savedAt)
+        ok = await logsStore.restoreVersion(entityId, selected.savedAt)
       }
       if (ok) {
         showToast(`Restored from ${fmtTime(selected.savedAt)}`)

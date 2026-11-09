@@ -158,7 +158,7 @@
       >
       <button
         class:active={$appStore.currentPage === 'notes'}
-        onclick={() => appStore.setCurrentPage('notes')}>Notes</button
+        onclick={() => appStore.setCurrentPage('notes')}>Notepad</button
       >
       <button
         class:active={$appStore.currentPage === 'files'}

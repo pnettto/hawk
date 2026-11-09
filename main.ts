@@ -27,10 +27,8 @@ import {
   uploadFile,
 } from "./server/routeHandlers/files.ts";
 import {
-  deleteCollection,
   emptyTrash,
-  getCollectionNotes,
-  getCollections,
+  getDayNotes,
   getNote,
   getNotesIndex,
   getNoteVersion,
@@ -38,12 +36,10 @@ import {
   getPublicNote,
   getSharedCollectionPage,
   getSharedNotePage,
-  getTrash,
   listNoteVersions,
   permanentlyDeleteNote,
   restoreNote,
   restoreNoteVersion,
-  saveCollections,
   saveNote,
   trashNote,
 } from "./server/routeHandlers/notes.ts";
@@ -130,11 +126,8 @@ app.get("/api/logout", logout);
 app.get("/api/auth-check", authCheck);
 
 // Notes API
-app.get("/api/notes/collections", getCollections);
-app.post("/api/notes/collections", saveCollections);
-app.delete("/api/notes/collections/:cid", deleteCollection);
-app.get("/api/notes/collections/:cid/notes", getCollectionNotes);
 app.get("/api/notes/index", getNotesIndex);
+app.get("/api/notes/days", getDayNotes);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", permanentlyDeleteNote);
@@ -147,8 +140,7 @@ app.post("/api/notes/notes/:nid/versions/:savedAt/restore", restoreNoteVersion);
 // Trash Bin API
 app.post("/api/notes/notes/:nid/trash", trashNote);
 app.post("/api/notes/notes/:nid/restore", restoreNote);
-app.get("/api/notes/collections/:cid/trash", getTrash);
-app.delete("/api/notes/collections/:cid/trash", emptyTrash);
+app.delete("/api/notes/trash", emptyTrash);
 
 // Files
 app.get("/api/files", listFiles);

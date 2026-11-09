@@ -18,6 +18,21 @@ function roundTrip(input: string): { first: string; second: string; editor: Edit
 }
 
 describe('body markdown round-trip', () => {
+  it('keeps checklists tight, checked state and nesting included', () => {
+    const input = '- [ ] one\n- [x] two\n  - [ ] nested'
+    const { first, second, editor } = roundTrip(input)
+    expect(first.trim()).toBe(input)
+    expect(second).toBe(first)
+    const list = editor.state.doc.firstChild!
+    expect(list.type.name).toBe('taskList')
+    expect(list.child(1).attrs.checked).toBe(true)
+  })
+
+  it('keeps a line-leading #tag unescaped', () => {
+    const { first } = roundTrip('Body\n\n#general-notes')
+    expect(first.trim()).toBe('Body\n\n#general-notes')
+  })
+
   it('keeps tables as GFM', () => {
     const input = '| A | B |\n| --- | --- |\n| 1 | **2** |'
     const { first, second, editor } = roundTrip(input)

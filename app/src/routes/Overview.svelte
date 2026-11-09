@@ -1,15 +1,19 @@
 <script lang="ts">
   import MarkdownIt from 'markdown-it'
-  import { logsStore, sortNotes, sortTasks } from '../stores/logs'
+  import { logsStore, sortTasks } from '../stores/logs'
+  import { sortDayNotes } from '../stores/notes'
+  import { getDayNotes } from '../api/notes'
   import { appStore } from '../stores/app'
   import { debounce } from '../utils/debounce'
   import { formatDate } from '../utils/date'
-  import type { DayLog } from '../types/models'
+  import type { DayLog, Note } from '../types/models'
 
   const md = new MarkdownIt({ html: false, linkify: true, breaks: false })
 
   let loading = $state(true)
   let copied = $state(false)
+  // Day notes in the range, by date.
+  let notesByDate = $state<Record<string, Note[]>>({})
 
   let tab = $derived($appStore.overviewTab)
 
@@ -32,10 +36,9 @@
   })
 
   // Markdown for one day's section body (also what Copy puts on the clipboard).
-  function dayMarkdown(day: DayLog | undefined): string {
-    if (!day) return ''
+  function dayMarkdown(day: DayLog | undefined, date: string): string {
     if (tab === 'tasks') {
-      return sortTasks(day.tasks ?? [])
+      return sortTasks(day?.tasks ?? [])
         .filter((t) => t.text.trim() || t.comment?.trim())
         .map((t) => {
           let line = `- [${t.done ? 'x' : ' '}] ${t.time ? `**${t.time}** ` : ''}${t.text}`
@@ -44,15 +47,15 @@
         })
         .join('\n')
     }
-    const notes = sortNotes(day.notes ?? []).filter((n) => n.markdown.trim())
+    const notes = sortDayNotes(notesByDate[date] ?? []).filter((n) => n.content.trim())
     return notes
-      .map((n) => (notes.length > 1 || n.title ? `### ${n.title || 'Note'}\n\n` : '') + n.markdown.trim())
+      .map((n) => (notes.length > 1 || n.title ? `### ${n.title || 'Note'}\n\n` : '') + n.content.trim())
       .join('\n\n')
   }
 
   let sections = $derived(
     dates
-      .map((date) => ({ date, body: dayMarkdown($logsStore.byDate[date]) }))
+      .map((date) => ({ date, body: dayMarkdown($logsStore.byDate[date], date) }))
       .filter((s) => s.body),
   )
 
@@ -67,7 +70,18 @@
 
   async function refresh() {
     loading = true
-    await logsStore.loadForRange(formatDate($appStore.overviewStart), formatDate($appStore.overviewEnd))
+    const start = formatDate($appStore.overviewStart)
+    const end = formatDate($appStore.overviewEnd)
+    const [, notes] = await Promise.all([
+      logsStore.loadForRange(start, end),
+      getDayNotes(start, end).catch((e) => {
+        console.error('Failed to load day notes', e)
+        return [] as Note[]
+      }),
+    ])
+    const byDate: Record<string, Note[]> = {}
+    for (const n of notes) if (n.day) (byDate[n.day] ??= []).push(n)
+    notesByDate = byDate
     loading = false
   }
   const debouncedRefresh = debounce(refresh, 250)

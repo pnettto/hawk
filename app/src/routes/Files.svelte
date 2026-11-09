@@ -35,9 +35,32 @@
     }
   }
 
+  // Images and videos pasted into notes live behind their own switch, so the
+  // regular list stays about files you uploaded on purpose.
+  const MEDIA_KEY = 'hawk_files_note_media'
+  let noteMedia = $state(readNoteMedia())
+  function readNoteMedia(): boolean {
+    try {
+      return localStorage.getItem(MEDIA_KEY) === '1'
+    } catch {
+      return false
+    }
+  }
+  function setNoteMedia(on: boolean) {
+    noteMedia = on
+    selected = new Set()
+    try {
+      localStorage.setItem(MEDIA_KEY, on ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+  let mediaCount = $derived($filesStore.files.filter((f) => f.inline).length)
+  let shown = $derived($filesStore.files.filter((f) => !!f.inline === noteMedia))
+
   let files = $derived.by(() => {
     const q = query.trim().toLowerCase()
-    const all = $filesStore.files
+    const all = shown
     const list = q ? all.filter((f) => f.name.toLowerCase().includes(q)) : [...all]
     return sort === 'size'
       ? list.sort((a, b) => b.size - a.size || b.createdAt - a.createdAt)
@@ -71,7 +94,7 @@
     }
     return out
   })
-  let totalBytes = $derived($filesStore.files.reduce((n, f) => n + f.size, 0))
+  let totalBytes = $derived(shown.reduce((n, f) => n + f.size, 0))
 
   // ---- selection -------------------------------------------------------
 
@@ -323,12 +346,12 @@
   <header class="head">
     <div class="title">
       <h1>Files</h1>
-      {#if $filesStore.files.length}
-        <span class="meta">{$filesStore.files.length} · {fmtSize(totalBytes)}</span>
+      {#if shown.length}
+        <span class="meta">{shown.length} · {fmtSize(totalBytes)}</span>
       {/if}
     </div>
     <div class="head-actions">
-      {#if $filesStore.files.length > 6}
+      {#if shown.length > 6}
         <input class="search" type="search" placeholder="Search" aria-label="Search files" bind:value={query} />
       {/if}
       <button type="button" class="btn-primary" onclick={pick}>
@@ -406,11 +429,25 @@
             <button type="button" role="radio" aria-checked={sort === id} onclick={() => setSort(id as Sort)}>{label}</button>
           {/each}
         </div>
+        <label class="media-switch" in:fade={{ duration: 120 }} title="Images and videos added from notes">
+          <input type="checkbox" role="switch" checked={noteMedia} onchange={(e) => setNoteMedia(e.currentTarget.checked)} />
+          <span class="track" aria-hidden="true"><span class="knob"></span></span>
+          <span>Note media</span>
+          <span class="media-count">{mediaCount}</span>
+        </label>
       {/if}
     </div>
 
     {#if !files.length}
-      <div class="empty">No files match “{query}”.</div>
+      <div class="empty">
+        {#if query.trim()}
+          No files match “{query}”.
+        {:else if noteMedia}
+          No images or videos from notes yet.
+        {:else}
+          No uploaded files. Media from notes is under Note media.
+        {/if}
+      </div>
     {/if}
     {#each groups as group (group.key)}
       {#if group.title}
@@ -604,6 +641,42 @@
   .sel-count { font-size: 0.8125rem; color: var(--text); font-variant-numeric: tabular-nums; }
   .sel-actions { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
   .btn-secondary.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
+  .media-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .media-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .media-switch .track {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  }
+  .media-switch .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  }
+  .media-switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+  .media-switch input:checked + .track .knob { transform: translateX(12px); background: var(--on-accent); }
+  .media-switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .media-switch:hover { color: var(--text); }
+  .media-switch input:checked ~ span:not(.track) { color: var(--text); }
+  .media-count { font-variant-numeric: tabular-nums; opacity: 0.7; }
   .segmented {
     display: inline-flex;
     padding: 2px;

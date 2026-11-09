@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { notesStore } from '../stores/notes'
-  import CollectionRail from '../lib/notes/CollectionRail.svelte'
   import NotesColumn from '../lib/notes/NotesColumn.svelte'
   import NoteEditor from '../lib/notes/NoteEditor.svelte'
 
@@ -34,10 +33,15 @@
 </script>
 
 <div class="notes-layout" class:has-selected-note={$notesStore.selectedNid !== null}>
-  <CollectionRail />
   <NotesColumn />
   <div class="editor-main">
-    <NoteEditor />
+    {#if $notesStore.selectedNid}
+      {#key $notesStore.selectedNid}
+        <NoteEditor nid={$notesStore.selectedNid} />
+      {/key}
+    {:else}
+      <div class="empty-state">Select or create a note</div>
+    {/if}
   </div>
 </div>
 
@@ -53,10 +57,22 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 1rem 1.5rem 1rem 2rem;
-    max-width: 900px;
+    /* Left room for the editor's "+" gutter button. */
+    padding: 1rem 1.5rem 1rem 3.5rem;
+    max-width: 960px;
     min-width: 0;
     overflow-y: auto;
+  }
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    opacity: 0.6;
+    padding: 4rem 2rem;
   }
   @media (max-width: 900px) {
     .notes-layout {
@@ -67,13 +83,11 @@
       max-width: none;
     }
     /* Master-detail navigation on mobile: when a note is selected, hide the
-       rail and notes column so the editor takes the full content area. */
-    .notes-layout.has-selected-note :global(.rail),
+       notes column so the editor takes the full content area. */
     .notes-layout.has-selected-note :global(.notes-col) {
       display: none;
     }
-    /* Conversely, hide the editor when no note is selected so the notes
-       column is the only thing under the rail. */
+    /* Conversely, hide the editor when no note is selected. */
     .notes-layout:not(.has-selected-note) .editor-main {
       display: none;
     }

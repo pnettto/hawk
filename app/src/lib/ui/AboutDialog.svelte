@@ -77,8 +77,8 @@
 
     <ul class="highlights">
       <li><strong>Tasks</strong> — a simple list for each day, with optional times and comments.</li>
-      <li><strong>Day notes</strong> — as many free-form notes per day as you like.</li>
-      <li><strong>Markdown notes</strong> — organize into collections, share publicly, restore from history.</li>
+      <li><strong>Day notes</strong> — as many free-form notes per day as you like, also kept in Notepad.</li>
+      <li><strong>Notepad</strong> — markdown notes organized with #tags, shared publicly, restored from history.</li>
       <li><strong>Files</strong> — drop anything here and grab it from any device.</li>
       <li><strong>Cross-device sync</strong> — live updates across tabs and devices (premium).</li>
     </ul>

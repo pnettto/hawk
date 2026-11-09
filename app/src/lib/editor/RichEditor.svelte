@@ -2,14 +2,15 @@
   import { onDestroy, onMount } from 'svelte'
   import { Editor, InputRule, Extension, createDocument } from '@tiptap/core'
   import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
-  import type { EditorView } from '@tiptap/pm/view'
+  import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
   import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
   import Placeholder from '@tiptap/extension-placeholder'
   import type { DocSession, EditorBridge } from '../../sync/docSession'
   import { uploadFile, publicFileUrl } from '../../api/files'
   import { showError, showToast } from '../../stores/toast'
   import type { AnchorRect } from '../utils/portal'
-  import { looksLikeMarkdown, splitSoftBreaks } from './paste'
+  import { bulletsToMarkdown, looksLikeMarkdown, normalizePastedHtml, splitSoftBreaks } from './paste'
+  import { TAG_TYPING_RE } from '../notes/tags'
   import { contentExtensions } from './schema'
   import { filterBlocks, isYoutubeUrl, normalizeUrl, slashQuery, type BlockId, type BlockItem } from './blocks'
   import InsertMenu from './InsertMenu.svelte'
@@ -21,8 +22,10 @@
     onBlur?: () => void
     placeholder?: string
     autofocus?: boolean
+    // Existing tags, most used first — offered when typing "#".
+    tags?: string[]
   }
-  let { session, onBlur, placeholder = 'Write here…', autofocus = false }: Props = $props()
+  let { session, onBlur, placeholder = 'Write here…', autofocus = false, tags = [] }: Props = $props()
 
   let wrapper: HTMLDivElement
   let element: HTMLDivElement
@@ -75,6 +78,45 @@
     name: 'customInputRules',
     addInputRules() {
       return [markdownLinkInputRule, youtubeInputRule, imageInputRule]
+    },
+  })
+
+  // ---- tags --------------------------------------------------------------
+  // #words are tags (see lib/notes/tags.ts). They're plain text in the
+  // document; this only paints them.
+
+  const TAG_IN_TEXT = /(^|[\s(])#([\p{L}\p{N}][\p{L}\p{N}_\-/]*)/gu
+
+  function tagDecorations(doc: PMNode): DecorationSet {
+    const decos: Decoration[] = []
+    doc.descendants((node, pos) => {
+      if (node.type.spec.code) return false
+      if (!node.isText || node.marks.some((m) => m.type.name === 'code' || m.type.name === 'link')) return
+      for (const m of node.text!.matchAll(TAG_IN_TEXT)) {
+        if (!/\p{L}/u.test(m[2])) continue
+        const from = pos + m.index! + m[1].length
+        decos.push(Decoration.inline(from, from + 1 + m[2].length, { class: 'hawk-tag' }))
+      }
+    })
+    return DecorationSet.create(doc, decos)
+  }
+
+  const TagHighlight = Extension.create({
+    name: 'tagHighlight',
+    addProseMirrorPlugins() {
+      const key = new PluginKey<DecorationSet>('tagHighlight')
+      return [
+        new Plugin<DecorationSet>({
+          key,
+          state: {
+            init: (_, { doc }) => tagDecorations(doc),
+            apply: (tr, old) => (tr.docChanged ? tagDecorations(tr.doc) : old),
+          },
+          props: {
+            decorations: (state) => key.getState(state),
+          },
+        }),
+      ]
     },
   })
 
@@ -164,11 +206,15 @@
 
   // Paste rules, in order:
   // 1. Image/video files → upload + insert.
-  // 2. Copied from a ProseMirror editor (incl. this one) → default handling,
+  // 2. Plain text that looks like markdown, unless the HTML beside it has
+  //    real structure (VS Code & co., chat boxes and other ProseMirror
+  //    editors holding literal **markdown**, "•" bullet text) → parse as
+  //    markdown, then tidy like rich HTML (a lone bold line becomes a
+  //    subheading).
+  // 3. Copied from a ProseMirror editor (incl. this one) → default handling,
   //    which preserves the exact structure.
-  // 3. Plain text that looks like markdown (also what VS Code & co. put on the
-  //    clipboard next to a styled-HTML copy) → parse as markdown.
-  // 4. Rich HTML (web pages, Docs) → default HTML paste, keeps links/lists.
+  // 4. Rich HTML (web pages, Docs, Word, Notes, mail) → rewritten into
+  //    paragraphs, headings, lists and marks (see normalizePastedHtml).
   // 5. Plain text → default, one paragraph per line.
   const SmartPaste = Extension.create({
     name: 'smartPaste',
@@ -188,16 +234,27 @@
                 return true
               }
               const html = data.getData('text/html')
-              if (html && /data-pm-slice/.test(html)) return false
-              const text = data.getData('text/plain')
-              if (!text) return false
+              const text = bulletsToMarkdown(data.getData('text/plain'))
               const inCode = view.state.selection.$from.parent.type.spec.code
               if (inCode) return false
               const fromCodeEditor = !!html && /vscode|monaco|<meta[^>]+charset/i.test(html) && !/<(p|h[1-6]|li|a)\b/i.test(html)
-              if (looksLikeMarkdown(text) && (!html || fromCodeEditor || !/<(a|strong|b|em|i|h[1-6]|li|img)\b/i.test(html))) {
+              // HTML that carries real structure. Without it (a code editor, a
+              // textarea, a chat box holding literal **markdown**), the text
+              // is the better source.
+              const structured = !!html && /<(a|strong|b|em|i|h[1-6]|li|img|table|pre|code|blockquote)\b/i.test(html)
+              if (text && looksLikeMarkdown(text) && (!html || fromCodeEditor || !structured)) {
                 event.preventDefault()
-                const rendered = markdownToHtml(splitSoftBreaks(text))
+                const rendered = normalizePastedHtml(markdownToHtml(splitSoftBreaks(text)))
                 if (!view.pasteHTML(rendered)) editor?.commands.insertContent(rendered)
+                return true
+              }
+              if (html && /data-pm-slice/.test(html)) return false
+              if (html && !fromCodeEditor) {
+                event.preventDefault()
+                // pasteHTML fires a synthetic paste without clipboardData,
+                // which the check at the top hands to the default handler.
+                const clean = normalizePastedHtml(html)
+                if (!view.pasteHTML(clean)) editor?.commands.insertContent(clean)
                 return true
               }
               return false
@@ -231,8 +288,22 @@
 
   let menu = $state<MenuState | null>(null)
   let menuItems = $derived(menu ? filterBlocks(menu.query) : [])
+  // "#" typed: existing tags to complete. `from` is the "#" position.
+  let tagMenu = $state<{ from: number; query: string; sel: number; anchor: AnchorRect } | null>(null)
+  let tagItems = $derived.by(() => {
+    if (!tagMenu) return []
+    const q = tagMenu.query.toLowerCase()
+    const starts = tags.filter((t) => t.startsWith(q))
+    const contains = q ? tags.filter((t) => !t.startsWith(q) && t.includes(q)) : []
+    return [...starts, ...contains].slice(0, 8).map((t) => ({ id: t, label: `#${t}` }))
+  })
+  // "#" position whose menu was dismissed with Esc.
+  let tagDismissed = -1
   let media = $state<{ kind: 'image' | 'video'; pos: number; anchor: AnchorRect } | null>(null)
-  let gutter = $state<{ top: number; pos: number } | null>(null)
+  // `inline`: no room in the left margin, so it sits at the end of the line.
+  let gutter = $state<{ top: number; pos: number; inline: boolean; right: number } | null>(null)
+  // Margin the "+" needs left of the text: its 26px plus breathing room.
+  const GUTTER_ROOM = 48
   let fmt = $state<{ anchor: AnchorRect; active: Marks } | null>(null)
   // Non-null while the format bar's link field is open.
   let linkHref = $state<string | null>(null)
@@ -305,10 +376,30 @@
     // A menu opened from "+" closes once its line is left or typed into.
     if (menu?.mode === 'gutter' && (para !== menu.pos || paraNode!.content.size > 0)) menu = null
 
+    // "#" tag completion
+    const before = sel.empty && focused && !at.parent.type.spec.code && !at.marks().some((m) => m.type.name === 'code')
+      ? TAG_TYPING_RE.exec(at.parent.textBetween(Math.max(0, at.parentOffset - 60), at.parentOffset, undefined, '\ufffc'))
+      : null
+    if (before) {
+      const from = at.pos - before[1].length - 1
+      if (from !== tagDismissed) {
+        const c = view.coordsAtPos(from)
+        const keep = tagMenu?.from === from ? tagMenu.sel : 0
+        tagMenu = { from, query: before[1], sel: keep, anchor: { top: c.top, bottom: c.bottom, left: c.left, right: c.right } }
+      } else {
+        tagMenu = null
+      }
+    } else {
+      tagMenu = null
+      tagDismissed = -1
+    }
+
     // "+" beside an empty line
     if (focused && dom && paraNode && paraNode.content.size === 0) {
       const top = dom.getBoundingClientRect().top - wrapper.getBoundingClientRect().top + (dom.offsetHeight - 26) / 2
-      gutter = { top, pos: para! }
+      const wr = wrapper.getBoundingClientRect()
+      const inline = !!narrow?.matches || wr.left < GUTTER_ROOM
+      gutter = { top, pos: para!, inline, right: wr.right - dom.getBoundingClientRect().right }
     } else if (menu?.mode !== 'gutter') {
       gutter = null
     }
@@ -341,7 +432,10 @@
       if (media) media.pos = transaction.mapping.map(media.pos)
       if (menu?.mode === 'gutter') menu.pos = transaction.mapping.map(menu.pos)
     }
-    refresh()
+    // Focus changes can fire while Svelte is mid-render (an editor that had
+    // focus being torn down by a {#key}), where state writes are forbidden.
+    if (transaction.getMeta('focus') || transaction.getMeta('blur')) queueMicrotask(refresh)
+    else refresh()
   }
 
   // Keep fixed-position popovers attached to their spot while scrolling.
@@ -361,6 +455,10 @@
   function onDocMouseDown(e: MouseEvent) {
     const inside = (sel: string) => e.composedPath().some((n) => n instanceof Element && n.matches(sel))
     if (menu && !inside('.insert-menu, .gutter-add')) menu = null
+    if (tagMenu && !inside('.insert-menu')) {
+      tagDismissed = tagMenu.from
+      tagMenu = null
+    }
     if (linkHref !== null && !inside('.fmtbar')) {
       linkHref = null
       fmt = null
@@ -383,6 +481,33 @@
       return
     }
     menu = { mode: 'gutter', pos: gutter.pos, query: '', sel: 0, anchor: rectOf(gutterBtn) }
+  }
+
+  function pickTag(tag: string) {
+    const m = tagMenu
+    tagMenu = null
+    if (!m || !editor) return
+    const { view } = editor
+    const to = view.state.selection.from
+    view.dispatch(view.state.tr.insertText(`#${tag} `, m.from, to).scrollIntoView())
+    view.focus()
+  }
+
+  // Put the caret at the start of the body, from the title. A note that
+  // opens with its tag line (new notes in a tag view) gets an empty line
+  // above it to write in.
+  export function focusBody() {
+    if (!editor) return
+    const { state, view } = editor
+    const first = state.doc.firstChild
+    const tagLine = first?.type.name === 'paragraph' && /^\s*(#[^\s#]+\s*)+$/u.test(first.textContent)
+    if (tagLine) {
+      const tr = state.tr.insert(0, state.schema.nodes.paragraph.create())
+      view.dispatch(tr.setSelection(TextSelection.create(tr.doc, 1)))
+    } else {
+      view.dispatch(state.tr.setSelection(TextSelection.atStart(state.doc)))
+    }
+    view.focus()
   }
 
   function pick(item: BlockItem) {
@@ -415,6 +540,9 @@
         break
       case 'ol':
         chain.toggleOrderedList().run()
+        break
+      case 'todo':
+        chain.toggleTaskList().run()
         break
       case 'table':
         chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
@@ -565,6 +693,22 @@
 
   function handleKeyDown(_view: EditorView, e: KeyboardEvent): boolean {
     if (e.isComposing) return false
+    if (tagMenu && tagItems.length) {
+      const n = tagItems.length
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        tagMenu.sel = (tagMenu.sel + (e.key === 'ArrowDown' ? 1 : -1) + n) % n
+        return true
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        pickTag(tagItems[Math.min(tagMenu.sel, n - 1)].id)
+        return true
+      }
+      if (e.key === 'Escape') {
+        tagDismissed = tagMenu.from
+        tagMenu = null
+        return true
+      }
+    }
     if (menu) {
       const n = menuItems.length
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -692,6 +836,7 @@
         }),
         CustomInputRules,
         SmartPaste,
+        TagHighlight,
       ],
       content: session.local().body,
       editorProps: {
@@ -709,9 +854,9 @@
         session.touch()
       },
       onTransaction,
-      onFocus: refresh,
+      onFocus: () => queueMicrotask(refresh),
       onBlur: () => {
-        refresh()
+        queueMicrotask(refresh)
         onBlur?.()
       },
     })
@@ -746,8 +891,10 @@
       type="button"
       class="gutter-add"
       class:open={menu?.mode === 'gutter'}
+      class:inline={gutter.inline}
       bind:this={gutterBtn}
       style:top="{gutter.top}px"
+      style:right={gutter.inline ? `${gutter.right}px` : null}
       aria-label="Insert block"
       aria-haspopup="listbox"
       aria-expanded={menu?.mode === 'gutter'}
@@ -784,10 +931,20 @@
   <InsertMenu
     items={menuItems}
     selected={menu.sel}
-    query={menu.query}
     anchor={menu.anchor}
-    onPick={pick}
+    empty="No block matches “{menu.query}”. Press Esc to keep typing."
+    onPick={(i) => pick(menuItems[i])}
     onHover={(i) => menu && (menu.sel = i)}
+  />
+{:else if tagMenu && tagItems.length}
+  <InsertMenu
+    items={tagItems}
+    selected={Math.min(tagMenu.sel, tagItems.length - 1)}
+    anchor={tagMenu.anchor}
+    label="Tags"
+    compact
+    onPick={(i) => pickTag(tagItems[i].id)}
+    onHover={(i) => tagMenu && (tagMenu.sel = i)}
   />
 {/if}
 
@@ -880,6 +1037,71 @@
   :global(.rich-editor .tiptap ul),
   :global(.rich-editor .tiptap ol) { padding-left: 1.5rem; margin: 0.5rem 0; }
   :global(.rich-editor .tiptap li p) { margin: 0.2rem 0; }
+
+  /* Checklists — same check as Journal tasks. */
+  :global(.rich-editor .tiptap ul[data-type='taskList']) { list-style: none; padding-left: 0; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] ul[data-type='taskList']) { padding-left: 1.6rem; margin: 0; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li) { display: flex; align-items: flex-start; gap: 0.35rem; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label) {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: calc(var(--lh) * 1em);
+    margin-top: 0.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label input) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label span) {
+    position: relative;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 1.5px solid color-mix(in srgb, var(--muted) 55%, transparent);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label span::after) {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--on-accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-bounce);
+  }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label:hover span) { border-color: var(--accent); }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > label input:focus-visible + span) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li[data-checked='true'] > label span) { background: var(--accent); border-color: var(--accent); }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li[data-checked='true'] > label span::after) { opacity: 1; transform: none; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li > div) { flex: 1; min-width: 0; }
+  :global(.rich-editor .tiptap ul[data-type='taskList'] > li[data-checked='true'] > div > p) {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+  }
+
+  :global(.rich-editor .tiptap .hawk-tag) {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 4px;
+    padding: 0 0.15em;
+    margin: 0 -0.15em;
+  }
   :global(.rich-editor .tiptap hr) {
     border: none;
     border-top: 1px solid var(--line);
@@ -953,7 +1175,7 @@
 
   .gutter-add {
     position: absolute;
-    left: -31px;
+    left: -38px;
     z-index: 2;
     width: 26px;
     height: 26px;
@@ -976,10 +1198,8 @@
   .gutter-add:hover,
   .gutter-add.open { color: var(--accent); border-color: var(--accent); }
   .gutter-add.open { transform: rotate(45deg); }
-  @media (max-width: 760px) {
-    /* No room in the margin: sit at the end of the empty line instead. */
-    .gutter-add { left: auto; right: 0; }
-  }
+  /* No room in the margin: sit at the end of the empty line instead. */
+  .gutter-add.inline { left: auto; }
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

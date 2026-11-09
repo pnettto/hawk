@@ -1,21 +1,32 @@
 <script lang="ts">
   import { portal, placeBelow, type AnchorRect } from '../utils/portal'
-  import type { BlockItem } from './blocks'
+
+  // Keyboard-driven pick list under the caret: the "+" / "/" block menu and
+  // "#" tag completion.
+  interface Item {
+    id: string
+    label: string
+    hint?: string
+    desc?: string
+  }
 
   interface Props {
-    items: BlockItem[]
+    items: Item[]
     selected: number
-    query: string
     anchor: AnchorRect
-    onPick: (item: BlockItem) => void
+    label?: string
+    // Shown when nothing matches.
+    empty?: string
+    compact?: boolean
+    onPick: (index: number) => void
     onHover: (index: number) => void
   }
-  let { items, selected, query, anchor, onPick, onHover }: Props = $props()
+  let { items, selected, anchor, label = 'Insert block', empty = '', compact = false, onPick, onHover }: Props = $props()
 
   let el = $state<HTMLDivElement | null>(null)
   let w = $state(0)
   let h = $state(0)
-  let pos = $derived(placeBelow(anchor, w || 280, h || 0))
+  let pos = $derived(placeBelow(anchor, w || (compact ? 200 : 280), h || 0))
 
   $effect(() => {
     void selected
@@ -25,8 +36,9 @@
 
 <div
   class="insert-menu"
+  class:compact
   role="listbox"
-  aria-label="Insert block"
+  aria-label={label}
   use:portal
   bind:this={el}
   bind:offsetWidth={w}
@@ -43,14 +55,14 @@
       aria-selected={i === selected}
       onmousedown={(e) => e.preventDefault()}
       onmousemove={() => i !== selected && onHover(i)}
-      onclick={() => onPick(item)}
+      onclick={() => onPick(i)}
     >
       <span class="label">{item.label}</span>
       {#if item.hint}<span class="hint">{item.hint}</span>{/if}
       {#if item.desc}<span class="desc">{item.desc}</span>{/if}
     </button>
   {:else}
-    <div class="none">No block matches “{query}”. Press Esc to keep typing.</div>
+    <div class="none">{empty}</div>
   {/each}
 </div>
 
@@ -70,6 +82,8 @@
     animation: popIn var(--dur-pop) var(--ease-spring);
     transform-origin: top left;
   }
+  .insert-menu.compact { width: 200px; max-height: 260px; padding: 4px; }
+  .compact .item { padding: 5px 8px; }
   .item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

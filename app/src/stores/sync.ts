@@ -12,8 +12,6 @@ export type SyncEventType =
   | 'note.restored'
   | 'note.deleted'
   | 'trash.emptied'
-  | 'collection.saved'
-  | 'collection.deleted'
   | 'log.saved'
   | 'preferences.saved'
   | 'files.changed'
@@ -22,7 +20,6 @@ export interface SyncEvent {
   id: string
   type: SyncEventType
   ref: string
-  cid?: string
   originClientId?: string
   ts: number
 }
@@ -163,8 +160,6 @@ function createSyncStore() {
       'note.restored',
       'note.deleted',
       'trash.emptied',
-      'collection.saved',
-      'collection.deleted',
       'log.saved',
       'preferences.saved',
       'files.changed',

@@ -30,8 +30,6 @@ export type SyncEventType =
   | "note.restored"
   | "note.deleted"
   | "trash.emptied"
-  | "collection.saved"
-  | "collection.deleted"
   | "log.saved"
   | "preferences.saved"
   | "files.changed";
@@ -39,10 +37,8 @@ export type SyncEventType =
 export interface SyncEvent {
   id: string;
   type: SyncEventType;
-  // Primary id of the affected entity (nid, cid, or dateStr).
+  // Primary id of the affected entity (nid or dateStr).
   ref: string;
-  // For note events, the collection id (lets clients refresh just one index).
-  cid?: string;
   // The clientId that triggered the write — used to suppress echoes.
   originClientId?: string;
   ts: number;
@@ -101,7 +97,6 @@ export function ulid(): string {
 interface EmitArgs {
   type: SyncEventType;
   ref: string;
-  cid?: string;
   originClientId?: string;
 }
 
@@ -115,7 +110,6 @@ export async function emitSyncEvent(args: EmitArgs): Promise<void> {
     id: ulid(),
     type: args.type,
     ref: args.ref,
-    cid: args.cid,
     originClientId: args.originClientId,
     ts: Date.now(),
   };

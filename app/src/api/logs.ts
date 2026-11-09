@@ -1,7 +1,5 @@
 import { api } from './client'
-import type { DayLog, DayNote, LogsByDate, SnapshotMeta, Task } from '../types/models'
-
-export type DaySection = 'notes' | 'tasks'
+import type { DayLog, LogsByDate, SnapshotMeta, Task } from '../types/models'
 
 const q = (params: Record<string, string | undefined>) =>
   new URLSearchParams(
@@ -25,41 +23,19 @@ export const patchTasks = (
     { keepalive: JSON.stringify(body).length < 60_000 },
   )
 
-export const saveDayNote = (
-  dateStr: string,
-  note: Pick<DayNote, 'id' | 'title' | 'markdown' | 'order'>,
-  baseRev: number,
-  opts: { snapshot?: boolean; keepalive?: boolean } = {},
-) =>
-  api.postWithConflict<{ note: DayNote }>(
-    `/api/day/notes?${q({ date: dateStr, snapshot: opts.snapshot ? 'true' : undefined })}`,
-    { note, baseRev },
-    { keepalive: opts.keepalive },
+// Day history covers the task list. (Day notes are notes, with note history.)
+const historyQuery = (dateStr: string, extra: Record<string, string> = {}) =>
+  q({ date: dateStr, section: 'tasks', ...extra })
+
+export const listDayVersions = (dateStr: string) =>
+  api.get<SnapshotMeta[]>(`/api/day/versions?${historyQuery(dateStr)}`)
+
+export const getDayVersion = (dateStr: string, savedAt: number) =>
+  api.get<{ savedAt: number; content: { tasks?: Task[] } }>(
+    `/api/day/versions/one?${historyQuery(dateStr, { savedAt: String(savedAt) })}`,
   )
 
-export const deleteDayNote = (dateStr: string, id: string) =>
-  api.del(`/api/day/notes?${q({ date: dateStr, id })}`)
-
-// History target: the day's task list, or one day note.
-export type DayHistoryTarget = { section: 'tasks' } | { section: 'notes'; noteId: string }
-
-const historyQuery = (dateStr: string, t: DayHistoryTarget, extra: Record<string, string> = {}) =>
-  q({
-    date: dateStr,
-    section: t.section,
-    note: t.section === 'notes' ? t.noteId : undefined,
-    ...extra,
-  })
-
-export const listDayVersions = (dateStr: string, t: DayHistoryTarget) =>
-  api.get<SnapshotMeta[]>(`/api/day/versions?${historyQuery(dateStr, t)}`)
-
-export const getDayVersion = (dateStr: string, t: DayHistoryTarget, savedAt: number) =>
-  api.get<{ savedAt: number; content: { tasks?: Task[]; title?: string; markdown?: string } }>(
-    `/api/day/versions/one?${historyQuery(dateStr, t, { savedAt: String(savedAt) })}`,
-  )
-
-export const restoreDayVersion = (dateStr: string, t: DayHistoryTarget, savedAt: number) =>
-  api.post<{ success: boolean; tasks?: Task[]; note?: DayNote }>(
-    `/api/day/versions/restore?${historyQuery(dateStr, t, { savedAt: String(savedAt) })}`,
+export const restoreDayVersion = (dateStr: string, savedAt: number) =>
+  api.post<{ success: boolean; tasks?: Task[] }>(
+    `/api/day/versions/restore?${historyQuery(dateStr, { savedAt: String(savedAt) })}`,
   )

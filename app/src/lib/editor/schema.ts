@@ -3,6 +3,7 @@ import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
+import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Lead, Video } from './nodes'
 
@@ -32,6 +33,22 @@ const BlockImage = Image.extend({
   },
 })
 
+// tiptap-markdown only tracks list tightness on bullet/ordered lists, so a
+// checklist was written loose — a blank line between every item. Same
+// attribute, for checklists.
+const TightTaskList = TaskList.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      tight: {
+        default: true,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-tight') === 'true' || !el.querySelector('p'),
+        renderHTML: (attrs: { tight?: boolean }) => (attrs.tight ? { 'data-tight': 'true' } : {}),
+      },
+    }
+  },
+})
+
 // Everything that defines what a body can contain and how it maps to
 // markdown. Shared by the editor and the round-trip tests.
 export function contentExtensions() {
@@ -50,6 +67,8 @@ export function contentExtensions() {
     TableRow,
     TableHeader,
     TableCell,
+    TightTaskList,
+    TaskItem.configure({ nested: true }),
     Lead,
     Video,
   ]

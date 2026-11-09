@@ -1,7 +1,7 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { marked } from "marked";
-import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
+import { emitSyncEvent, getClientIdFromCtx, type SyncEventType } from "../utils/syncEvents.ts";
 import {
   getVersion,
   isSubstantialTextChange,
@@ -9,6 +9,15 @@ import {
   makePreview,
   maybeSnapshot,
 } from "../utils/versioning.ts";
+import {
+  ensureNotesMigrated,
+  metaKey,
+  metaOf,
+  type NoteMetadata,
+  noteKey,
+  type StoredNote,
+} from "../utils/notesStore.ts";
+import { parseTags } from "../utils/tags.ts";
 
 // Pre-load the HTML templates
 let shareTemplate = "";
@@ -20,96 +29,10 @@ try {
   console.error("Failed to load share templates:", e);
 }
 
-// Collections storage: ["notes", "collections"] -> Collection[]
-// Each Collection: { id: string, name: string }
-
-// Notes indexing: ["notes", "collection", cid] -> string[] (note IDs)
-
-// Note data: ["notes", "note", nid] -> { id: string, cid: string, title: string, content: string, updatedAt: number }
-
-interface NoteMetadata {
-  id: string;
-  cid: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  deletedAt?: number;
-  preview?: string;
-  isPublic?: boolean;
-}
-
-export function buildPreview(markdown: string | undefined, max = 140): string {
-  if (!markdown) return "";
-  const stripped = markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`[^`]*`/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s{0,3}>\s?/gm, "")
-    .replace(/^\s*[-*+]\s+/gm, "")
-    .replace(/^\s*\d+\.\s+/gm, "")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/_([^_]+)_/g, "$1")
-    .replace(/~~([^~]+)~~/g, "$1")
-    .replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-  return stripped.length > max ? stripped.slice(0, max).trimEnd() + "…" : stripped;
-}
-
 interface Collection {
   id: string;
   name: string;
   isPublic?: boolean;
-}
-
-export async function getCollections(c: Context) {
-  const result = await kv.get(["notes", "collections"]);
-  return c.json(result.value || []);
-}
-
-export async function saveCollections(c: Context) {
-  const collections = await c.req.json();
-  await kv.set(["notes", "collections"], collections);
-  await emitSyncEvent({
-    type: "collection.saved",
-    ref: "all",
-    originClientId: getClientIdFromCtx(c),
-  });
-  return c.json({ success: true });
-}
-
-export async function getCollectionNotes(c: Context) {
-  const cid = c.req.param("cid");
-  if (!cid) return c.json({ error: "Missing collection ID" }, 400);
-
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  if (!indexRes.value) return c.json([]);
-
-  return c.json(indexRes.value.filter((n) => !n.deletedAt));
-}
-
-export async function getTrash(c: Context) {
-  const cid = c.req.param("cid");
-  if (!cid) return c.json({ error: "Missing CID" }, 400);
-
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  if (!indexRes.value) return c.json([]);
-
-  return c.json(indexRes.value.filter((n) => !!n.deletedAt));
-}
-
-export async function getNote(c: Context) {
-  const nid = c.req.param("nid");
-  if (!nid) return c.json({ error: "Missing note ID" }, 400);
-
-  const note = await kv.get(["notes", "note", nid]);
-  if (!note.value) return c.json({ error: "Note not found" }, 404);
-
-  return c.json(note.value);
 }
 
 export async function getPublicNote(c: Context) {
@@ -193,311 +116,177 @@ export async function getSharedNotePage(c: Context) {
   return c.html(html);
 }
 
-export async function getNotesIndex(c: Context) {
-  const collsRes = await kv.get<{ id: string }[]>(["notes", "collections"]);
-  const colls = collsRes.value || [];
-
-  const allMetadata: NoteMetadata[] = [];
-  for (const coll of colls) {
-    const res = await kv.get<NoteMetadata[]>(["notes", "collection", coll.id]);
-    if (res.value) {
-      allMetadata.push(...res.value);
-    }
-  }
-  return c.json(allMetadata);
-}
-
-export async function deleteCollection(c: Context) {
-  const cid = c.req.param("cid");
-  if (!cid) return c.json({ error: "Missing collection ID" }, 400);
-
-  const collectionsRes = await kv.get<{ id: string; name: string }[]>([
-    "notes",
-    "collections",
-  ]);
-  const collections = collectionsRes.value || [];
-  const filtered = collections.filter((item) => item.id !== cid);
-  await kv.set(["notes", "collections"], filtered);
-
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  if (indexRes.value) {
-    for (const item of indexRes.value) {
-      await kv.delete(["notes", "note", item.id]);
-    }
-  }
-  await kv.delete(["notes", "collection", cid]);
-
-  await emitSyncEvent({
-    type: "collection.deleted",
-    ref: cid,
-    cid,
-    originClientId: getClientIdFromCtx(c),
-  });
-  return c.json({ success: true });
-}
-
 // Deno KV rejects values over 64 KiB; surface that as a clear 413.
 const MAX_NOTE_BYTES = 63 * 1024;
 
-export async function saveNote(c: Context) {
-  const note = await c.req.json();
-  const { id, cid, title, createdAt, snapshot, baseRev } = note;
-  if (!id || !cid) return c.json({ error: "Missing ID or CID" }, 400);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-  const timestamp = Date.now();
-  const existingNoteRes = await kv.get<
-    NoteMetadata & { content?: string; rev?: number; isPublic?: boolean }
-  >(["notes", "note", id]);
-  const existingNote = existingNoteRes.value;
+async function emitNote(c: Context, type: SyncEventType, ref: string) {
+  await emitSyncEvent({ type, ref, originClientId: getClientIdFromCtx(c) });
+}
+
+async function listMeta(): Promise<NoteMetadata[]> {
+  await ensureNotesMigrated();
+  const out: NoteMetadata[] = [];
+  for await (const e of kv.list<NoteMetadata>({ prefix: ["notes", "meta"] })) out.push(e.value);
+  return out;
+}
+
+// Every note's list row, trashed ones included.
+export async function getNotesIndex(c: Context) {
+  return c.json(await listMeta());
+}
+
+export async function getNote(c: Context) {
+  const nid = c.req.param("nid");
+  if (!nid) return c.json({ error: "Missing note ID" }, 400);
+  await ensureNotesMigrated();
+  const note = await kv.get(noteKey(nid));
+  if (!note.value) return c.json({ error: "Note not found" }, 404);
+  return c.json(note.value);
+}
+
+// Full day notes with `day` in [start, end] — the Journal overview.
+export async function getDayNotes(c: Context) {
+  const start = c.req.query("start");
+  const end = c.req.query("end");
+  if (!start || !end || !DATE_RE.test(start) || !DATE_RE.test(end)) {
+    return c.json({ error: "Missing start or end date" }, 400);
+  }
+  const ids = (await listMeta())
+    .filter((m) => m.day && !m.deletedAt && m.day >= start && m.day <= end)
+    .map((m) => noteKey(m.id));
+  const notes: StoredNote[] = [];
+  // getMany takes at most 10 keys.
+  for (let i = 0; i < ids.length; i += 10) {
+    for (const r of await kv.getMany<StoredNote[]>(ids.slice(i, i + 10))) {
+      if (r.value) notes.push(r.value);
+    }
+  }
+  return c.json(notes);
+}
+
+// Body: { id, title?, content?, createdAt?, isPublic?, day?, dayOrder?,
+// baseRev?, snapshot? }. Omitted fields keep their stored value, so a
+// metadata-only save (share toggle) never touches the body. Tags are always
+// re-derived from the body.
+export async function saveNote(c: Context) {
+  const body = await c.req.json().catch(() => null);
+  const id = body?.id;
+  if (typeof id !== "string" || !id) return c.json({ error: "Missing ID" }, 400);
+  await ensureNotesMigrated();
+
+  const existingRes = await kv.get<StoredNote>(noteKey(id));
+  const existing = existingRes.value;
 
   // Optimistic concurrency: a client that says which rev it edited from gets
   // a 409 (and the current note) instead of silently overwriting a newer save
   // from another device. Clients that omit baseRev keep last-write-wins.
-  if (
-    existingNote && typeof baseRev === "number" &&
-    (existingNote.rev ?? 0) !== baseRev
-  ) {
-    return c.json({ note: existingNote }, 409);
+  if (existing && typeof body.baseRev === "number" && (existing.rev ?? 0) !== body.baseRev) {
+    return c.json({ note: existing }, 409);
   }
 
-  // Strip transport-only flags so they don't pollute the stored record.
-  const { snapshot: _drop, baseRev: _base, ...notePayload } = note;
-  const fullNote = { ...notePayload, updatedAt: timestamp, rev: existingNote?.rev ?? 0 };
-  // If the client never loaded full content (e.g. a metadata-only save from a
-  // share toggle or a move), keep the existing body instead of wiping it.
-  if (notePayload.content === undefined && existingNote?.content !== undefined) {
-    fullNote.content = existingNote.content;
-  }
+  const now = Date.now();
+  const content = typeof body.content === "string" ? body.content : existing?.content ?? "";
+  const title = typeof body.title === "string" ? body.title : existing?.title ?? "";
   // rev tracks the editable text (title + body) only, so metadata-only saves
-  // don't invalidate an open editor's baseRev on another device.
-  const textChanged = !existingNote ||
-    fullNote.content !== existingNote.content ||
-    fullNote.title !== existingNote.title;
-  if (textChanged) {
-    fullNote.rev = (existingNote?.rev ?? 0) + 1;
-  } else if (existingNote && existingNote.cid === cid) {
-    // Share toggles etc. shouldn't float the note to the top of "recent".
-    fullNote.updatedAt = existingNote.updatedAt;
-  }
-  if (existingNote?.isPublic !== undefined && notePayload.isPublic === undefined) {
-    fullNote.isPublic = existingNote.isPublic;
-  }
-  if (existingNote?.deletedAt) fullNote.deletedAt = existingNote.deletedAt;
-  if (JSON.stringify(fullNote).length > MAX_NOTE_BYTES) {
+  // don't invalidate an open editor's baseRev on another device — nor float
+  // the note to the top of "recent".
+  const textChanged = !existing || content !== existing.content || title !== existing.title;
+  const note: StoredNote = {
+    id,
+    title,
+    content,
+    createdAt: existing?.createdAt ?? (typeof body.createdAt === "number" ? body.createdAt : now),
+    updatedAt: textChanged || !existing ? now : existing.updatedAt,
+    rev: (existing?.rev ?? 0) + (textChanged ? 1 : 0),
+    tags: parseTags(content),
+  };
+  const isPublic = typeof body.isPublic === "boolean" ? body.isPublic : existing?.isPublic;
+  if (isPublic) note.isPublic = true;
+  if (existing?.deletedAt) note.deletedAt = existing.deletedAt;
+  if (existing?.cid) note.cid = existing.cid;
+  // A note's day is fixed when it's created.
+  const day = existing ? existing.day : (typeof body.day === "string" && DATE_RE.test(body.day) ? body.day : undefined);
+  if (day) note.day = day;
+  const dayOrder = typeof body.dayOrder === "number" ? body.dayOrder : existing?.dayOrder;
+  if (day && typeof dayOrder === "number") note.dayOrder = dayOrder;
+
+  if (JSON.stringify(note).length > MAX_NOTE_BYTES) {
     return c.json({ error: "Note is too large" }, 413);
   }
   const commit = await kv.atomic()
-    .check(existingNoteRes)
-    .set(["notes", "note", id], fullNote)
+    .check(existingRes)
+    .set(noteKey(id), note)
+    .set(metaKey(id), metaOf(note))
     .commit();
   if (!commit.ok) {
     // Another save landed between our read and write.
-    const latest = await kv.get(["notes", "note", id]);
+    const latest = await kv.get(noteKey(id));
     return c.json({ note: latest.value }, 409);
   }
 
-  if (snapshot === true) {
-    const substantial = isSubstantialTextChange(
-      existingNote?.content,
-      fullNote.content,
-    );
+  if (body.snapshot === true) {
     await maybeSnapshot({
       kind: "note",
       id,
-      next: { title: fullNote.title, content: fullNote.content },
-      preview: makePreview(fullNote.content),
-      substantialChange: substantial,
+      next: { title: note.title, content: note.content },
+      preview: makePreview(note.content),
+      substantialChange: isSubstantialTextChange(existing?.content, note.content),
     });
   }
 
-  const metadata: NoteMetadata = {
-    id,
-    cid,
-    title: title || "Untitled",
-    createdAt: createdAt || existingNote?.createdAt || timestamp,
-    updatedAt: fullNote.updatedAt,
-    preview: buildPreview(fullNote.content),
-  };
-  if (fullNote.isPublic) metadata.isPublic = true;
-  if (existingNote?.deletedAt) metadata.deletedAt = existingNote.deletedAt;
+  await emitNote(c, "note.saved", id);
+  return c.json({ success: true, rev: note.rev, updatedAt: note.updatedAt });
+}
 
-  // If the note moved to a different collection, drop it from the old index.
-  if (existingNote && existingNote.cid && existingNote.cid !== cid) {
-    const oldIndexRes = await kv.get<NoteMetadata[]>([
-      "notes",
-      "collection",
-      existingNote.cid,
-    ]);
-    if (oldIndexRes.value) {
-      const cleanedOld = oldIndexRes.value.filter((m) => m.id !== id);
-      await kv.set(["notes", "collection", existingNote.cid], cleanedOld);
-    }
+// Read-modify-write one note's deletedAt, keeping note and meta in step.
+async function setDeleted(nid: string, deletedAt: number | null): Promise<boolean> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await kv.get<StoredNote>(noteKey(nid));
+    if (!res.value) return false;
+    const note = { ...res.value };
+    if (deletedAt) note.deletedAt = deletedAt;
+    else delete note.deletedAt;
+    const ok = await kv.atomic().check(res).set(noteKey(nid), note).set(metaKey(nid), metaOf(note)).commit();
+    if (ok.ok) return true;
   }
-
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  const index = indexRes.value || [];
-
-  const existingIdx = index.findIndex((m) => m.id === id);
-  if (existingIdx > -1) {
-    index[existingIdx] = metadata;
-  } else {
-    index.unshift(metadata);
-  }
-
-  await kv.set(["notes", "collection", cid], index);
-  await emitSyncEvent({
-    type: "note.saved",
-    ref: id,
-    cid,
-    originClientId: getClientIdFromCtx(c),
-  });
-  return c.json({ success: true, rev: fullNote.rev, updatedAt: fullNote.updatedAt });
+  throw new Error("Note write contention");
 }
 
 export async function trashNote(c: Context) {
   const nid = c.req.param("nid");
   if (!nid) return c.json({ error: "Missing ID" }, 400);
-
-  const { cid: bodyCid } = await c.req.json().catch(() => ({}));
-
-  const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-  let note = noteRes.value;
-
-  if (!note) {
-    if (!bodyCid) {
-      return c.json({ error: "Note not found and no CID provided" }, 404);
-    }
-    // Create tombstone for optimistic note
-    note = {
-      id: nid,
-      cid: bodyCid,
-      title: "Untitled",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      deletedAt: Date.now(),
-    };
-  } else {
-    note.deletedAt = Date.now();
-  }
-
-  await kv.set(["notes", "note", nid], note);
-
-  // Update index metadata
-  const { cid } = note;
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  const index = indexRes.value || [];
-
-  let found = false;
-  const newIndex = index.map((m) => {
-    if (m.id === nid) {
-      found = true;
-      return { ...m, deletedAt: note!.deletedAt };
-    }
-    return m;
-  });
-
-  if (!found && note) {
-    const { id, cid, title, createdAt, updatedAt, deletedAt } = note;
-    newIndex.unshift({ id, cid, title, createdAt, updatedAt, deletedAt });
-  }
-
-  await kv.set(["notes", "collection", cid], newIndex);
-
-  await emitSyncEvent({
-    type: "note.trashed",
-    ref: nid,
-    cid,
-    originClientId: getClientIdFromCtx(c),
-  });
+  await ensureNotesMigrated();
+  // A note that never reached the server has nothing to trash.
+  if (await setDeleted(nid, Date.now())) await emitNote(c, "note.trashed", nid);
   return c.json({ success: true });
 }
 
 export async function restoreNote(c: Context) {
   const nid = c.req.param("nid");
   if (!nid) return c.json({ error: "Missing ID" }, 400);
-
-  const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-  if (!noteRes.value) return c.json({ success: true });
-
-  const note = noteRes.value;
-  delete note.deletedAt;
-  await kv.set(["notes", "note", nid], note);
-
-  // Restore in index
-  const { cid } = note;
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  const index = indexRes.value || [];
-
-  const newIndex = index.map((m) => {
-    if (m.id === nid) {
-      const { deletedAt: _, ...rest } = m;
-      return rest as NoteMetadata;
-    }
-    return m;
-  });
-  await kv.set(["notes", "collection", cid], newIndex);
-
-  await emitSyncEvent({
-    type: "note.restored",
-    ref: nid,
-    cid,
-    originClientId: getClientIdFromCtx(c),
-  });
-  return c.json({ success: true });
-}
-
-export async function emptyTrash(c: Context) {
-  const cid = c.req.param("cid");
-  if (!cid) return c.json({ error: "Missing CID" }, 400);
-
-  const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-  if (!indexRes.value) return c.json({ success: true });
-
-  const index = indexRes.value;
-  const trashed = index.filter((n: NoteMetadata) => !!n.deletedAt);
-  const active = index.filter((n: NoteMetadata) => !n.deletedAt);
-
-  for (const n of trashed) {
-    await kv.delete(["notes", "note", n.id]);
-  }
-
-  await kv.set(["notes", "collection", cid], active);
-  await emitSyncEvent({
-    type: "trash.emptied",
-    ref: cid,
-    cid,
-    originClientId: getClientIdFromCtx(c),
-  });
+  await ensureNotesMigrated();
+  if (await setDeleted(nid, null)) await emitNote(c, "note.restored", nid);
   return c.json({ success: true });
 }
 
 export async function permanentlyDeleteNote(c: Context) {
   const nid = c.req.param("nid");
   if (!nid) return c.json({ error: "Missing ID" }, 400);
-
-  const noteRes = await kv.get<NoteMetadata>(["notes", "note", nid]);
-  const note = noteRes.value;
-
-  if (note) {
-    const { cid } = note;
-    await kv.delete(["notes", "note", nid]);
-
-    // Remove from index
-    const indexRes = await kv.get<NoteMetadata[]>(["notes", "collection", cid]);
-    if (indexRes.value) {
-      const newIndex = indexRes.value.filter((m) => m.id !== nid);
-      await kv.set(["notes", "collection", cid], newIndex);
-    }
-
-    await emitSyncEvent({
-      type: "note.deleted",
-      ref: nid,
-      cid,
-      originClientId: getClientIdFromCtx(c),
-    });
-  }
-
+  await ensureNotesMigrated();
+  await kv.atomic().delete(noteKey(nid)).delete(metaKey(nid)).commit();
+  await emitNote(c, "note.deleted", nid);
   return c.json({ success: true });
+}
+
+export async function emptyTrash(c: Context) {
+  const trashed = (await listMeta()).filter((m) => m.deletedAt);
+  for (const m of trashed) {
+    await kv.atomic().delete(noteKey(m.id)).delete(metaKey(m.id)).commit();
+  }
+  await emitNote(c, "trash.emptied", "all");
+  return c.json({ success: true, count: trashed.length });
 }
 
 // Collection sharing endpoints
@@ -557,11 +346,8 @@ export async function restoreNoteVersion(c: Context) {
   );
   if (!target) return c.json({ error: "Version not found" }, 404);
 
-  const noteRes = await kv.get<NoteMetadata & { content?: string }>([
-    "notes",
-    "note",
-    nid,
-  ]);
+  await ensureNotesMigrated();
+  const noteRes = await kv.get<StoredNote>(noteKey(nid));
   if (!noteRes.value) return c.json({ error: "Note not found" }, 404);
   const current = noteRes.value;
 
@@ -576,41 +362,17 @@ export async function restoreNoteVersion(c: Context) {
     substantialChange: true,
   });
 
-  const now = Date.now();
-  const restored = {
+  const content = target.content.content ?? "";
+  const restored: StoredNote = {
     ...current,
     title: target.content.title ?? current.title,
-    content: target.content.content ?? "",
-    updatedAt: now,
-    rev: ((current as { rev?: number }).rev ?? 0) + 1,
+    content,
+    tags: parseTags(content),
+    updatedAt: Date.now(),
+    rev: (current.rev ?? 0) + 1,
   };
-  await kv.set(["notes", "note", nid], restored);
-
-  // Update the collection index entry's title + preview + updatedAt.
-  const idxRes = await kv.get<NoteMetadata[]>([
-    "notes",
-    "collection",
-    current.cid,
-  ]);
-  const idx = idxRes.value ?? [];
-  const updated = idx.map((m) =>
-    m.id === nid
-      ? {
-        ...m,
-        title: restored.title || "Untitled",
-        preview: buildPreview(restored.content),
-        updatedAt: now,
-      }
-      : m
-  );
-  await kv.set(["notes", "collection", current.cid], updated);
-
-  await emitSyncEvent({
-    type: "note.saved",
-    ref: nid,
-    cid: current.cid,
-    originClientId: getClientIdFromCtx(c),
-  });
+  await kv.atomic().set(noteKey(nid), restored).set(metaKey(nid), metaOf(restored)).commit();
+  await emitNote(c, "note.saved", nid);
 
   return c.json({ success: true, note: restored });
 }
