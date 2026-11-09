@@ -26,4 +26,3 @@
     "test": "sh -c 'cd app && npm test'"
   }
 }
-
