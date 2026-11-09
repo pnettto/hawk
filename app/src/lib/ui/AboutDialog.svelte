@@ -12,10 +12,36 @@
     if (e.target === e.currentTarget) onClose()
   }
 
+  // Focus moves into the dialog, Tab stays inside it, and focus returns to
+  // whatever opened it on close. Page scroll is locked meanwhile.
+  let dialogEl = $state<HTMLDivElement | null>(null)
   $effect(() => {
+    const opener = document.activeElement as HTMLElement | null
+    dialogEl?.querySelector<HTMLElement>('.btn-secondary')?.focus()
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+      opener?.focus?.()
+    }
   })
+
+  function trapTab(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || !dialogEl) return
+    const items = dialogEl.querySelectorAll<HTMLElement>('a[href], button')
+    if (!items.length) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   function portal(node: HTMLElement) {
     document.body.appendChild(node)
@@ -35,6 +61,9 @@
 >
   <div
     class="about-dialog"
+    bind:this={dialogEl}
+    onkeydown={trapTab}
+    tabindex="-1"
     role="dialog"
     aria-modal="true"
     aria-labelledby="about-title"
@@ -47,9 +76,10 @@
     <p class="tagline">Hawk is a daily journal that keeps you organized in one place: your new tabs.</p>
 
     <ul class="highlights">
-      <li><strong>Checklist</strong> — plan and tick off your tasks, hour by hour.</li>
-      <li><strong>Day notes</strong> — free-form thoughts attached to each day.</li>
+      <li><strong>Tasks</strong> — a simple list for each day, with optional times and comments.</li>
+      <li><strong>Day notes</strong> — as many free-form notes per day as you like.</li>
       <li><strong>Markdown notes</strong> — organize into collections, share publicly, restore from history.</li>
+      <li><strong>Files</strong> — drop anything here and grab it from any device.</li>
       <li><strong>Cross-device sync</strong> — live updates across tabs and devices (premium).</li>
     </ul>
 
@@ -66,11 +96,13 @@
   .about-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--scrim);
+    backdrop-filter: blur(4px);
+    animation: fadeIn var(--dur-base) var(--ease-out);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-overlay);
     padding: 1rem;
     animation: fadeIn var(--dur-base) var(--ease-out);
   }
@@ -173,4 +205,10 @@
   .btn-secondary:hover {
     background: var(--glass-dark);
   }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .about-dialog {
+    animation: popIn var(--dur-base) var(--ease-spring);
+    box-shadow: var(--shadow-pop);
+  }
+  .about-dialog:focus { outline: none; }
 </style>

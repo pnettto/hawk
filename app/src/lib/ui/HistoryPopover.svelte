@@ -3,13 +3,16 @@
   import * as notesApi from '../../api/notes'
   import * as logsApi from '../../api/logs'
   import { notesStore } from '../../stores/notes'
-  import { logsStore } from '../../stores/logs'
+  import { logsStore, sortTasks } from '../../stores/logs'
   import { showToast, showError } from '../../stores/toast'
   import type { SnapshotMeta, SnapshotKind } from '../../types/models'
 
   interface Props {
     kind: SnapshotKind
+    // Note id for kind 'note'; the date for day kinds.
     entityId: string
+    // Which day note, for kind 'day-notes'.
+    noteId?: string
     // Element to anchor the popover under. Required so we can position with
     // `position: fixed` and bypass any parent `overflow: hidden/auto` clipping.
     anchor: HTMLElement | null
@@ -20,7 +23,11 @@
     onRestore?: () => void
     onClose: () => void
   }
-  let { kind, entityId, anchor, prepare, onRestore, onClose }: Props = $props()
+  let { kind, entityId, noteId, anchor, prepare, onRestore, onClose }: Props = $props()
+
+  let dayTarget = $derived<logsApi.DayHistoryTarget>(
+    kind === 'day-notes' ? { section: 'notes', noteId: noteId ?? 'main' } : { section: 'tasks' },
+  )
 
   let versions = $state<SnapshotMeta[]>([])
   let loading = $state(true)
@@ -64,8 +71,7 @@
       if (kind === 'note') {
         versions = await notesApi.listNoteVersions(entityId)
       } else {
-        const section = kind === 'day-notes' ? 'notes' : 'tasks'
-        versions = await logsApi.listDayVersions(entityId, section)
+        versions = await logsApi.listDayVersions(entityId, dayTarget)
       }
     } catch (e) {
       console.error('Failed to load versions:', e)
@@ -103,45 +109,18 @@
         const res = await notesApi.getNoteVersion(entityId, v.savedAt)
         previewText = stripMarkdown(res?.content?.content ?? '')
       } else {
-        const section = kind === 'day-notes' ? 'notes' : 'tasks'
-        const res = await logsApi.getDayVersion(entityId, section, v.savedAt)
+        const res = await logsApi.getDayVersion(entityId, dayTarget, v.savedAt)
         if (kind === 'day-notes') {
-          previewText = stripMarkdown(res?.content?.notesMarkdown ?? '')
+          const title = res?.content?.title ? `${res.content.title}\n\n` : ''
+          previewText = title + stripMarkdown(res?.content?.markdown ?? '')
         } else {
-          const entries = res?.content?.hourEntries ?? {}
+          const tasks = sortTasks(res?.content?.tasks ?? [])
           const lines: string[] = []
-          // Sort by hour so the preview lists 9, 9-30, 10, 10-30 in order.
-          const keys = Object.keys(entries).sort((a, b) => {
-            const [ah, am] = a.split('-').map(Number)
-            const [bh, bm] = b.split('-').map(Number)
-            return (ah - bh) || ((am || 0) - (bm || 0))
-          })
-          // Comments are stored as contenteditable HTML — strip tags and
-          // collapse whitespace so they read as plain text in the preview.
-          const stripHtml = (s: string) =>
-            s.replace(/<br\s*\/?>/gi, '\n')
-              .replace(/<\/p>/gi, '\n')
-              .replace(/<[^>]+>/g, '')
-              .replace(/&nbsp;/g, ' ')
-              .replace(/&amp;/g, '&')
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>')
-              .replace(/[ \t]+\n/g, '\n')
-              .replace(/\n{3,}/g, '\n\n')
-              .trim()
-          for (const hr of keys) {
-            const e = entries[hr]
-            const [h, m = 0] = hr.split('-').map(Number)
-            const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-            const mark = e.checked ? '✓' : '·'
-            const text = e.text ?? ''
-            lines.push(`${mark} ${time}  ${text}`)
-            const comment = stripHtml(e.comment ?? '')
-            if (comment) {
-              // Indent so the comment visually nests under its task line.
-              for (const cline of comment.split('\n')) {
-                lines.push(`        ${cline}`)
-              }
+          for (const t of tasks) {
+            lines.push(`${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
+            // Indent comments so they nest visually under their task.
+            for (const cline of (t.comment ?? '').split('\n').filter(Boolean)) {
+              lines.push(`    ${cline}`)
             }
           }
           previewText = lines.join('\n') || '(empty)'
@@ -163,8 +142,7 @@
       if (kind === 'note') {
         ok = await notesStore.restoreVersion(entityId, selected.savedAt)
       } else {
-        const section = kind === 'day-notes' ? 'notes' : 'tasks'
-        ok = await logsStore.restoreVersion(entityId, section, selected.savedAt)
+        ok = await logsStore.restoreVersion(entityId, dayTarget, selected.savedAt)
       }
       if (ok) {
         showToast(`Restored from ${fmtTime(selected.savedAt)}`)
@@ -189,10 +167,12 @@
   function onWinResize() { computePos() }
 
   function onDocClick(e: MouseEvent) {
-    const t = e.target as HTMLElement | null
-    if (!t) return
-    if (t.closest('.history-popover') || t.closest('.history-toggle')) return
-    onClose()
+    // composedPath, not target.closest: a click that re-renders its own
+    // target (detaching it) must still count as inside.
+    const inside = e.composedPath().some(
+      (n) => n instanceof Element && (n.matches('.history-popover') || n === anchor),
+    )
+    if (!inside) onClose()
   }
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose()
@@ -214,7 +194,7 @@
   // good enough for a "did I lose this content?" recognition view.
   function stripMarkdown(md: string): string {
     return md
-      .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ''))
+      .replace(/```\w*\n?/g, '')
       .replace(/`([^`]+)`/g, '$1')
       .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
@@ -258,7 +238,11 @@
   </div>
 
   {#if loading}
-    <div class="empty">Loading…</div>
+    <div class="empty loading" aria-busy="true">
+      <span class="skeleton-line" style:width="80%"></span>
+      <span class="skeleton-line" style:width="60%"></span>
+      <span class="skeleton-line" style:width="70%"></span>
+    </div>
   {:else if versions.length === 0}
     <div class="empty">No earlier versions yet. They'll appear here as you edit.</div>
   {:else}
@@ -305,8 +289,11 @@
     background: var(--panel, #2f343d);
     border: 1px solid var(--line, #3a3f47);
     padding: 0.75rem;
-    border-radius: 10px;
-    z-index: 1000;
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-pop);
+    z-index: var(--z-popover);
+    font-family: var(--font-ui);
+    animation: popIn var(--dur-pop) var(--ease-spring);
     width: min(560px, 92vw);
     max-width: 92vw;
   }
@@ -327,6 +314,12 @@
     font-size: 0.7rem;
     color: var(--muted);
   }
+  .empty.loading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
   .empty {
     padding: 1rem;
     color: var(--muted);
@@ -338,6 +331,7 @@
     grid-template-columns: minmax(180px, 220px) 1fr;
     gap: 0.5rem;
     height: min(420px, 60vh);
+    max-height: 60vh;
     /* Children need explicit min-height: 0 so their inner `overflow: auto`
        actually scrolls instead of letting content push the popover taller. */
     overflow: hidden;
@@ -413,7 +407,7 @@
     flex: 1;
     overflow: auto;
     padding: 0.5rem;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--input-bg);
     border: 1px solid var(--line);
     border-radius: 4px;
     font-size: 0.85rem;
@@ -429,25 +423,5 @@
     justify-content: flex-end;
     gap: 0.5rem;
     margin-top: 0.5rem;
-  }
-  .btn-primary {
-    background: var(--accent);
-    border: none;
-    padding: 0.4rem 0.85rem;
-    border-radius: 6px;
-    color: var(--on-accent);
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 0.75rem;
-  }
-  .btn-primary:disabled { opacity: 0.6; cursor: default; }
-  .btn-secondary {
-    background: none;
-    border: 1px solid var(--line);
-    padding: 0.4rem 0.85rem;
-    border-radius: 6px;
-    color: var(--text);
-    cursor: pointer;
-    font-size: 0.75rem;
   }
 </style>

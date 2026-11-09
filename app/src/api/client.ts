@@ -62,14 +62,22 @@ export class ApiError extends Error {
   }
 }
 
+// Result of a write that may be rejected because the server holds a newer
+// revision than the one the client edited from.
+export type ConflictResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; conflict: T }
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE'
   body?: unknown
   signal?: AbortSignal
+  allowConflict?: boolean
+  keepalive?: boolean
 }
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, signal } = opts
+  const { method = 'GET', body, signal, keepalive } = opts
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Client-Id': getClientId(),
@@ -82,6 +90,8 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal,
+    // Lets a save fired from pagehide/beforeunload outlive the page.
+    keepalive,
   })
 
   if (res.status === 401) {
@@ -91,7 +101,20 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     throw new ApiError(401, 'Unauthorized')
   }
 
-  if (!res.ok) throw new ApiError(res.status, `Request failed: ${res.status}`)
+  if (res.status === 409 && opts.allowConflict) {
+    return { __conflict: true, data: await res.json() } as T
+  }
+
+  if (!res.ok) {
+    let msg = `Request failed: ${res.status}`
+    try {
+      const body = (await res.json()) as { error?: string }
+      if (body?.error) msg = body.error
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, msg)
+  }
 
   // Some endpoints return text (e.g. /api/day stores raw JSON strings).
   const contentType = res.headers.get('content-type') || ''
@@ -99,8 +122,28 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return (await res.text()) as unknown as T
 }
 
+async function postWithConflict<T>(
+  path: string,
+  body: unknown,
+  opts: { keepalive?: boolean } = {},
+): Promise<ConflictResult<T>> {
+  const res = await request<T | { __conflict: true; data: T }>(path, {
+    method: 'POST',
+    body,
+    allowConflict: true,
+    // keepalive bodies are capped at 64 KiB by browsers.
+    keepalive: opts.keepalive && JSON.stringify(body).length < 60_000,
+  })
+  if (res && typeof res === 'object' && '__conflict' in res) {
+    return { ok: false, conflict: res.data }
+  }
+  return { ok: true, data: res as T }
+}
+
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  post: <T>(path: string, body?: unknown, opts: { keepalive?: boolean } = {}) =>
+    request<T>(path, { method: 'POST', body, keepalive: opts.keepalive }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  postWithConflict,
 }

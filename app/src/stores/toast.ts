@@ -22,7 +22,20 @@ function createToastStore() {
   const { subscribe, update } = writable<Toast[]>([])
   let nextId = 1
 
+  // Live timers, so a repeated message refreshes instead of stacking.
+  const timers = new Map<number, ReturnType<typeof setTimeout>>()
+
   function show(message: string, opts: ToastOpts = {}): () => void {
+    let existing: Toast | undefined
+    const unsub = subscribe((list) => (existing = list.find((t) => t.message === message && !t.action && !opts.action)))
+    unsub()
+    if (existing) {
+      const id = existing.id
+      const dismiss = () => update((list) => list.filter((t) => t.id !== id))
+      clearTimeout(timers.get(id))
+      timers.set(id, setTimeout(dismiss, existing.duration))
+      return dismiss
+    }
     const id = nextId++
     const toast: Toast = {
       id,
@@ -34,8 +47,12 @@ function createToastStore() {
     }
     update((list) => [...list, toast])
 
-    const dismiss = () => update((list) => list.filter((t) => t.id !== id))
-    setTimeout(dismiss, toast.duration)
+    const dismiss = () => {
+      clearTimeout(timers.get(id))
+      timers.delete(id)
+      update((list) => list.filter((t) => t.id !== id))
+    }
+    timers.set(id, setTimeout(dismiss, toast.duration))
     return dismiss
   }
 

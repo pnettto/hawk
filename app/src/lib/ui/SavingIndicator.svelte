@@ -1,13 +1,15 @@
 <script lang="ts">
+  import { fade } from 'svelte/transition'
   import { savingStore } from '../../stores/saving'
 
-  // Defer the "Saving…" pulse by 400ms so quick saves don't flicker.
+  // Lives inline in the nav. Defer the "saving" pulse by 400ms so quick saves
+  // don't flicker; errors show immediately and stay until a save succeeds.
   let visible = $state(false)
   let showTimer: ReturnType<typeof setTimeout> | null = null
 
   $effect(() => {
-    const inFlight = $savingStore.inFlight
-    if (inFlight > 0) {
+    const busy = $savingStore.inFlight > 0
+    if (busy) {
       if (!visible && !showTimer) {
         showTimer = setTimeout(() => {
           visible = true
@@ -19,52 +21,59 @@
         clearTimeout(showTimer)
         showTimer = null
       }
-      // Keep the error pill visible until something clears it.
-      if (!$savingStore.hasError) visible = false
+      visible = false
     }
   })
 
-  let showError = $derived($savingStore.hasError)
+  let hasError = $derived($savingStore.hasError)
 </script>
 
-{#if visible || showError}
-  <div class="saving-indicator visible" class:error={showError}>
-    {#if showError}
-      <span class="error-text">Could not be saved</span>
-    {:else}
-      <div class="spinner"></div>
-    {/if}
-  </div>
-{/if}
+<span class="saving-slot" aria-live="polite">
+  {#if hasError}
+    <span class="dot error" title="Couldn’t save — retrying" transition:fade={{ duration: 160 }}>
+      <span class="sr-only">Couldn’t save — retrying</span>
+    </span>
+  {:else if visible}
+    <span class="dot" title="Saving…" transition:fade={{ duration: 160 }}>
+      <span class="sr-only">Saving…</span>
+    </span>
+  {/if}
+</span>
 
 <style>
-  .saving-indicator {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-    transition: opacity 0.3s;
-    pointer-events: none;
-    display: flex;
+  .saving-slot {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    z-index: 9999;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
-  .spinner {
+  .dot {
     width: 6px;
     height: 6px;
-    background: var(--muted);
     border-radius: 50%;
+    background: var(--muted);
     animation: pulse 1s infinite ease-in-out;
+  }
+  .dot.error {
+    width: 8px;
+    height: 8px;
+    background: var(--danger);
+    animation: none;
+    box-shadow: 0 0 0 3px var(--danger-bg);
   }
   @keyframes pulse {
     0% { transform: scale(0.8); opacity: 0.5; }
     50% { transform: scale(1.2); opacity: 1; }
     100% { transform: scale(0.8); opacity: 0.5; }
   }
-  .saving-indicator.error {
-    color: var(--danger);
-    font-weight: bold;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 </style>

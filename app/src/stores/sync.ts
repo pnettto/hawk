@@ -4,6 +4,7 @@ import { authStore } from './auth'
 import { notesStore } from './notes'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
+import { filesStore } from './files'
 
 export type SyncEventType =
   | 'note.saved'
@@ -15,6 +16,7 @@ export type SyncEventType =
   | 'collection.deleted'
   | 'log.saved'
   | 'preferences.saved'
+  | 'files.changed'
 
 export interface SyncEvent {
   id: string
@@ -137,6 +139,8 @@ function createSyncStore() {
           logsStore.applySyncEvent(evt)
         } else if (evt.type === 'preferences.saved') {
           preferencesStore.loadFromServer()
+        } else if (evt.type === 'files.changed') {
+          filesStore.applySyncEvent()
         } else {
           notesStore.applySyncEvent(evt)
         }
@@ -163,6 +167,7 @@ function createSyncStore() {
       'collection.deleted',
       'log.saved',
       'preferences.saved',
+      'files.changed',
     ]
     for (const t of types) source.addEventListener(t, onMessage as EventListener)
   }

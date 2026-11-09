@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import { appStore } from '../../stores/app'
   import { formatDate, prettyDisplay, shortDisplay } from '../../utils/date'
 
@@ -35,10 +35,44 @@
     commit(today)
     calendarViewDate = today
   }
-  function toggleCalendar() {
+  let triggerEl = $state<HTMLButtonElement | null>(null)
+  let modalEl = $state<HTMLDivElement | null>(null)
+
+  async function toggleCalendar() {
     showCalendar = !showCalendar
-    if (showCalendar) calendarViewDate = new Date(currentDate)
+    if (showCalendar) {
+      calendarViewDate = new Date(currentDate)
+      await tick()
+      modalEl?.querySelector<HTMLElement>('.cal-day.selected, .cal-day.today')?.focus()
+    } else {
+      triggerEl?.focus()
+    }
   }
+
+  function onKey(e: KeyboardEvent) {
+    if (!showCalendar) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      toggleCalendar()
+    }
+  }
+
+  // Arrow keys move through the grid (and across months).
+  async function onGridKey(e: KeyboardEvent, d: Date) {
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key]
+    if (!step) return
+    e.preventDefault()
+    const next = new Date(d)
+    next.setDate(next.getDate() + step)
+    if (next.getMonth() !== calendarViewDate.getMonth()) calendarViewDate = new Date(next)
+    await tick()
+    modalEl?.querySelector<HTMLElement>(`[data-day="${formatDate(next)}"]`)?.focus()
+  }
+
+  const weekdays = Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 7 + i).toLocaleDateString(undefined, { weekday: 'narrow' }),
+  )
+  const todayStr = formatDate(new Date())
   function changeMonth(offset: number) {
     const d = new Date(calendarViewDate)
     d.setMonth(d.getMonth() + offset)
@@ -47,6 +81,7 @@
   function selectDate(d: Date) {
     commit(d)
     showCalendar = false
+    triggerEl?.focus()
   }
 
   let days = $derived.by(() => {
@@ -74,37 +109,59 @@
   let selectedStr = $derived(formatDate(currentDate))
 </script>
 
+<svelte:window onkeydown={onKey} />
+
 <div class="date-control" class:compact={hideArrows}>
   {#if !hideArrows}
-    <button class="cal-arrow" aria-label="Previous day" onclick={goPrev}>◀</button>
+    <button class="cal-arrow" aria-label="Previous day" title="Previous day" onclick={goPrev}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
   {/if}
   <div class="date-container">
-    <button class="date-display" onclick={toggleCalendar}>
+    <button
+      class="date-display"
+      bind:this={triggerEl}
+      aria-haspopup="dialog"
+      aria-expanded={showCalendar}
+      onclick={toggleCalendar}
+    >
       {hideArrows ? shortDisplay(currentDate) : prettyDisplay(currentDate)}
     </button>
-    <div class="calendar-modal" class:open={showCalendar}>
+    <div
+      class="calendar-modal"
+      class:open={showCalendar}
+      bind:this={modalEl}
+      role="dialog"
+      aria-label="Choose date"
+      inert={!showCalendar}
+    >
       <div class="calendar-header">
-        <button class="cal-arrow" onclick={() => changeMonth(-1)}>◀</button>
+        <button class="cal-arrow" aria-label="Previous month" onclick={() => changeMonth(-1)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
         <div class="cal-month">{monthLabel}</div>
-        <button class="cal-arrow" onclick={() => changeMonth(1)}>▶</button>
+        <button class="cal-arrow" aria-label="Next month" onclick={() => changeMonth(1)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
       </div>
-      <button type="button" class="cal-today" onclick={goToday}>Today</button>
+      <div class="cal-weekdays" aria-hidden="true">
+        {#each weekdays as w, i (i)}<span>{w}</span>{/each}
+      </div>
       <div class="cal-days">
-        {#each days as d}
+        {#each days as d (formatDate(d))}
           <button
             class="cal-day"
+            data-day={formatDate(d)}
             class:other-month={d.getMonth() !== viewMonth}
             class:selected={formatDate(d) === selectedStr}
+            class:today={formatDate(d) === todayStr}
+            aria-current={formatDate(d) === todayStr ? 'date' : undefined}
             onclick={() => selectDate(new Date(d))}
+            onkeydown={(e) => onGridKey(e, d)}
           >
             {d.getDate()}
           </button>
         {/each}
       </div>
+      <button type="button" class="cal-today" onclick={goToday}>Today</button>
     </div>
   </div>
   {#if !hideArrows}
-    <button class="cal-arrow" aria-label="Next day" onclick={goNext}>▶</button>
+    <button class="cal-arrow" aria-label="Next day" title="Next day" onclick={goNext}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
   {/if}
 </div>
 {#if showCalendar}
@@ -113,6 +170,7 @@
     class="modal-overlay"
     onclick={toggleCalendar}
     aria-label="Close calendar"
+    tabindex="-1"
   ></button>
 {/if}
 
@@ -141,7 +199,9 @@
     font-family: inherit;
     font-size: 1rem;
     font-variant-numeric: tabular-nums;
+    transition: background-color var(--dur-fast) var(--ease-out);
   }
+  .date-display:hover { background: var(--glass-dark); }
   .calendar-modal {
     position: absolute;
     top: 0;
@@ -149,19 +209,24 @@
     margin-top: 8px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: var(--r-md);
+    padding: 16px;
     min-width: 300px;
-    z-index: 1000;
+    z-index: calc(var(--z-overlay) + 1);
+    box-shadow: var(--shadow-pop);
+    visibility: hidden;
     transform-origin: top center;
     opacity: 0;
     transform: translateX(-50%) translateY(-4px) scale(0.98);
     pointer-events: none;
     transition:
       opacity var(--dur-base) var(--ease-out),
-      transform var(--dur-base) var(--ease-spring);
+      transform var(--dur-base) var(--ease-spring),
+      visibility 0s linear var(--dur-base);
   }
   .calendar-modal.open {
+    visibility: visible;
+    transition-delay: 0s;
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
     pointer-events: auto;
@@ -182,10 +247,28 @@
     border: 0;
     background: transparent;
     color: var(--accent);
-    font-size: 1.25rem;
-    padding: 8px 10px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
     cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  .cal-arrow svg { width: 15px; height: 15px; }
+  .cal-arrow:hover { background: var(--glass-dark); }
+  .cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin: 0.6rem 0 0.25rem;
+    text-align: center;
+    font-family: var(--font-ui);
+    font-size: 0.6875rem;
+    color: var(--muted);
+    opacity: 0.6;
   }
   .cal-days {
     display: grid;
@@ -207,6 +290,7 @@
   .cal-day:hover {
     background-color: var(--glass);
   }
+  .cal-day.today { box-shadow: inset 0 0 0 1px var(--accent); }
   .cal-day.other-month {
     color: var(--muted);
     opacity: 0.4;
@@ -226,8 +310,10 @@
     width: 100%;
     text-align: center;
     cursor: pointer;
-    margin: 0.5rem 0;
+    margin: 0.5rem 0 0;
     padding: 8px;
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
     border-radius: 6px;
     transition: background-color var(--dur-fast) var(--ease-out);
   }
@@ -240,10 +326,10 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--scrim);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 999;
+    z-index: var(--z-overlay);
     animation: overlayIn var(--dur-base) var(--ease-out);
     border: 0;
   }

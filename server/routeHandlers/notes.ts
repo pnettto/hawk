@@ -35,9 +35,10 @@ interface NoteMetadata {
   updatedAt: number;
   deletedAt?: number;
   preview?: string;
+  isPublic?: boolean;
 }
 
-function buildPreview(markdown: string | undefined, max = 140): string {
+export function buildPreview(markdown: string | undefined, max = 140): string {
   if (!markdown) return "";
   const stripped = markdown
     .replace(/```[\s\S]*?```/g, " ")
@@ -235,28 +236,65 @@ export async function deleteCollection(c: Context) {
   return c.json({ success: true });
 }
 
+// Deno KV rejects values over 64 KiB; surface that as a clear 413.
+const MAX_NOTE_BYTES = 63 * 1024;
+
 export async function saveNote(c: Context) {
   const note = await c.req.json();
-  const { id, cid, title, createdAt, snapshot } = note;
+  const { id, cid, title, createdAt, snapshot, baseRev } = note;
   if (!id || !cid) return c.json({ error: "Missing ID or CID" }, 400);
 
   const timestamp = Date.now();
   const existingNoteRes = await kv.get<
-    NoteMetadata & { content?: string }
+    NoteMetadata & { content?: string; rev?: number; isPublic?: boolean }
   >(["notes", "note", id]);
   const existingNote = existingNoteRes.value;
 
-  // Strip the snapshot flag so it doesn't pollute the stored record.
-  const { snapshot: _drop, ...notePayload } = note;
-  const fullNote = { ...notePayload, updatedAt: timestamp };
+  // Optimistic concurrency: a client that says which rev it edited from gets
+  // a 409 (and the current note) instead of silently overwriting a newer save
+  // from another device. Clients that omit baseRev keep last-write-wins.
+  if (
+    existingNote && typeof baseRev === "number" &&
+    (existingNote.rev ?? 0) !== baseRev
+  ) {
+    return c.json({ note: existingNote }, 409);
+  }
+
+  // Strip transport-only flags so they don't pollute the stored record.
+  const { snapshot: _drop, baseRev: _base, ...notePayload } = note;
+  const fullNote = { ...notePayload, updatedAt: timestamp, rev: existingNote?.rev ?? 0 };
   // If the client never loaded full content (e.g. a metadata-only save from a
-  // title edit, or a snapshot trigger that fired before the editor finished
-  // hydrating), keep the existing body instead of wiping it.
+  // share toggle or a move), keep the existing body instead of wiping it.
   if (notePayload.content === undefined && existingNote?.content !== undefined) {
     fullNote.content = existingNote.content;
   }
+  // rev tracks the editable text (title + body) only, so metadata-only saves
+  // don't invalidate an open editor's baseRev on another device.
+  const textChanged = !existingNote ||
+    fullNote.content !== existingNote.content ||
+    fullNote.title !== existingNote.title;
+  if (textChanged) {
+    fullNote.rev = (existingNote?.rev ?? 0) + 1;
+  } else if (existingNote && existingNote.cid === cid) {
+    // Share toggles etc. shouldn't float the note to the top of "recent".
+    fullNote.updatedAt = existingNote.updatedAt;
+  }
+  if (existingNote?.isPublic !== undefined && notePayload.isPublic === undefined) {
+    fullNote.isPublic = existingNote.isPublic;
+  }
   if (existingNote?.deletedAt) fullNote.deletedAt = existingNote.deletedAt;
-  await kv.set(["notes", "note", id], fullNote);
+  if (JSON.stringify(fullNote).length > MAX_NOTE_BYTES) {
+    return c.json({ error: "Note is too large" }, 413);
+  }
+  const commit = await kv.atomic()
+    .check(existingNoteRes)
+    .set(["notes", "note", id], fullNote)
+    .commit();
+  if (!commit.ok) {
+    // Another save landed between our read and write.
+    const latest = await kv.get(["notes", "note", id]);
+    return c.json({ note: latest.value }, 409);
+  }
 
   if (snapshot === true) {
     const substantial = isSubstantialTextChange(
@@ -277,9 +315,10 @@ export async function saveNote(c: Context) {
     cid,
     title: title || "Untitled",
     createdAt: createdAt || existingNote?.createdAt || timestamp,
-    updatedAt: timestamp,
-    preview: buildPreview(note.content),
+    updatedAt: fullNote.updatedAt,
+    preview: buildPreview(fullNote.content),
   };
+  if (fullNote.isPublic) metadata.isPublic = true;
   if (existingNote?.deletedAt) metadata.deletedAt = existingNote.deletedAt;
 
   // If the note moved to a different collection, drop it from the old index.
@@ -312,7 +351,7 @@ export async function saveNote(c: Context) {
     cid,
     originClientId: getClientIdFromCtx(c),
   });
-  return c.json({ success: true });
+  return c.json({ success: true, rev: fullNote.rev, updatedAt: fullNote.updatedAt });
 }
 
 export async function trashNote(c: Context) {
@@ -543,6 +582,7 @@ export async function restoreNoteVersion(c: Context) {
     title: target.content.title ?? current.title,
     content: target.content.content ?? "",
     updatedAt: now,
+    rev: ((current as { rev?: number }).rev ?? 0) + 1,
   };
   await kv.set(["notes", "note", nid], restored);
 

@@ -22,7 +22,7 @@
   // so the very first popover open already has a snapshot to show.
   async function prepareHistory() {
     if (!currentNote) return
-    await notesStore.triggerSnapshot(currentNote.id)
+    await notesStore.triggerSnapshot(currentNote.id, true)
   }
 
   let currentNote = $derived.by(() => {
@@ -70,46 +70,57 @@
     }
   })
 
-  // Source of truth for the editor body is the store. Deriving (instead of
-  // mirroring into local state via $effect) avoids a one-frame flash where
-  // the RichEditor mounts before the effect runs and the empty-state
-  // placeholder briefly shows.
-  let editorValue = $derived(currentNote?.content ?? '')
+  // The sync session owns the body once it's loaded; the editor talks to it
+  // directly (see sync/docSession.ts).
+  let session = $derived(
+    currentNote && currentNote.content !== undefined ? notesStore.sessionFor(currentNote.id) : null,
+  )
 
   function onTitleInput() {
     if (!currentNote) return
-    notesStore.applyEdit(currentNote.id, { title })
+    notesStore.setTitle(currentNote.id, title)
   }
+  // Tab or Enter in the title moves into the body.
   function onTitleKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Tab' || e.shiftKey) return
+    if (e.isComposing) return
+    if (!((e.key === 'Tab' && !e.shiftKey) || e.key === 'Enter')) return
     const pm = editorEl?.querySelector<HTMLElement>('.tiptap')
     if (!pm) return
     e.preventDefault()
     pm.focus()
   }
-  function onContentChange(markdown: string) {
-    if (!currentNote) return
-    notesStore.applyEdit(currentNote.id, { content: markdown })
-  }
-  function onEditorBlur() {
-    if (!currentNote) return
-    notesStore.commitPendingRemote(currentNote.id)
+
+  // composedPath, not target.closest: clicking "Enable public link"
+  // re-renders the popover and detaches the clicked node, which used to read
+  // as an outside click and close the popover before the link appeared.
+  function onClickOutside(e: MouseEvent) {
+    const inside = (sel: string) =>
+      e.composedPath().some((n) => n instanceof Element && n.matches(sel))
+    if (showSharePopover && !inside('.share-popover, .share-toggle')) showSharePopover = false
+    if (showCollectionPicker && !inside('.collection-picker, .collection-chip')) {
+      showCollectionPicker = false
+    }
   }
 
-  function onClickOutside(e: MouseEvent) {
-    const t = e.target as HTMLElement | null
-    if (!t) return
-    if (showSharePopover && !t.closest('.share-popover') && !t.closest('.share-toggle')) {
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return
+    if (showSharePopover) {
       showSharePopover = false
+      document.querySelector<HTMLElement>('.share-toggle')?.focus()
     }
-    if (showCollectionPicker && !t.closest('.collection-picker') && !t.closest('.collection-chip')) {
+    if (showCollectionPicker) {
       showCollectionPicker = false
+      document.querySelector<HTMLElement>('.collection-chip')?.focus()
     }
   }
 
   $effect(() => {
     document.addEventListener('click', onClickOutside)
-    return () => document.removeEventListener('click', onClickOutside)
+    document.addEventListener('keydown', onKeydown)
+    return () => {
+      document.removeEventListener('click', onClickOutside)
+      document.removeEventListener('keydown', onKeydown)
+    }
   })
 
   // Re-bind snapshot triggers whenever the editor root or selected note changes.
@@ -139,9 +150,18 @@
       aria-label="Back to notes"
       onclick={() => notesStore.clearSelectedNote()}
     >
-      <span aria-hidden="true">←</span>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8H3.5M7.5 4L3.5 8l4 4" /></svg>
     </button>
-    <input type="text" class="note-title" bind:this={titleInputEl} bind:value={title} oninput={onTitleInput} onkeydown={onTitleKeydown} />
+    <input
+      type="text"
+      class="note-title"
+      placeholder="Untitled"
+      aria-label="Note title"
+      bind:this={titleInputEl}
+      bind:value={title}
+      oninput={onTitleInput}
+      onkeydown={onTitleKeydown}
+    />
     <div class="header-actions">
       {#if currentCollectionName}
         <div class="collection-wrap">
@@ -150,10 +170,12 @@
             class="collection-chip"
             onclick={() => (showCollectionPicker = !showCollectionPicker)}
             title="Move to another collection"
+            aria-haspopup="menu"
+            aria-expanded={showCollectionPicker}
           >
-            <span class="chip-icon" aria-hidden="true">●</span>
+            <span class="chip-icon" aria-hidden="true"></span>
             <span class="chip-name">{currentCollectionName}</span>
-            <span class="chip-caret" aria-hidden="true">▾</span>
+            <svg class="chip-caret" viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
           </button>
           {#if showCollectionPicker}
             <div class="collection-picker">
@@ -163,7 +185,7 @@
               {:else}
                 {#each otherCollections as c (c.id)}
                   <button class="picker-item" onclick={() => moveToCollection(c.id)}>
-                    <span class="dot" aria-hidden="true">●</span>
+                    <span class="dot" aria-hidden="true"></span>
                     <span>{c.name}</span>
                   </button>
                 {/each}
@@ -181,7 +203,7 @@
           bind:this={historyAnchorEl}
           onclick={toggleHistory}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
             <path d="M3 3v5h5" />
             <path d="M12 7v5l3 2" />
@@ -202,6 +224,8 @@
           type="button"
           class="share-toggle share-btn"
           class:active={currentNote.isPublic}
+          aria-haspopup="dialog"
+          aria-expanded={showSharePopover}
           onclick={() => (showSharePopover = !showSharePopover)}
         >
           {currentNote.isPublic ? 'Public' : 'Share'}
@@ -213,11 +237,15 @@
     </div>
   </div>
 
-  {#if currentNote.content === undefined}
-    <div class="editor-loading">Loading…</div>
+  {#if !session}
+    <div class="editor-loading" aria-busy="true">
+      <span class="skeleton-line" style:width="72%"></span>
+      <span class="skeleton-line" style:width="88%"></span>
+      <span class="skeleton-line" style:width="54%"></span>
+    </div>
   {:else}
     {#key currentNote.id}
-      <RichEditor value={editorValue} onChange={onContentChange} onBlur={onEditorBlur} />
+      <RichEditor {session} />
     {/key}
   {/if}
 </div>
@@ -252,6 +280,8 @@
   }
   .mobile-back:hover { background: var(--glass-dark); border-color: var(--accent); }
   .note-title {
+    padding: 0;
+    flex: 1;
     background: none;
     border: none;
     color: var(--text);
@@ -260,7 +290,12 @@
     outline: none;
     font-weight: 800;
     font-family: inherit;
+    min-width: 0;
+    text-overflow: ellipsis;
   }
+  .note-title::placeholder { color: var(--muted); opacity: 0.35; }
+  .note-title:hover,
+  .note-title:focus { background: none; }
   .header-actions { display: flex; align-items: center; gap: 0.5rem; }
   .collection-wrap { position: relative; }
   .collection-chip {
@@ -269,12 +304,13 @@
     gap: 0.4rem;
     background: var(--glass-dark);
     border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    height: 30px;
+    padding: 0 12px;
     color: var(--muted);
     cursor: pointer;
-    font-family: inherit;
-    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
     white-space: nowrap;
     transition:
       background-color var(--dur-fast) var(--ease-out),
@@ -282,21 +318,26 @@
       border-color var(--dur-fast) var(--ease-out);
   }
   .collection-chip:hover { color: var(--text); border-color: var(--accent); background: var(--glass); }
-  .chip-icon { color: var(--accent); font-size: 0.55rem; }
-  .chip-name { font-weight: 500; }
-  .chip-caret { font-size: 0.7rem; opacity: 0.6; }
+  .chip-icon,
+  .picker-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .chip-name { font-weight: 500; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
+  .chip-caret { opacity: 0.6; }
   .collection-picker {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    z-index: 50;
+    z-index: var(--z-popover);
     min-width: 200px;
     max-height: 280px;
     overflow-y: auto;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     padding: 6px;
+    box-shadow: var(--shadow-pop);
+    font-family: var(--font-ui);
+    animation: popIn var(--dur-pop) var(--ease-spring);
+    transform-origin: top right;
   }
   .picker-header {
     font-size: 0.65rem;
@@ -328,42 +369,19 @@
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   .picker-item:hover { background: var(--glass); }
-  .picker-item .dot { color: var(--accent); font-size: 0.55rem; }
+
 
   .editor-root { display: contents; }
   .history-wrap { position: relative; }
-  .icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--glass-dark);
-    color: var(--muted);
-    cursor: pointer;
-    opacity: 0.7;
-    transition:
-      background-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out),
-      opacity var(--dur-fast) var(--ease-out);
-  }
-  .icon-btn:hover {
-    background: var(--glass);
-    border-color: var(--accent);
-    color: var(--text);
-    opacity: 1;
-  }
-  .icon-btn:disabled { opacity: 0.4; cursor: default; }
+  .history-toggle { width: 30px; height: 30px; }
   .share-wrap { position: relative; }
   .share-btn {
-    font-size: 0.8rem;
-    padding: 6px 12px;
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
+    height: 30px;
+    padding: 0 12px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: var(--glass-dark);
     color: var(--text);
     cursor: pointer;
@@ -378,10 +396,10 @@
     border-color: var(--accent);
   }
   .share-btn.active {
-    background: var(--accent);
+    background: var(--glass);
     border-color: var(--accent);
-    color: var(--on-accent);
-    font-weight: 600;
+    color: var(--accent);
+    font-weight: 500;
   }
   .empty-state {
     flex: 1;
@@ -389,25 +407,26 @@
     align-items: center;
     justify-content: center;
     color: var(--muted);
-    font-style: italic;
-    opacity: 0.5;
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    opacity: 0.6;
     padding: 4rem 2rem;
   }
   .editor-loading {
-    color: var(--muted);
-    font-style: italic;
-    opacity: 0.4;
-    padding: 0.5rem 0;
-    font-size: 1rem;
-    line-height: var(--lh);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 0.6rem 0;
+    max-width: 70ch;
   }
   @media (max-width: 900px) {
     .mobile-back { display: inline-flex; }
     .editor-header { gap: 0.5rem; margin-bottom: 1rem; }
   }
   @media (max-width: 600px) {
-    .note-title {
-      font-size: 1.8rem;
-    }
+    /* Title gets its own full-width line under the controls. */
+    .editor-header { flex-wrap: wrap; row-gap: 0.75rem; }
+    .note-title { order: 3; flex-basis: 100%; font-size: 1.8rem; }
+    .header-actions { margin-left: auto; }
   }
 </style>

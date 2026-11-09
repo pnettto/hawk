@@ -38,6 +38,8 @@
       name="password"
       placeholder="Type in the password"
       type="password"
+      autocomplete="current-password"
+      aria-label="Password"
       bind:value={password}
       required
     />
@@ -62,7 +64,7 @@
     width: 100vw;
     height: 100vh;
     background-color: var(--bg);
-    z-index: 2000;
+    z-index: var(--z-auth);
   }
   .auth-form {
     width: min(15rem, 90vw);

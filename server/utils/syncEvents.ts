@@ -33,7 +33,8 @@ export type SyncEventType =
   | "collection.saved"
   | "collection.deleted"
   | "log.saved"
-  | "preferences.saved";
+  | "preferences.saved"
+  | "files.changed";
 
 export interface SyncEvent {
   id: string;

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, type Component } from 'svelte'
+  import { get } from 'svelte/store'
+  import { notesStore } from './stores/notes'
   import { authStore } from './stores/auth'
   import { appStore } from './stores/app'
   import { logsStore } from './stores/logs'
@@ -16,14 +18,59 @@
   let aboutOpen = $state(false)
 
   // Routes are lazy-loaded so Tiptap (~150KB gz) doesn't block initial paint.
+  // Resolved modules are cached, and the route only changes when the page
+  // string does — not on every appStore change (date, tab), which used to
+  // remount the whole page.
   const routeLoaders = {
     app: () => import('./routes/Journal.svelte'),
     notes: () => import('./routes/Notes.svelte'),
+    files: () => import('./routes/Files.svelte'),
     admin: () => import('./routes/Admin.svelte'),
   } as const
+  type PageId = keyof typeof routeLoaders
+  const routeCache: Partial<Record<PageId, Component>> = {}
+  let page = $derived($appStore.currentPage as PageId)
+  let Route = $state<Component | null>(null)
+  let routeError = $state<string | null>(null)
+  $effect(() => {
+    const p = page
+    routeError = null
+    if (routeCache[p]) {
+      Route = routeCache[p]!
+      return
+    }
+    routeLoaders[p]()
+      .then((m) => {
+        routeCache[p] = m.default as Component
+        if (page === p) Route = routeCache[p]!
+      })
+      .catch((e: Error) => (routeError = e.message))
+  })
 
   onMount(() => {
     authStore.checkSession()
+    // Warm the initial route's chunk while the session check runs.
+    void routeLoaders[get(appStore).currentPage as PageId]()
+  })
+
+  // Page hidden or closing: write drafts and fire keepalive saves everywhere.
+  $effect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') {
+        notesStore.flushOnHide()
+        logsStore.flushOnHide()
+      }
+    }
+    const onPageHide = () => {
+      notesStore.flushOnHide()
+      logsStore.flushOnHide()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    globalThis.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      globalThis.removeEventListener('pagehide', onPageHide)
+    }
   })
 
   // When authenticated, load the selected day (and prefetch neighbours).
@@ -57,7 +104,8 @@
   $effect(() => {
     if (!$authStore.isAuth) return
     onFocus = () => {
-      const dateStr = formatDate($appStore.selectedDate)
+      // Safe while typing: sessions ignore anything not newer than theirs.
+      const dateStr = formatDate(get(appStore).selectedDate)
       logsStore.loadForDate(dateStr, true)
     }
     globalThis.addEventListener('focus', onFocus)
@@ -112,6 +160,12 @@
         onclick={() => appStore.setCurrentPage('notes')}>Notes</button
       >
       <button
+        class:active={$appStore.currentPage === 'files'}
+        onclick={() => appStore.setCurrentPage('files')}>Files</button
+      >
+      <span class="nav-spacer"></span>
+      <SavingIndicator />
+      <button
         class="nav-icon"
         class:active={$appStore.currentPage === 'admin'}
         onclick={() => appStore.setCurrentPage('admin')}
@@ -124,25 +178,30 @@
         </svg>
       </button>
       {#if !$authStore.isGuest}
-        <button class="nav-logout" onclick={() => authStore.logout()}>Logout</button>
+        <button class="nav-logout" onclick={() => authStore.logout()} aria-label="Log out" title="Log out">
+          <span class="logout-label">Logout</span>
+          <svg class="logout-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 13.5H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h2.5M10.5 11l3-3-3-3M13.5 8H6.5" />
+          </svg>
+        </button>
       {/if}
     </nav>
 
-    <main class="page-content">
-      {#await routeLoaders[$appStore.currentPage]()}
-        <div class="route-loading"></div>
-      {:then mod}
-        {@const Route = mod.default}
-        <Route />
-      {:catch err}
-        <div class="route-error">Failed to load page: {err.message}</div>
-      {/await}
-    </main>
+    {#key page}
+      <main class="page-content">
+        {#if routeError}
+          <div class="route-error">Failed to load page: {routeError}</div>
+        {:else if Route && routeCache[page] === Route}
+          <Route />
+        {:else}
+          <div class="route-loading"></div>
+        {/if}
+      </main>
+    {/key}
   </div>
   <ZenMode />
 {/if}
 
-<SavingIndicator />
 <Toast />
 
 {#if aboutOpen}
@@ -162,8 +221,9 @@
   }
   .container.wide {
     max-width: 1400px;
-    padding: 1.5rem 1rem 0;
+    padding: 2rem 1rem 0;
     height: 100vh;
+    height: 100dvh;
     min-height: 0;
   }
   .container.wide .page-content {
@@ -174,7 +234,8 @@
   }
   @media (max-width: 600px) {
     .container { padding: 1rem; }
-    .container.wide { padding: 0.75rem 0.5rem 0; }
+    .container.wide { padding: 1rem 0.5rem 0; }
+    nav { margin-bottom: 1rem; }
   }
   .page-content {
     animation: pageEnter var(--dur-base) var(--ease-out);
@@ -246,8 +307,8 @@
     color: var(--accent);
     background: var(--glass);
   }
+  .nav-spacer { flex: 1; }
   .nav-icon {
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -257,8 +318,19 @@
     border-radius: 999px;
   }
   .nav-icon svg { width: 14px; height: 14px; display: block; }
-  .nav-icon.active { color: var(--accent); background: var(--glass-dark); }
+  .nav-icon.active { color: var(--accent); background: var(--glass); }
+  @media (pointer: coarse) {
+    nav button { min-height: 40px; }
+    .nav-icon { width: 40px; height: 40px; }
+  }
   .nav-logout:hover { color: var(--danger); background: var(--danger-bg); }
+  .logout-icon { display: none; width: 14px; height: 14px; }
+  @media (max-width: 600px) {
+    nav button { padding: 0.45rem 0.7rem; }
+    .logout-label { display: none; }
+    .logout-icon { display: block; }
+    .nav-logout { padding: 0.45rem; }
+  }
   .route-loading { min-height: 50vh; }
   .route-error { padding: 2rem; color: var(--danger); text-align: center; }
   .boot-screen {
@@ -268,7 +340,7 @@
     align-items: center;
     justify-content: center;
     background: var(--bg);
-    z-index: 9999;
+    z-index: var(--z-boot);
   }
   .logo-pulse {
     display: inline-block;

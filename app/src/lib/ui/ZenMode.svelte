@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { fade } from 'svelte/transition'
 
   // Single rule: auto-show at off-hours, dismiss on click. There is no other
   // path to visibility — date navigation, store updates, parent re-renders,
@@ -59,10 +60,11 @@
     class="zen-mode"
     onclick={leave}
     aria-label="Exit zen mode"
+    out:fade={{ duration: 240 }}
   >
     <div class="quote-wrapper">
       {#if quote}
-        <div class="quote">{quote[0]}</div>
+        <div class="quote" in:fade={{ duration: 500 }}>{quote[0]}</div>
         <div class="author">{quote[1]}</div>
       {/if}
     </div>
@@ -77,7 +79,7 @@
     width: 100vw;
     height: 100vh;
     background-color: var(--bg);
-    z-index: 1000;
+    z-index: var(--z-overlay);
     border: 0;
   }
   .quote-wrapper {

@@ -1,22 +1,23 @@
 :root {
     --bg: #232830;
     --panel: #2f343d;
-    --muted: #a2abb8;
+    --muted: #dde3ec;
     --accent: #e6b84d;
     --line: #3a4049;
     --glass: rgba(255, 255, 255, 0.14);
     --glass-dark: rgba(255, 255, 255, 0.06);
-    --text: #ecedf0;
+    --text: #f8f9fc;
     --on-accent: #15140f;
     --logo-color: #e1b65a;
     --danger: #ff6b6b;
     --danger-bg: rgba(255, 107, 107, 0.1);
     --input-bg: rgba(255, 255, 255, 0.06);
     --input-bg-strong: rgba(255, 255, 255, 0.1);
-    --input-placeholder: rgba(236, 237, 240, 0.45);
+    --input-placeholder: rgba(244, 245, 248, 0.5);
 
     /* Typography */
-    --font-mono: 'JetBrains Mono', monospace;
+    --font-content: "code-saver", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-mono: var(--font-content);
     --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
     --h1: 2.5rem;
     --h2: 1.8rem;
@@ -39,4 +40,31 @@
     --dur-fast: 140ms;
     --dur-base: 200ms;
     --dur-slow: 320ms;
+
+    --dur-pop: 160ms;
+
+    /* Radii */
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 12px;
+    --r-pill: 999px;
+
+    /* Control heights */
+    --h-sm: 28px;
+    --h-md: 32px;
+
+    /* Elevation (light themes override in themes.css) */
+    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.12), 0 8px 24px -6px rgb(0 0 0 / 0.32);
+    --scrim: rgb(0 0 0 / 0.35);
+
+    /* Stacking */
+    --z-sticky: 10;
+    --z-popover: 100;
+    --z-overlay: 200;
+    --z-auth: 300;
+    --z-toast: 400;
+    --z-boot: 500;
+
+    color-scheme: dark;
 }

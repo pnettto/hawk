@@ -112,6 +112,9 @@
 
 /* 6. Paper — softer ivory, ink text, red accent. */
 :root[data-theme="paper"] {
+    color-scheme: light;
+    --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
+    --scrim: rgb(20 20 20 / 0.18);
     --bg: #ece7d9;
     --panel: #f4f0e6;
     --muted: #2e2e2e;
@@ -131,6 +134,9 @@
 
 /* 7. Solarized Light — dim cream + teal accent, base03 text. */
 :root[data-theme="solarized-light"] {
+    color-scheme: light;
+    --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
+    --scrim: rgb(20 20 20 / 0.18);
     --bg: #f1e8cf;
     --panel: #e6dcbd;
     --muted: #2a4347;
@@ -150,6 +156,9 @@
 
 /* 8. Latte — Catppuccin, dimmer base + crust panel. */
 :root[data-theme="latte"] {
+    color-scheme: light;
+    --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
+    --scrim: rgb(20 20 20 / 0.18);
     --bg: #dce0e8;
     --panel: #ccd0da;
     --muted: #2d2f44;
@@ -169,6 +178,9 @@
 
 /* 9. Rosé Pine Dawn — toned-down rose, deeper highlight text. */
 :root[data-theme="rose-pine-dawn"] {
+    color-scheme: light;
+    --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
+    --scrim: rgb(20 20 20 / 0.18);
     --bg: #ede0d4;
     --panel: #e3d3c2;
     --muted: #2a2545;
@@ -188,6 +200,9 @@
 
 /* 10. GitHub Light — off-white surface, deeper muted, blue accent. */
 :root[data-theme="github-light"] {
+    color-scheme: light;
+    --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
+    --scrim: rgb(20 20 20 / 0.18);
     --bg: #eaeef2;
     --panel: #d8dee4;
     --muted: #24292f;

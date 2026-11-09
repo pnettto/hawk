@@ -25,9 +25,22 @@ export const saveNote = (
   note: Partial<Note> & { id: string; cid: string },
   opts: { snapshot?: boolean } = {},
 ) =>
-  api.post(
+  api.post<{ success: boolean; rev: number; updatedAt: number }>(
     '/api/notes/notes',
     opts.snapshot ? { ...note, snapshot: true } : note,
+  )
+
+// Revision-checked save: the server answers 409 with its current note when
+// `baseRev` is stale, instead of overwriting another device's edit.
+export const saveNoteChecked = (
+  note: Partial<Note> & { id: string; cid: string },
+  baseRev: number,
+  opts: { snapshot?: boolean; keepalive?: boolean } = {},
+) =>
+  api.postWithConflict<{ success?: boolean; rev?: number; updatedAt?: number; note?: Note }>(
+    '/api/notes/notes',
+    { ...note, baseRev, ...(opts.snapshot ? { snapshot: true } : {}) },
+    { keepalive: opts.keepalive },
   )
 
 export const listNoteVersions = (nid: string) =>

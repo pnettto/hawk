@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
+  import { safeFlip } from '../../utils/safeFlip'
   import { notesStore } from '../../stores/notes'
   import type { NoteMetadata } from '../../types/models'
   import {
@@ -238,13 +239,13 @@
                 title="Restore"
                 aria-label="Restore note"
                 onclick={() => notesStore.restoreNote(n.id)}
-              >↺</button>
+              ><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5L3 6M3 3v3h3"/></svg></button>
               <button
                 class="row-action danger"
                 title="Delete forever"
                 aria-label="Delete forever"
                 onclick={() => notesStore.permanentlyDeleteNote(n.id)}
-              >×</button>
+              ><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
             </div>
           </div>
         {/each}
@@ -259,8 +260,15 @@
               class:active={n.id === $notesStore.selectedNid}
               role="button"
               tabindex="0"
+              animate:safeFlip={{ duration: 180 }}
               onclick={() => notesStore.selectNote(n.id)}
-              onkeydown={(e) => { if (e.key === 'Enter') notesStore.selectNote(n.id) }}
+              onkeydown={(e) => {
+                if (e.target !== e.currentTarget) return
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  notesStore.selectNote(n.id)
+                }
+              }}
             >
               <div class="row-body">
                 <div class="row-title">{n.title || 'Untitled'}</div>
@@ -282,7 +290,7 @@
                 title="Move to trash"
                 aria-label="Move to trash"
                 onclick={(e) => { e.stopPropagation(); notesStore.trashNote(n.id) }}
-              >×</button>
+              ><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
             </div>
           {/each}
         </div>
@@ -326,7 +334,7 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
-  .col-actions { display: flex; gap: 0.4rem; align-items: center; }
+  .col-actions { display: flex; gap: 0.4rem; align-items: center; min-height: 32px; }
 
   .icon-btn {
     background: none;
@@ -521,10 +529,13 @@
     border: none;
     color: var(--muted);
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 1rem;
-    line-height: 1;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
   .row-action:hover { color: var(--text); background: var(--glass); }
@@ -574,6 +585,6 @@
     .col-title { font-size: 1.05rem; }
     .row { padding: 0.6rem 0.75rem; }
     .row-delete { opacity: 0.5; }
-    .row-action { padding: 8px 10px; font-size: 1.1rem; }
+    .row-action { width: 40px; height: 40px; }
   }
 </style>

@@ -5,8 +5,24 @@ import { getPreferences, patchPreferences } from '../api/preferences'
 const STORAGE_KEY = 'hawk_theme'
 const SERVER_DEBOUNCE_MS = 400
 
+export type DayNotesView = 'tabs' | 'list'
+
 interface PreferencesState {
   theme: ThemeId
+  dayNotesView: DayNotesView
+}
+
+const VIEW_KEY = 'hawk_day_notes_view'
+const isView = (v: unknown): v is DayNotesView => v === 'tabs' || v === 'list'
+
+function readLocalView(): DayNotesView {
+  try {
+    const v = localStorage.getItem(VIEW_KEY)
+    if (isView(v)) return v
+  } catch {
+    /* localStorage unavailable */
+  }
+  return 'tabs'
 }
 
 function readLocalTheme(): ThemeId {
@@ -39,13 +55,22 @@ function createPreferencesStore() {
   const initialTheme = readLocalTheme()
   applyTheme(initialTheme)
 
-  const { subscribe, update } = writable<PreferencesState>({ theme: initialTheme })
+  const { subscribe, update } = writable<PreferencesState>({
+    theme: initialTheme,
+    dayNotesView: readLocalView(),
+  })
 
   let serverTimer: ReturnType<typeof setTimeout> | null = null
+  // Accumulate keys changed within the debounce window so a quick theme +
+  // view change doesn't drop one of them.
+  let pendingPartial: Record<string, unknown> = {}
   function scheduleServerWrite(partial: Record<string, unknown>) {
+    pendingPartial = { ...pendingPartial, ...partial }
     if (serverTimer) clearTimeout(serverTimer)
     serverTimer = setTimeout(() => {
-      patchPreferences(partial).catch(() => {
+      const body = pendingPartial
+      pendingPartial = {}
+      patchPreferences(body).catch(() => {
         // Network/auth failures: localStorage already saved the choice, so the
         // UI stays correct. Server will catch up on the next write.
       })
@@ -60,6 +85,15 @@ function createPreferencesStore() {
       update((s) => ({ ...s, theme: id }))
       scheduleServerWrite({ theme: id })
     },
+    setDayNotesView(view: DayNotesView) {
+      try {
+        localStorage.setItem(VIEW_KEY, view)
+      } catch {
+        /* ignore */
+      }
+      update((s) => ({ ...s, dayNotesView: view }))
+      scheduleServerWrite({ dayNotesView: view })
+    },
     async loadFromServer() {
       try {
         const remote = await getPreferences()
@@ -68,6 +102,15 @@ function createPreferencesStore() {
           writeLocalTheme(next)
           applyTheme(next)
           update((s) => ({ ...s, theme: next }))
+        }
+        if (isView(remote.dayNotesView)) {
+          const view = remote.dayNotesView
+          try {
+            localStorage.setItem(VIEW_KEY, view)
+          } catch {
+            /* ignore */
+          }
+          update((s) => ({ ...s, dayNotesView: view }))
         }
       } catch {
         // Offline / unauthenticated — keep whatever local has.

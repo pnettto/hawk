@@ -45,7 +45,7 @@
 </script>
 
 <aside class="rail">
-  <nav class="rail-section">
+  <div class="rail-section" role="group">
     <div class="rail-row pseudo"
       class:active={$notesStore.view === 'all'}
       role="button"
@@ -53,15 +53,15 @@
       onclick={() => notesStore.selectAllNotes()}
       onkeydown={(e) => onRailRowKeydown(e, () => notesStore.selectAllNotes())}
     >
-      <span class="dot" aria-hidden="true">◇</span>
+      <span class="dot"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg></span>
       <span class="rail-label">All Notes</span>
       <span class="rail-count">{counts.allActive}</span>
     </div>
-  </nav>
+  </div>
 
   <div class="rail-divider" aria-hidden="true"></div>
 
-  <nav class="rail-section grow">
+  <div class="rail-section grow" role="group" aria-label="Collections">
     <div class="rail-section-header">Collections</div>
     {#each $notesStore.collections as coll (coll.id)}
       <div
@@ -72,7 +72,7 @@
         onclick={() => notesStore.selectCollection(coll.id)}
         onkeydown={(e) => onRailRowKeydown(e, () => notesStore.selectCollection(coll.id))}
       >
-        <span class="dot" aria-hidden="true">●</span>
+        <span class="dot"><span class="bullet"></span></span>
         <span class="rail-label">{coll.name}</span>
         <span class="rail-count">{counts.active.get(coll.id) ?? 0}</span>
       </div>
@@ -95,11 +95,11 @@
         <span>New collection</span>
       </button>
     {/if}
-  </nav>
+  </div>
 
   <div class="rail-divider" aria-hidden="true"></div>
 
-  <nav class="rail-section">
+  <div class="rail-section" role="group">
     <div class="rail-row pseudo"
       class:active={$notesStore.view === 'trash'}
       role="button"
@@ -107,11 +107,11 @@
       onclick={() => notesStore.selectTrash()}
       onkeydown={(e) => onRailRowKeydown(e, () => notesStore.selectTrash())}
     >
-      <span class="dot" aria-hidden="true">⌫</span>
+      <span class="dot"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></svg></span>
       <span class="rail-label">Trash</span>
       <span class="rail-count">{counts.trashed}</span>
     </div>
-  </nav>
+  </div>
 </aside>
 
 <style>
@@ -168,7 +168,7 @@
   }
   .rail-row:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline-offset: -2px;
   }
   .rail-row.active {
     color: var(--text);
@@ -185,11 +185,13 @@
     background: var(--accent);
   }
   .dot {
-    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--muted);
     opacity: 0.6;
-    text-align: center;
   }
+  .bullet { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .rail-row.active .dot { color: var(--accent); opacity: 1; }
   .rail-row.pseudo .dot { font-size: 0.85rem; }
   .rail-label {
@@ -295,7 +297,7 @@
     }
     .rail-row.active::before { display: none; }
     .rail-row .dot { display: none; }
-    .rail-row.pseudo .dot { display: inline; font-size: 0.85rem; }
+    .rail-row.pseudo .dot { display: inline-flex; }
     .rail-label { font-size: 0.9rem; }
     .rail-new {
       flex: 0 0 auto;

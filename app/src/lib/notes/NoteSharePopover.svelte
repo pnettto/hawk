@@ -12,9 +12,7 @@
   let copiedKind = $state<'page' | 'api' | null>(null)
 
   async function setShare(value: boolean) {
-    notesStore.applyEdit(note.id, { isPublic: value })
-    // Bypass the debounce so the share link is live immediately.
-    await notesStore.saveNoteImmediate(note.id)
+    await notesStore.setPublic(note.id, value)
   }
 
   async function copy(text: string, kind: 'page' | 'api') {
@@ -74,7 +72,7 @@
     border: 1px solid var(--line);
     padding: 1rem;
     border-radius: 8px;
-    z-index: 100;
+    z-index: var(--z-popover);
     width: 320px;
   }
   .hint {

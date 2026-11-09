@@ -1,120 +1,88 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { logsStore } from '../stores/logs'
+  import MarkdownIt from 'markdown-it'
+  import { logsStore, sortNotes, sortTasks } from '../stores/logs'
   import { appStore } from '../stores/app'
   import { debounce } from '../utils/debounce'
-  import { formatDate, shortDisplay } from '../utils/date'
-  import type { DayLog, HourEntry } from '../types/models'
+  import { formatDate } from '../utils/date'
+  import type { DayLog } from '../types/models'
 
-  interface Props {
-    startDate: Date
-    endDate: Date
-  }
-  let { startDate, endDate }: Props = $props()
+  const md = new MarkdownIt({ html: false, linkify: true, breaks: false })
 
-  let markdown = $state('')
-  let loading = $state(false)
+  let loading = $state(true)
   let copied = $state(false)
 
-  function generate(): string {
-    const logs = $logsStore.byDate
-    const tab = $appStore.overviewTab
-    const startStr = formatDate(startDate)
-    const endStr = formatDate(endDate)
-    const start = new Date(startStr + 'T12:00:00')
-    const end = new Date(endStr + 'T12:00:00')
-    const dates: string[] = []
-    const cur = new Date(start)
+  let tab = $derived($appStore.overviewTab)
+
+  const dayLabel = (date: string) =>
+    new Date(date + 'T12:00:00').toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+
+  let dates = $derived.by(() => {
+    const out: string[] = []
+    const cur = new Date(formatDate($appStore.overviewStart) + 'T12:00:00')
+    const end = new Date(formatDate($appStore.overviewEnd) + 'T12:00:00')
     while (cur <= end) {
-      dates.push(formatDate(cur))
+      out.push(formatDate(cur))
       cur.setDate(cur.getDate() + 1)
     }
-    return dates
-      .map((date) => {
-        const dayLog = logs[date] as DayLog | undefined
-        if (!dayLog || Object.keys(dayLog).length === 0) return null
-        const d = new Date(date + 'T12:00:00')
-        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
-        let out = `## ${shortDisplay(d)} ${dayName}\n\n`
-        let hasContent = false
-        if (tab === 'tasks') {
-          const entries = Object.entries(dayLog)
-            .filter(([hour, data]) => {
-              if (!hour.includes('-') && isNaN(Number(hour))) return false
-              const e = data as HourEntry
-              return !!(e?.text?.trim() || e?.comment?.trim())
-            })
-            .sort((a, b) => {
-              const mins = (k: string) => {
-                const [h, m] = k.split('-').map(Number)
-                return h * 60 + (m || 0)
-              }
-              return mins(a[0]) - mins(b[0])
-            })
-            .map(([hour, data]) => {
-              const e = data as HourEntry
-              const time = hour.replace('-30', ':30').replace(/-00|$/, ':00')
-              const cb = e.checked ? '[x]' : '[ ]'
-              let line = `- ${cb} **${time}** ${e.text || ''}`
-              if (e.comment) {
-                const lines = e.comment
-                  .split('\n')
-                  .map((l) => `  > ${l}`)
-                  .join('\n')
-                line += `\n${lines}`
-              }
-              return line
-            })
-          if (entries.length) {
-            out += entries.join('\n') + '\n\n'
-            hasContent = true
-          }
-        } else {
-          if (typeof dayLog.notesMarkdown === 'string' && dayLog.notesMarkdown.trim()) {
-            out += `${dayLog.notesMarkdown.trim()}\n\n`
-            hasContent = true
-          }
-        }
-        return hasContent ? out : null
-      })
-      .filter(Boolean)
+    return out
+  })
+
+  // Markdown for one day's section body (also what Copy puts on the clipboard).
+  function dayMarkdown(day: DayLog | undefined): string {
+    if (!day) return ''
+    if (tab === 'tasks') {
+      return sortTasks(day.tasks ?? [])
+        .filter((t) => t.text.trim() || t.comment?.trim())
+        .map((t) => {
+          let line = `- [${t.done ? 'x' : ' '}] ${t.time ? `**${t.time}** ` : ''}${t.text}`
+          if (t.comment) line += '\n' + t.comment.split('\n').map((l) => `  > ${l}`).join('\n')
+          return line
+        })
+        .join('\n')
+    }
+    const notes = sortNotes(day.notes ?? []).filter((n) => n.markdown.trim())
+    return notes
+      .map((n) => (notes.length > 1 || n.title ? `### ${n.title || 'Note'}\n\n` : '') + n.markdown.trim())
       .join('\n\n')
+  }
+
+  let sections = $derived(
+    dates
+      .map((date) => ({ date, body: dayMarkdown($logsStore.byDate[date]) }))
+      .filter((s) => s.body),
+  )
+
+  let fullMarkdown = $derived(sections.map((s) => `## ${dayLabel(s.date)}\n\n${s.body}`).join('\n\n'))
+
+  // Task lists render as plain checkmarks rather than disabled inputs.
+  function render(body: string): string {
+    return md.render(body).replace(/<li>\[( |x)\] /g, (_m, c) =>
+      c === 'x' ? '<li class="task done"><span class="mark">✓</span> ' : '<li class="task"><span class="mark">·</span> ',
+    )
   }
 
   async function refresh() {
     loading = true
-    await logsStore.loadForRange(formatDate(startDate), formatDate(endDate))
-    markdown = generate()
+    await logsStore.loadForRange(formatDate($appStore.overviewStart), formatDate($appStore.overviewEnd))
     loading = false
   }
-
   const debouncedRefresh = debounce(refresh, 250)
 
-  // Refetch when the parent updates the date range (skip the initial run —
-  // onMount already kicks off the first load).
-  let mounted = false
   $effect(() => {
-    void startDate
-    void endDate
-    if (!mounted) return
+    void $appStore.overviewStart
+    void $appStore.overviewEnd
     loading = true
     debouncedRefresh()
   })
 
-  // Re-generate whenever logs update (loadForRange resolves), dates change,
-  // or the active tab changes.
-  $effect(() => {
-    void $logsStore.byDate
-    void startDate
-    void endDate
-    void $appStore.overviewTab
-    markdown = generate()
-  })
-
   async function copyToClipboard() {
-    if (!markdown) return
+    if (!fullMarkdown) return
     try {
-      await navigator.clipboard.writeText(markdown)
+      await navigator.clipboard.writeText(fullMarkdown)
       copied = true
       setTimeout(() => (copied = false), 1500)
     } catch (e) {
@@ -122,114 +90,31 @@
     }
   }
 
-  function onClickOverview(e: MouseEvent) {
-    const el = (e.target as HTMLElement | null)?.closest('h2')
-    if (!el) return
-    const dateStr = el.textContent?.split(' ')[0] ?? ''
-    const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})$/)
-    if (!m) return
-    const [, dd, mm, yy] = m
-    const iso = `20${yy}-${mm}-${dd}`
-    appStore.setSelectedDate(new Date(iso + 'T12:00:00'))
-    appStore.setCurrentPage('app')
-    appStore.setJournalTab($appStore.overviewTab === 'tasks' ? 'tasks' : 'notes')
+  function openDay(date: string) {
+    appStore.setSelectedDate(new Date(date + 'T12:00:00'))
+    appStore.setJournalTab(tab === 'tasks' ? 'tasks' : 'notes')
   }
-
-  // Cheap markdown→HTML for headings, bold, lists, blockquotes — plus paragraphs.
-  // Keeps the report rendering self-contained (no marked dep on this page yet).
-  function renderMarkdown(md: string): string {
-    const lines = md.split('\n')
-    const out: string[] = []
-    let inList = false
-    let inBlockquote = false
-    const closeList = () => {
-      if (inList) {
-        out.push('</ul>')
-        inList = false
-      }
-    }
-    const closeQuote = () => {
-      if (inBlockquote) {
-        out.push('</blockquote>')
-        inBlockquote = false
-      }
-    }
-    const inline = (s: string) =>
-      s
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    for (const raw of lines) {
-      const line = raw
-      if (line.startsWith('## ')) {
-        closeList()
-        closeQuote()
-        out.push(`<h2>${inline(line.slice(3))}</h2>`)
-      } else if (line.startsWith('### ')) {
-        closeList()
-        closeQuote()
-        out.push(`<h3>${inline(line.slice(4))}</h3>`)
-      } else if (line.startsWith('- ')) {
-        closeQuote()
-        if (!inList) {
-          out.push('<ul>')
-          inList = true
-        }
-        out.push(`<li>${inline(line.slice(2))}</li>`)
-      } else if (/^\s*>\s?/.test(line)) {
-        closeList()
-        if (!inBlockquote) {
-          out.push('<blockquote>')
-          inBlockquote = true
-        }
-        out.push(inline(line.replace(/^\s*>\s?/, '')) + '<br>')
-      } else if (line.trim() === '') {
-        closeList()
-        closeQuote()
-      } else {
-        closeList()
-        closeQuote()
-        out.push(`<p>${inline(line)}</p>`)
-      }
-    }
-    closeList()
-    closeQuote()
-    return out.join('\n')
-  }
-
-  let html = $derived(renderMarkdown(markdown))
-
-  onMount(() => {
-    mounted = true
-    refresh()
-  })
 </script>
 
 <div class="report-toolbar">
-  <div class="report-filter">
-    <button
-      class:active={$appStore.overviewTab === 'notes'}
-      onclick={() => appStore.setOverviewTab('notes')}>Day Notes</button
-    >
-    <button
-      class:active={$appStore.overviewTab === 'tasks'}
-      onclick={() => appStore.setOverviewTab('tasks')}>Tasks</button
-    >
+  <div class="segmented" role="radiogroup" aria-label="Show">
+    <button role="radio" aria-checked={tab === 'notes'} onclick={() => appStore.setOverviewTab('notes')}>Day notes</button>
+    <button role="radio" aria-checked={tab === 'tasks'} onclick={() => appStore.setOverviewTab('tasks')}>Tasks</button>
   </div>
   <button
     type="button"
     class="copy-btn"
     class:copied
     onclick={copyToClipboard}
-    title="Copy markdown"
-    aria-label="Copy markdown"
+    disabled={!fullMarkdown}
+    title="Copy as markdown"
+    aria-label="Copy as markdown"
   >
     {#if copied}
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3.5 8.5l3 3 6-7"/>
       </svg>
-      <span>Copied</span>
+      <span aria-live="polite">Copied</span>
     {:else}
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="5" y="2.5" width="8.5" height="10" rx="1.5"/>
@@ -240,19 +125,29 @@
   </button>
 </div>
 
-{#if markdown}
-  <div
-    class="report-content"
-    class:loading
-    onclick={onClickOverview}
-    role="presentation"
-  >
-    {@html html}
+{#if sections.length}
+  <div class="report-content" class:loading>
+    {#each sections as s (s.date)}
+      <section class="day">
+        <h2><button type="button" class="day-link" onclick={() => openDay(s.date)}>{dayLabel(s.date)}</button></h2>
+        <div class="day-body">{@html render(s.body)}</div>
+      </section>
+    {/each}
+  </div>
+{:else if loading}
+  <div class="report-content" aria-busy="true">
+    {#each [0, 1] as i (i)}
+      <div class="skeleton-day">
+        <span class="skeleton-line" style:width="8rem" style:height="1.1rem"></span>
+        <span class="skeleton-line" style:width="80%"></span>
+        <span class="skeleton-line" style:width="60%"></span>
+      </div>
+    {/each}
   </div>
 {:else}
   <div class="empty-state">
     <div class="empty-headline">
-      {#if $appStore.overviewTab === 'tasks'}No tasks in this period{:else}No day notes in this period{/if}
+      {#if tab === 'tasks'}No tasks in this period{:else}No day notes in this period{/if}
     </div>
     <div class="empty-sub">Try a different range, or write something today.</div>
   </div>
@@ -265,35 +160,29 @@
     justify-content: space-between;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
-    font-family: var(--font-ui, inherit);
+    font-family: var(--font-ui);
   }
-  .report-filter {
-    display: flex;
-    gap: 0.25rem;
+  .segmented {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: var(--r-pill);
+    background: var(--glass-dark);
   }
-  .report-filter button {
+  .segmented button {
     background: none;
     border: none;
     color: var(--muted);
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.72rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--r-pill);
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out);
   }
-  .report-filter button:hover {
-    color: var(--text);
-    background: var(--glass-dark);
-  }
-  .report-filter button.active {
-    color: var(--accent);
-    background: var(--glass);
-  }
+  .segmented button:hover { color: var(--text); }
+  .segmented button[aria-checked='true'] { color: var(--accent); background: var(--glass); }
   .copy-btn {
     display: inline-flex;
     align-items: center;
@@ -303,73 +192,82 @@
     color: var(--muted);
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.72rem;
-    padding: 0.4rem 0.6rem;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: var(--r-pill);
     line-height: 1;
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out);
   }
   .copy-btn svg { width: 12px; height: 12px; display: block; }
-  .copy-btn:hover {
-    color: var(--text);
-    background: var(--glass-dark);
-  }
-  .copy-btn.copied {
-    color: var(--accent);
-    background: var(--glass);
-  }
+  .copy-btn:hover:not(:disabled) { color: var(--text); background: var(--glass-dark); }
+  .copy-btn:disabled { opacity: 0.4; cursor: default; }
+  .copy-btn.copied { color: var(--accent); background: var(--glass); }
+
   .report-content {
     line-height: 1.6;
     color: var(--text);
     transition: opacity var(--dur-base) var(--ease-out);
   }
-  .report-content.loading { opacity: 0.4; }
-  .report-content :global(h2) {
-    color: var(--accent);
-    font-size: 1.5rem;
-    margin-top: 2.5rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--line);
+  .report-content.loading { opacity: 0.5; }
+  .day + .day { margin-top: 2.5rem; }
+  h2 {
+    margin: 0 0 1rem;
     padding-bottom: 0.5rem;
-    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+    font-size: 1.25rem;
   }
-  .report-content :global(h2:hover) { opacity: 0.8; }
-  .report-content :global(h2:first-child) { margin-top: 0; }
-  .report-content :global(h3) {
-    font-size: 1.1rem;
-    color: var(--muted);
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05rem;
-  }
-  .report-content :global(ul) {
-    list-style: none;
+  .day-link {
+    background: none;
+    border: 0;
     padding: 0;
-    margin: 0;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+    border-radius: var(--r-xs);
+    transition: opacity var(--dur-fast) var(--ease-out);
   }
-  .report-content :global(li) { margin-bottom: 0.5rem; }
-  .report-content :global(blockquote) {
-    margin: 0.5rem 0;
+  .day-link:hover { opacity: 0.8; }
+  .day-body :global(h1),
+  .day-body :global(h2),
+  .day-body :global(h3) { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; }
+  .day-body :global(h3) { color: var(--muted); }
+  .day-body :global(p) { margin: 0.5rem 0; }
+  .day-body :global(ul),
+  .day-body :global(ol) { padding-left: 1.4rem; margin: 0.5rem 0; }
+  .day-body :global(li.task) { list-style: none; margin-left: -1.4rem; }
+  .day-body :global(li.task .mark) { display: inline-block; width: 1.2rem; color: var(--muted); }
+  .day-body :global(li.task.done .mark) { color: var(--accent); }
+  .day-body :global(li.task strong) { color: var(--accent); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .day-body :global(blockquote) {
+    margin: 0.35rem 0 0.5rem;
     padding-left: 1rem;
     border-left: 2px solid var(--line);
     color: var(--muted);
-    font-style: italic;
     font-size: 0.9rem;
   }
-  .report-content :global(strong) {
-    color: var(--accent);
-    font-weight: normal;
+  .day-body :global(blockquote p) { margin: 0; }
+  .day-body :global(code) {
+    background: var(--glass);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--r-xs);
+    font-size: 0.85em;
   }
+  .day-body :global(pre) {
+    background: var(--input-bg);
+    padding: 0.75rem 1rem;
+    border-radius: var(--r-sm);
+    overflow-x: auto;
+  }
+  .day-body :global(pre code) { background: none; padding: 0; }
+  .day-body :global(img) { max-width: 100%; border-radius: var(--r-md); }
+  .skeleton-day { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2.5rem; }
   .empty-state {
     text-align: center;
     padding: 3.5rem 1.5rem;
     color: var(--muted);
-    font-family: var(--font-ui, inherit);
+    font-family: var(--font-ui);
   }
   .empty-headline { font-size: 0.95rem; opacity: 0.75; }
   .empty-sub { font-size: 0.8rem; opacity: 0.5; margin-top: 0.4rem; }

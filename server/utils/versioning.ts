@@ -39,13 +39,25 @@ export function keysFor(kind: SnapshotKind) {
   return KEYS[kind];
 }
 
-function stripHtml(s: string): string {
-  return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+// Plain-text gist of markdown/HTML for history lists.
+function stripMarkup(s: string): string {
+  return s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/```\w*\n?/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s*([-*+]|\d+\.)\s+/gm, "")
+    .replace(/(\*\*|__|~~)(.+?)\1/g, "$2")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function makePreview(content: unknown): string {
   if (typeof content === "string") {
-    return stripHtml(content).slice(0, 80);
+    return stripMarkup(content).slice(0, 80);
   }
   if (content && typeof content === "object") {
     // Day-tasks: build a preview from the first non-empty hour entries.

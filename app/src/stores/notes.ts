@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store'
 import * as notesApi from '../api/notes'
 import { showError, showToast } from './toast'
 import { savingStore } from './saving'
+import { DocSession, type DocFields } from '../sync/docSession'
 import type { Collection, Note, NoteMetadata } from '../types/models'
 import type { SyncEvent } from './sync'
 
@@ -21,18 +22,6 @@ interface NotesState {
 // Tracks notes mid-mutation so a server refresh can't resurrect them between
 // the optimistic update and the request finishing.
 const inFlightOps = new Set<string>()
-
-// Remote note bodies that arrived while the user was actively typing in the
-// editor. We hold them here until the editor blurs (or the user navigates away)
-// so we don't yank the cursor mid-keystroke. Metadata (title, preview,
-// updatedAt) still updates immediately — only the editor body waits.
-const pendingRemoteContent = new Map<string, Note>()
-const { subscribe: pendingRemoteSubscribe, set: pendingRemoteSet } = writable<
-  Set<string>
->(new Set())
-function bumpPendingRemote() {
-  pendingRemoteSet(new Set(pendingRemoteContent.keys()))
-}
 
 // Mirrors server/routeHandlers/notes.ts:buildPreview — kept in sync so the
 // list updates instantly on edit instead of waiting for a server round-trip
@@ -60,19 +49,10 @@ function buildPreview(markdown: string | undefined, max = 140): string {
   return stripped.length > max ? stripped.slice(0, max).trimEnd() + '…' : stripped
 }
 
-function isEditorFocused(): boolean {
-  if (typeof document === 'undefined') return false
-  return !!document.querySelector('.ProseMirror-focused')
-}
-
-// Per-note pending save snapshots. Keyed by id so switching notes within the
-// debounce window can't drop an earlier note's pending save.
-const pendingSaves = new Map<string, Note>()
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-let saveInFlight: Promise<void> | null = null
-
-// Single key for the whole notes module — there's only one debounce timer.
-const NOTES_PENDING_KEY = 'notes-store'
+// One sync session per note whose body has been loaded. Sessions outlive the
+// editor mount so switching notes never drops a pending save, and a remote
+// update for a background note still lands in the right place.
+const sessions = new Map<string, DocSession>()
 
 function createNotesStore() {
   const { subscribe, update } = writable<NotesState>({
@@ -105,8 +85,15 @@ function createNotesStore() {
         const localById = new Map(s.allNotes.map((n) => [n.id, n as Note]))
         const allNotes = fresh.map((sn) => {
           const local = localById.get(sn.id)
+          // Keep fields the index doesn't carry (body, rev) so returning to
+          // the page doesn't drop them.
           return local && local.content !== undefined
-            ? ({ ...sn, content: local.content } as NoteMetadata)
+            ? ({
+                ...sn,
+                content: local.content,
+                rev: local.rev,
+                isPublic: (sn as Note).isPublic ?? local.isPublic,
+              } as NoteMetadata)
             : sn
         })
         const selectedCid =
@@ -171,17 +158,13 @@ function createNotesStore() {
       })
 
       // Also re-fetch the open note's full content (titles/dates may have changed).
+      // The session ignores anything not newer than what it has, so a slow
+      // response can't roll the editor back.
       const cur = get({ subscribe })
-      if (cur.selectedNid) {
+      const session = cur.selectedNid ? sessions.get(cur.selectedNid) : null
+      if (cur.selectedNid && session) {
         const fullNote = await notesApi.getNote(cur.selectedNid)
-        if (fullNote) {
-          update((s) => {
-            const allNotes = s.allNotes.map((n) =>
-              n.id === fullNote.id ? { ...n, ...fullNote } : n,
-            )
-            return { ...s, allNotes }
-          })
-        }
+        if (fullNote) session.receiveRemote(docOf(fullNote), fullNote.rev ?? 0)
       }
     } catch (e) {
       console.error('[notes] refresh failed', e)
@@ -217,43 +200,25 @@ function createNotesStore() {
         // Don't resurrect a note we're about to permanently delete.
         if (pendingDestructive.has(`perm-del:${evt.ref}`)) return
         await refetchCollectionSlice(evt.cid)
-        const cur = get({ subscribe })
-        if (evt.ref === cur.selectedNid) {
+        const session = sessions.get(evt.ref)
+        if (session) {
           try {
-            const fullNote = await notesApi.getNote(evt.ref)
-            if (!fullNote) return
-            if (isEditorFocused()) {
-              // Stash body — apply on blur. Push title/preview/updatedAt now
-              // so the list and header reflect the change immediately.
-              pendingRemoteContent.set(evt.ref, fullNote as Note)
-              bumpPendingRemote()
-              update((s) => {
-                const allNotes = s.allNotes.map((n) => {
-                  if (n.id !== evt.ref) return n
-                  const { title, preview, updatedAt, deletedAt, isPublic } =
-                    fullNote as Note
-                  return {
-                    ...n,
-                    title,
-                    preview,
-                    updatedAt,
-                    deletedAt,
-                    isPublic,
-                  } as NoteMetadata
-                })
-                return { ...s, allNotes }
-              })
-            } else {
-              update((s) => {
-                const allNotes = s.allNotes.map((n) =>
-                  n.id === evt.ref ? { ...n, ...(fullNote as Note) } : n,
-                )
-                return { ...s, allNotes }
-              })
-            }
+            const full = await notesApi.getNote(evt.ref)
+            if (full) session.receiveRemote(docOf(full), full.rev ?? 0)
           } catch (e) {
             console.error('[notes] applySyncEvent getNote failed', e)
           }
+        } else {
+          // Not open anywhere — drop any cached body so the next open
+          // fetches the fresh one.
+          update((s) => ({
+            ...s,
+            allNotes: s.allNotes.map((n) => {
+              if (n.id !== evt.ref || (n as Note).content === undefined) return n
+              const { content: _c, ...meta } = n as Note
+              return meta
+            }),
+          }))
         }
         break
       }
@@ -270,8 +235,7 @@ function createNotesStore() {
           allNotes: s.allNotes.filter((n) => n.id !== evt.ref),
           selectedNid: s.selectedNid === evt.ref ? null : s.selectedNid,
         }))
-        pendingRemoteContent.delete(evt.ref)
-        bumpPendingRemote()
+        dropSession(evt.ref)
         break
       }
       case 'trash.emptied': {
@@ -327,29 +291,56 @@ function createNotesStore() {
     }
   }
 
-  // Move stashed remote content into the live note. Called by the editor on
-  // blur and automatically on selectNote when switching away from a note that
-  // had a pending update.
-  function commitPendingRemote(nid: string): void {
-    const remote = pendingRemoteContent.get(nid)
-    if (!remote) return
-    pendingRemoteContent.delete(nid)
-    bumpPendingRemote()
-    update((s) => {
-      const local = s.allNotes.find((n) => n.id === nid)
-      // Drop the remote if the user has typed something newer in the meantime.
-      // Their pending save will land on the server next.
-      if (
-        local &&
-        (local.updatedAt || 0) > (remote.updatedAt || 0)
-      ) {
-        return s
-      }
-      const allNotes = s.allNotes.map((n) =>
-        n.id === nid ? { ...n, ...remote } : n,
-      )
-      return { ...s, allNotes }
+  const docOf = (n: Note): DocFields => ({ title: n.title ?? '', body: n.content ?? '' })
+
+  function dropSession(nid: string) {
+    const session = sessions.get(nid)
+    if (!session) return
+    sessions.delete(nid)
+    void session.dispose()
+  }
+
+  function patchNote(nid: string, patch: Partial<Note>) {
+    update((s) => ({
+      ...s,
+      allNotes: s.allNotes.map((n) => (n.id === nid ? { ...n, ...patch } : n)),
+    }))
+  }
+
+  // Get (or create) the sync session for a note whose content is loaded.
+  function sessionFor(nid: string): DocSession | null {
+    const existing = sessions.get(nid)
+    if (existing) return existing
+    const note = get({ subscribe }).allNotes.find((n) => n.id === nid) as Note | undefined
+    if (!note || note.content === undefined) return null
+    const session = new DocSession({
+      key: `note:${nid}`,
+      doc: docOf(note),
+      rev: note.rev ?? 0,
+      save: async (doc, baseRev, opts) => {
+        const cur = get({ subscribe }).allNotes.find((n) => n.id === nid)
+        if (!cur) return { ok: true, rev: baseRev }
+        const res = await notesApi.saveNoteChecked(
+          { id: nid, cid: cur.cid, title: doc.title, content: doc.body, createdAt: cur.createdAt },
+          baseRev,
+          { snapshot: opts.snapshot, keepalive: opts.keepalive },
+        )
+        if (res.ok) return { ok: true, rev: res.data.rev ?? baseRev + 1 }
+        const remote = res.conflict.note as Note
+        return { ok: false, conflict: { doc: docOf(remote), rev: remote.rev ?? 0 } }
+      },
+      onChange: (doc) => {
+        patchNote(nid, {
+          title: doc.title,
+          content: doc.body,
+          preview: buildPreview(doc.body),
+          updatedAt: Date.now(),
+        })
+      },
+      onSaved: (_doc, rev) => patchNote(nid, { rev }),
     })
+    sessions.set(nid, session)
+    return session
   }
 
   function selectCollection(cid: string) {
@@ -366,15 +357,14 @@ function createNotesStore() {
 
   function clearSelectedNote() {
     const prev = get({ subscribe }).selectedNid
-    if (prev) commitPendingRemote(prev)
+    if (prev) void sessions.get(prev)?.flush()
     update((s) => ({ ...s, selectedNid: null }))
   }
 
   async function selectNote(nid: string) {
-    // Moving on from the previous note — commit any remote update we held
-    // back while the user was typing.
+    // Moving on from the previous note — save what's pending there now.
     const prev = get({ subscribe }).selectedNid
-    if (prev && prev !== nid) commitPendingRemote(prev)
+    if (prev && prev !== nid) void sessions.get(prev)?.flush()
     update((s) => ({ ...s, selectedNid: nid }))
     const cur = get({ subscribe })
     const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
@@ -484,105 +474,50 @@ function createNotesStore() {
       allNotes: [newNote, ...s.allNotes],
       selectedNid: nid,
     }))
-    queueSave(newNote)
+    sessionFor(nid)?.touch()
     return nid
   }
 
-  function applyEdit(nid: string, patch: Partial<Note>) {
-    const previewPatch = patch.content !== undefined
-      ? { preview: buildPreview(patch.content) }
-      : {}
-    update((s) => {
-      const allNotes = s.allNotes.map((n) =>
-        n.id === nid ? { ...n, ...patch, ...previewPatch, updatedAt: Date.now() } : n,
-      )
-      return { ...s, allNotes }
-    })
-    const note = get({ subscribe }).allNotes.find((n) => n.id === nid) as
-      | Note
-      | undefined
-    if (note) queueSave(note)
+  // Title edits go through the session so they're saved (and merged) with
+  // the body. The list updates immediately.
+  function setTitle(nid: string, title: string) {
+    patchNote(nid, { title, updatedAt: Date.now() })
+    sessionFor(nid)?.setTitle(title)
   }
 
-  function queueSave(note: Note) {
-    pendingSaves.set(note.id, { ...note })
-    savingStore.markPending(NOTES_PENDING_KEY)
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      flushSaves()
-    }, 500)
+  // Share toggle: a metadata-only save. The server keeps the body and doesn't
+  // bump the text revision, so it can't conflict with an open editor.
+  async function setPublic(nid: string, isPublic: boolean) {
+    const note = get({ subscribe }).allNotes.find((n) => n.id === nid)
+    if (!note) return
+    patchNote(nid, { isPublic })
+    try {
+      await savingStore.track(notesApi.saveNote({ id: nid, cid: note.cid, title: note.title, isPublic }))
+    } catch (e) {
+      console.error('Failed to update sharing', e)
+      patchNote(nid, { isPublic: !isPublic })
+      showError('Failed to update sharing.')
+    }
   }
 
   function hasUnsavedWork() {
-    return pendingSaves.size > 0 || !!saveInFlight
+    for (const s of sessions.values()) if (s.hasLocalEdits) return true
+    return false
   }
 
   async function flushSaves(): Promise<void> {
-    if (saveTimer) {
-      clearTimeout(saveTimer)
-      saveTimer = null
-    }
-    if (pendingSaves.size === 0) {
-      savingStore.clearPending(NOTES_PENDING_KEY)
-      return
-    }
-    savingStore.clearPending(NOTES_PENDING_KEY)
-    const toSave = Array.from(pendingSaves.values())
-    pendingSaves.clear()
-    saveInFlight = savingStore.track(
-      (async () => {
-        try {
-          for (const note of toSave) {
-            await notesApi.saveNote(note)
-          }
-        } catch (e) {
-          console.error('Save failed', e)
-          showError('Failed to save note.')
-          throw e
-        } finally {
-          saveInFlight = null
-        }
-      })(),
-    )
-    await saveInFlight.catch(() => {})
+    await Promise.all(Array.from(sessions.values()).map((s) => s.flush()))
   }
 
-  async function saveNoteImmediate(nid: string) {
-    const cur = get({ subscribe })
-    const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
-    if (!note) return
-    pendingSaves.delete(nid)
-    await savingStore
-      .track(notesApi.saveNote(note))
-      .catch((e) => {
-        console.error('Failed to save note', e)
-        showError('Failed to save note.')
-      })
+  // Page is being hidden/closed: drafts + keepalive saves for every note.
+  function flushOnHide() {
+    for (const s of sessions.values()) s.flushOnHide()
   }
 
-  // Flushes any pending edits, then issues one extra save with snapshot=true.
-  // Called from editor blur / tab-switch / page-leave to mark a checkpoint
-  // without snapshotting on every keystroke.
-  async function triggerSnapshot(nid: string) {
-    if (saveTimer) {
-      clearTimeout(saveTimer)
-      saveTimer = null
-    }
-    if (pendingSaves.has(nid)) {
-      await flushSaves()
-    }
-    const cur = get({ subscribe })
-    const note = cur.allNotes.find((n) => n.id === nid) as Note | undefined
-    if (!note) return
-    // Don't snapshot a metadata-only record — we'd write an empty version over
-    // the real one. Happens if a trigger fires after select but before the
-    // full-content fetch lands.
-    if (note.content === undefined) return
-    try {
-      await savingStore.track(notesApi.saveNote(note, { snapshot: true }))
-    } catch (e) {
-      console.error('Failed to snapshot note', e)
-    }
+  // Saves pending edits and records a version-history checkpoint. `force`
+  // checkpoints even without edits since the last one (history popover).
+  async function triggerSnapshot(nid: string, force = false) {
+    await sessionFor(nid)?.flush({ snapshot: true, force })
   }
 
   async function restoreVersion(nid: string, savedAt: number): Promise<boolean> {
@@ -591,12 +526,8 @@ function createNotesStore() {
         notesApi.restoreNoteVersion(nid, savedAt),
       ) as { success: boolean; note: Note } | undefined
       if (res?.note) {
-        update((s) => {
-          const allNotes = s.allNotes.map((n) =>
-            n.id === nid ? { ...n, ...res.note } : n,
-          )
-          return { ...s, allNotes }
-        })
+        patchNote(nid, res.note)
+        sessions.get(nid)?.receiveRemote(docOf(res.note), res.note.rev ?? 0, { force: true })
       }
       return true
     } catch (e) {
@@ -680,6 +611,7 @@ function createNotesStore() {
     const timer = setTimeout(() => {
       pendingDestructive.delete(opKey)
       if (undone) return
+      dropSession(nid)
       notesApi
         .permanentlyDeleteNote(nid)
         .then(() => inFlightOps.delete(nid))
@@ -765,8 +697,10 @@ function createNotesStore() {
       inFlightOps.delete(nid)
       return
     }
+    // Metadata-only (no content): the server keeps the body, so a stale local
+    // copy can't overwrite a newer edit from another device.
     notesApi
-      .saveNote(moved)
+      .saveNote({ id: nid, cid: targetCid, title: moved.title, createdAt: moved.createdAt })
       .then(() => {
         inFlightOps.delete(nid)
         const target = cur.collections.find((c) => c.id === targetCid)
@@ -794,9 +728,11 @@ function createNotesStore() {
     deleteCollection,
     createNote,
     moveNote,
-    applyEdit,
+    setTitle,
+    setPublic,
+    sessionFor,
     flushSaves,
-    saveNoteImmediate,
+    flushOnHide,
     triggerSnapshot,
     restoreVersion,
     trashNote,
@@ -805,8 +741,6 @@ function createNotesStore() {
     emptyTrash,
     hasUnsavedWork,
     applySyncEvent,
-    commitPendingRemote,
-    pendingRemoteNids: { subscribe: pendingRemoteSubscribe },
   }
 }
 

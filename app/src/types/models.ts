@@ -18,18 +18,44 @@ export interface NoteMetadata {
 export interface Note extends NoteMetadata {
   content: string;
   isPublic?: boolean;
+  rev?: number;
 }
 
-export interface HourEntry {
-  checked: boolean;
+export interface FileMeta {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  chunks: number;
+  createdAt: number;
+  inline?: boolean;
+}
+
+export interface Task {
+  id: string;
   text: string;
-  comment: string;
+  done: boolean;
+  // "HH:MM" (24h); absent for untimed tasks.
+  time?: string;
+  comment?: string;
+  // Sort key among untimed tasks.
+  order: number;
+  updatedAt?: number;
 }
 
-// A day log is a map of "9", "9-30", "10", ... → HourEntry, plus a few reserved keys.
+export interface DayNote {
+  id: string;
+  title: string;
+  markdown: string;
+  order: number;
+  rev: number;
+  updatedAt: number;
+}
+
+// Normalized day log — the server converts the legacy hour-slot shape on read.
 export interface DayLog {
-  notesMarkdown?: string;
-  [hour: string]: HourEntry | string | undefined;
+  tasks: Task[];
+  notes: DayNote[];
 }
 
 export type LogsByDate = Record<string, DayLog>;

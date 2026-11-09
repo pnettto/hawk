@@ -6,13 +6,24 @@ import { auth } from "./server/middleware/auth.ts";
 import { loginRateLimit, rateLimit } from "./server/middleware/rateLimit.ts";
 
 import {
+  deleteDayNote,
   getDayLog,
   getDayVersion,
   getRangeLog,
   listDayVersions,
+  patchDayTasks,
   restoreDayVersion,
+  saveDayNote,
   setDayLog,
 } from "./server/routeHandlers/app.ts";
+import {
+  deleteFile,
+  getFile,
+  getPublicFile,
+  listFiles,
+  renameFile,
+  uploadFile,
+} from "./server/routeHandlers/files.ts";
 import {
   deleteCollection,
   emptyTrash,
@@ -102,6 +113,9 @@ app.use(
 app.get("/api/day", getDayLog);
 app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
+app.post("/api/day/tasks", patchDayTasks);
+app.post("/api/day/notes", saveDayNote);
+app.delete("/api/day/notes", deleteDayNote);
 
 // Day log version history
 app.get("/api/day/versions", listDayVersions);
@@ -133,6 +147,14 @@ app.post("/api/notes/notes/:nid/trash", trashNote);
 app.post("/api/notes/notes/:nid/restore", restoreNote);
 app.get("/api/notes/collections/:cid/trash", getTrash);
 app.delete("/api/notes/collections/:cid/trash", emptyTrash);
+
+// Files
+app.get("/api/files", listFiles);
+app.post("/api/files", uploadFile);
+app.get("/api/files/:id", getFile);
+app.post("/api/files/:id", renameFile);
+app.delete("/api/files/:id", deleteFile);
+app.get("/api/public/files/:id", getPublicFile);
 
 // Public Note API
 app.get("/api/public/notes/:nid", getPublicNote);

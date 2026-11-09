@@ -9,11 +9,22 @@
     notesStore.load()
   })
 
-  // Refresh on focus, flushing local edits first.
+  // Refresh on focus, flushing local edits first. When the page is hidden
+  // or closed, write drafts and fire keepalive saves.
   $effect(() => {
     const onFocus = () => notesStore.refresh()
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') notesStore.flushOnHide()
+    }
+    const onPageHide = () => notesStore.flushOnHide()
     globalThis.addEventListener('focus', onFocus)
-    return () => globalThis.removeEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onHide)
+    globalThis.addEventListener('pagehide', onPageHide)
+    return () => {
+      globalThis.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onHide)
+      globalThis.removeEventListener('pagehide', onPageHide)
+    }
   })
 
   // Flush any pending typing if the user navigates away.

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { safeFlip } from '../../utils/safeFlip'
+  import { fade, fly } from 'svelte/transition'
+  import { cubicOut } from 'svelte/easing'
   import { toastStore } from '../../stores/toast'
 
   function handleAction(id: number, onAction?: () => void) {
@@ -7,16 +10,24 @@
   }
 </script>
 
-<div class="hawk-toast-host" aria-live="polite">
+<div class="hawk-toast-host">
   {#each $toastStore as toast (toast.id)}
-    <div class="hawk-toast visible" class:error={toast.type === 'error'} role="status">
-      <span>{toast.message}</span>
+    <div
+      class="hawk-toast"
+      class:error={toast.type === 'error'}
+      role={toast.type === 'error' ? 'alert' : 'status'}
+      in:fly={{ y: 8, duration: 180, easing: cubicOut }}
+      out:fade={{ duration: 120 }}
+      animate:safeFlip={{ duration: 180 }}
+    >
+      {#if toast.type === 'error'}
+        <svg class="err-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" /><path d="M8 5v3.5M8 11h.01" />
+        </svg>
+      {/if}
+      <span class="msg">{toast.message}</span>
       {#if toast.action}
-        <button
-          type="button"
-          class="hawk-toast-action"
-          on:click={() => handleAction(toast.id, toast.onAction)}
-        >
+        <button type="button" class="hawk-toast-action" onclick={() => handleAction(toast.id, toast.onAction)}>
           {toast.action}
         </button>
       {/if}
@@ -28,55 +39,45 @@
   .hawk-toast-host {
     position: fixed;
     left: 50%;
-    bottom: 1.5rem;
+    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.5rem;
-    z-index: 10000;
+    z-index: var(--z-toast);
     pointer-events: none;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
   }
   .hawk-toast {
     pointer-events: auto;
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.9rem;
-    background: var(--panel, #272b31);
-    color: var(--text, #dfe1e5);
-    border: 1px solid var(--line, #2f3339);
-    border-radius: 6px;
-    font-family: 'code-saver', ui-monospace, monospace;
-    font-size: 0.85rem;
-    opacity: 0;
-    transform: translateY(8px);
-    transition:
-      opacity 180ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1)),
-      transform 180ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
+    gap: 0.6rem;
+    min-height: 40px;
+    padding: 0.45rem 0.5rem 0.45rem 0.9rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-pop);
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
   }
-  .hawk-toast.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  .msg { padding-right: 0.4rem; }
   .hawk-toast-action {
     background: none;
     border: none;
-    color: var(--accent, #e6b84d);
-    font-family: inherit;
-    font-size: inherit;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
     cursor: pointer;
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--r-sm);
+    transition: background-color var(--dur-fast) var(--ease-out);
   }
-  .hawk-toast-action:hover {
-    background: var(--glass-dark);
-  }
-  .hawk-toast.error {
-    border-color: var(--danger);
-  }
-  .hawk-toast.error::before {
-    content: '!';
-    color: var(--danger);
-    font-weight: bold;
-  }
+  .hawk-toast-action:hover { background: var(--glass-dark); }
+  .hawk-toast.error { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
+  .err-icon { width: 15px; height: 15px; color: var(--danger); flex-shrink: 0; }
 </style>
