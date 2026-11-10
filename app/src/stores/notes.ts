@@ -116,6 +116,7 @@ export function buildPreview(markdown: string | undefined, max = 140): string {
     .replace(/_([^_]+)_/g, '$1')
     .replace(/~~([^~]+)~~/g, '$1')
     .replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, '$1')
+    .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   return stripped.length > max ? stripped.slice(0, max).trimEnd() + '…' : stripped

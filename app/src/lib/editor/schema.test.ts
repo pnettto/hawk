@@ -84,4 +84,27 @@ describe('body markdown round-trip', () => {
     // markdown-it percent-encodes the space: the same URL.
     expect(editor.getJSON().content?.[2].attrs?.src).toBe('y%20(1).png')
   })
+
+  it('keeps empty lines between paragraphs', () => {
+    editor = new Editor({
+      extensions: contentExtensions(),
+      content: { type: 'doc', content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+        { type: 'paragraph' },
+        { type: 'paragraph' },
+        { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
+        { type: 'paragraph' },
+      ] },
+    })
+    const out = md(editor)
+    expect(out).toBe('a\n\n&nbsp;\n\n&nbsp;\n\nb')
+    editor.commands.setContent(out)
+    expect(editor.getJSON().content).toEqual([
+      { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+      { type: 'paragraph' },
+      { type: 'paragraph' },
+      { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
+    ])
+    expect(md(editor)).toBe(out)
+  })
 })

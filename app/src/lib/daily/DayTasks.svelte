@@ -50,15 +50,17 @@
 
   // ---- add -----------------------------------------------------------------
 
-  // A new task can get its time and comment before it's created. An explicit
-  // pick from the time picker wins over a time typed into the text.
+  // Typing in the add row creates the task on the first character and moves
+  // the cursor into its row. A time and comment picked in the add row before
+  // typing go with it. A time typed into the text ("14:30 Gym") is pulled out
+  // once the new row loses focus; an explicit pick wins over it.
   let draft = $state('')
   let draftTime = $state<string | undefined>(undefined)
   let draftComment = $state('')
   let draftCommentOpen = $state(false)
   let addInput = $state<HTMLInputElement | null>(null)
-  let draftParsed = $derived(parseQuickTask(draft))
-  let effectiveTime = $derived(draftTime ?? draftParsed.time)
+  // The task just created from the add row, until its row loses focus.
+  let freshId = $state<string | null>(null)
 
   function resetDraft() {
     draft = ''
@@ -67,19 +69,46 @@
     draftCommentOpen = false
   }
 
-  function addFromDraft() {
-    const parsed = parseQuickTask(draft)
-    if (!parsed.text) {
-      addInput?.focus()
+  async function createFromDraft() {
+    const text = draft.trimStart()
+    if (!text) {
+      draft = ''
       return
     }
-    logsStore.addTask(dateStr, {
-      text: parsed.text,
-      time: draftTime ?? parsed.time,
+    const ds = dateStr
+    const task = logsStore.addTask(ds, {
+      text,
+      time: draftTime,
       comment: draftComment.trim() || undefined,
     })
+    finishFresh()
+    freshId = task.id
     resetDraft()
-    addInput?.focus()
+    await tick()
+    if (dateStr === ds) focusTask(task.id)
+  }
+
+  // Done with the task created from the add row: pull a typed time out of
+  // its text, or drop it if it was emptied.
+  function finishFresh() {
+    const id = freshId
+    freshId = null
+    if (!id) return
+    const task = $logsStore.byDate[dateStr]?.tasks.find((t) => t.id === id)
+    if (!task) return
+    if (!task.text.trim() && !task.comment) {
+      logsStore.removeTask(dateStr, id, { quiet: true })
+      return
+    }
+    if (task.time) return
+    const parsed = parseQuickTask(task.text)
+    if (parsed.time && parsed.text) logsStore.editTask(dateStr, id, { text: parsed.text, time: parsed.time })
+  }
+
+  function onAddInput(e: Event & { currentTarget: HTMLInputElement }) {
+    draft = e.currentTarget.value
+    if ((e as Event as InputEvent).isComposing) return
+    void createFromDraft()
   }
 
   async function toggleDraftComment() {
@@ -93,12 +122,12 @@
     }
   }
 
-  // Enter adds the task; Shift+Enter is a newline in the comment.
+  // Enter goes back to the task text; Shift+Enter is a newline in the comment.
   function onDraftCommentKeydown(e: KeyboardEvent) {
     if (e.isComposing) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      addFromDraft()
+      addInput?.focus()
     } else if (e.key === 'Escape') {
       toggleDraftComment()
     }
@@ -108,7 +137,6 @@
     if (e.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      addFromDraft()
     } else if (e.key === 'Escape') {
       resetDraft()
       addInput?.blur()
@@ -149,10 +177,19 @@
       else addInput?.focus()
     } else if (e.key === 'Backspace' && input.value === '' && !task.comment) {
       e.preventDefault()
+      // Backing out of a task that was just started returns to the add row.
+      if (task.id === freshId) {
+        freshId = null
+        logsStore.removeTask(dateStr, task.id, { quiet: true })
+        addInput?.focus()
+        return
+      }
       const prev = tasks[index - 1]
       logsStore.removeTask(dateStr, task.id)
       if (prev) tick().then(() => focusTask(prev.id))
       else addInput?.focus()
+    } else if (e.key === 'Escape' && task.id === freshId) {
+      input.blur()
     }
   }
 
@@ -263,6 +300,9 @@
               aria-label="Task"
               oninput={(e) => logsStore.editTask(dateStr, task.id, { text: e.currentTarget.value })}
               onkeydown={(e) => onTextKeydown(e, task, i)}
+              onblur={() => {
+                if (task.id === freshId) finishFresh()
+              }}
             />
 
             <TimePicker
@@ -323,7 +363,7 @@
 
   <div class="add" class:has-draft={!!draft || !!draftTime || draftCommentOpen}>
     <div class="row">
-      <button type="button" class="add-icon" aria-label="Add task" title="Add task (Enter)" onclick={addFromDraft}>
+      <button type="button" class="add-icon" aria-label="Add task" title="Add task" onclick={() => addInput?.focus()}>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
       </button>
       <input
@@ -333,15 +373,14 @@
         placeholder={tasks.length ? 'Add a task' : 'Add your first task — try “14:30 Gym”'}
         aria-label="Add a task"
         enterkeyhint="done"
+        oninput={onAddInput}
+        oncompositionend={() => void createFromDraft()}
         onkeydown={onAddKeydown}
       />
-      {#if !draftTime && draftParsed.time}
-        <span class="draft-time" title="Time from your text" transition:fade={{ duration: 120 }}>{draftParsed.time}</span>
-      {/if}
       <TimePicker
         class="time add-time"
         value={draftTime}
-        label={effectiveTime ? `Change time (${effectiveTime})` : 'Set a time'}
+        label={draftTime ? `Change time (${draftTime})` : 'Set a time'}
         onChange={(t) => {
           draftTime = t
           addInput?.focus()
@@ -365,7 +404,7 @@
       <textarea
         class="comment add-comment"
         rows="1"
-        placeholder="Comment — Enter to add, Shift+Enter for a new line"
+        placeholder="Add a comment…"
         aria-label="Comment for the new task"
         bind:value={draftComment}
         use:autosize
@@ -615,16 +654,6 @@
   }
   .add-input:hover,
   .add-input:focus { background: transparent; }
-  .draft-time {
-    flex-shrink: 0;
-    font-family: var(--font-ui);
-    font-size: 0.78rem;
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border-radius: 999px;
-    padding: 0.2rem 0.55rem;
-    font-variant-numeric: tabular-nums;
-  }
 
   .carry {
     display: block;

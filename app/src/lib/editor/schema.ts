@@ -1,4 +1,5 @@
 import StarterKit from '@tiptap/starter-kit'
+import Paragraph from '@tiptap/extension-paragraph'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
@@ -6,6 +7,12 @@ import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Attachment, Lead, Video } from './nodes'
+
+interface PMNode {
+  type: { name: string }
+  childCount: number
+  child(i: number): PMNode
+}
 
 interface MarkdownState {
   write(s: string): void
@@ -49,11 +56,52 @@ const TightTaskList = TaskList.extend({
   },
 })
 
+// Markdown has no empty paragraph — blank lines between blocks collapse — so
+// an empty line in the editor was lost on save. Write it as "&nbsp;" (which
+// any markdown renderer shows as a blank line) and read that back as an empty
+// paragraph. Trailing empty paragraphs are left out; the editor adds one after
+// a closing image/video on its own.
+const BlankLineParagraph = Paragraph.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(
+          state: MarkdownState & { renderInline(node: unknown): void },
+          node: PMNode,
+          parent: PMNode,
+          index: number,
+        ) {
+          if (node.childCount === 0 && parent.type.name === 'doc') {
+            let more = false
+            for (let i = index + 1; i < parent.childCount && !more; i++) {
+              const next = parent.child(i)
+              more = !(next.type.name === 'paragraph' && next.childCount === 0)
+            }
+            if (more) state.write('&nbsp;')
+            state.closeBlock(node)
+            return
+          }
+          state.renderInline(node)
+          state.closeBlock(node)
+        },
+        parse: {
+          updateDOM(element: HTMLElement) {
+            for (const p of element.querySelectorAll(':scope > p')) {
+              if (p.childNodes.length === 1 && p.textContent === '\u00a0') p.textContent = ''
+            }
+          },
+        },
+      },
+    }
+  },
+})
+
 // Everything that defines what a body can contain and how it maps to
 // markdown. Shared by the editor and the round-trip tests.
 export function contentExtensions() {
   return [
-    StarterKit.configure({ link: false }),
+    StarterKit.configure({ link: false, paragraph: false }),
+    BlankLineParagraph,
     Markdown.configure({ transformPastedText: false, transformCopiedText: true }),
     Link.configure({
       openOnClick: true,

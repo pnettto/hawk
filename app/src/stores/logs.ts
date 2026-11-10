@@ -221,13 +221,15 @@ function createLogsStore() {
     return task
   }
 
-  function removeTask(dateStr: string, id: string) {
+  // `quiet` skips the undo toast, for a task the user only just started.
+  function removeTask(dateStr: string, id: string, opts: { quiet?: boolean } = {}) {
     const task = dayOf(dateStr).tasks.find((t) => t.id === id)
     if (!task) return
     setDay(dateStr, (d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }))
     dirtyTasks.get(dateStr)?.delete(id)
     setOf(removedTasks, dateStr).add(id)
     scheduleTaskWrite(dateStr, true)
+    if (opts.quiet) return
     showToast(task.text ? `Deleted “${task.text.slice(0, 40)}”` : 'Task deleted', {
       action: 'Undo',
       duration: UNDO_MS,
