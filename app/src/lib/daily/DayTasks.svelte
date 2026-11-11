@@ -383,7 +383,7 @@
         class="add-input"
         bind:this={addInput}
         bind:value={draft}
-        placeholder={tasks.length ? 'Add a task' : 'Add your first task — try “14:30 Gym”'}
+        placeholder={tasks.length ? 'Add a task' : 'Add task'}
         aria-label="Add a task"
         enterkeyhint="done"
         oninput={onAddInput}
