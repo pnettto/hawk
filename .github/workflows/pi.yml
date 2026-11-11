@@ -106,7 +106,7 @@ jobs:
           npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
 
       - name: Restore pi session
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.pi-sessions
           key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
@@ -147,7 +147,7 @@ jobs:
 
       - name: Save pi session
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.pi-sessions
           key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
@@ -168,7 +168,9 @@ jobs:
 
       - name: Open PR
         id: pr
-        if: steps.push.outcome == 'success' || env.IS_PR == 'true'
+        # Also when nothing was pushed this run, so a PR missing from an
+        # earlier run still gets opened.
+        if: steps.pi.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
@@ -176,6 +178,9 @@ jobs:
         run: |
           if [ "$IS_PR" = true ]; then
             echo "url=$(gh pr view "$NUMBER" -R "$REPO" --json url -q .url)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
             exit 0
           fi
           url="$(gh pr list -R "$REPO" --head "$BRANCH" --state open --json url -q '.[0].url')"
