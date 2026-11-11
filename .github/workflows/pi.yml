@@ -245,3 +245,8 @@ jobs:
             fi
           } > "$body"
           gh issue comment "$NUMBER" -R "$REPO" --body-file "$body"
+          # Started from an issue: post the same report on the PR, where the preview matters.
+          if [ "$IS_PR" != true ] && [ -n "$PR_URL" ]; then
+            grep -v '^PR: ' "$body" > "$body.pr"
+            gh pr comment "$PR_URL" --body-file "$body.pr"
+          fi
