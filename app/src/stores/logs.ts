@@ -243,6 +243,17 @@ function createLogsStore() {
     for (const t of src) addTask(toDate, { text: t.text, time: t.time, comment: t.comment })
   }
 
+  // Move a single task onto the next day.
+  function carryTaskOver(dateStr: string, id: string) {
+    const task = dayOf(dateStr).tasks.find((t) => t.id === id)
+    if (!task) return
+    const next = new Date(dateStr + 'T12:00:00')
+    next.setDate(next.getDate() + 1)
+    const nextDate = formatDate(next)
+    addTask(nextDate, { text: task.text, time: task.time, comment: task.comment })
+    removeTask(dateStr, id, { quiet: true })
+  }
+
   // Unsaved task edits (beforeunload guard, focus refresh).
   function hasUnsavedWork(): boolean {
     for (const v of dirtyTasks.values()) if (v.size) return true
@@ -290,6 +301,7 @@ function createLogsStore() {
     editTask,
     removeTask,
     carryOver,
+    carryTaskOver,
     flushTasks,
     hasUnsavedWork,
     flushOnHide,
