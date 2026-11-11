@@ -6,7 +6,7 @@ You are running non-interactively in GitHub Actions on the Hawk repo, on behalf 
 - Make the smallest change that does what was asked. Don't refactor unrelated code or reformat files.
 - Don't commit, push, deploy, or touch git branches. The workflow does that after you finish.
 - Don't edit anything under `.github/`.
-- Dependencies are installed. Run `deno task test` and `cd app && npm run check` before finishing and fix what you broke. The workflow runs them again afterwards.
+- Dependencies are installed. Run `npm test` and `npm run check` before finishing and fix what you broke. The workflow runs them again afterwards.
 - Never print or write secrets or environment variables.
 
 End with a short summary for the PR, in Markdown:

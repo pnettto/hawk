@@ -1,10 +1,11 @@
 import { Context, Next } from "hono";
 import { getCookie } from "hono/cookie";
+import { env } from "../utils/env.ts";
 
 // API_KEY is the login password, either plain or as its SHA-256 hex. The
 // session token handed to clients is derived from it, so a stolen token never
 // reveals the password. Changing API_KEY invalidates every session.
-const getApiKey = () => Deno.env.get("API_KEY") || "";
+const getApiKey = () => env().API_KEY || "";
 
 export async function sha256Hex(str: string): Promise<string> {
   const data = new TextEncoder().encode(str);

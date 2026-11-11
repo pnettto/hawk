@@ -1,9 +1,10 @@
+// The Hono app. It runs inside the Durable Object (hawkDO.ts); the Worker in
+// worker.ts only forwards /api/* and /shared/* to it and serves the SPA.
 import { Hono } from "hono";
-import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
 
-import { auth } from "./server/middleware/auth.ts";
-import { loginRateLimit, rateLimit } from "./server/middleware/rateLimit.ts";
+import { auth } from "./middleware/auth.ts";
+import { loginRateLimit, rateLimit } from "./middleware/rateLimit.ts";
 
 import {
   deleteDayNote,
@@ -15,7 +16,7 @@ import {
   restoreDayVersion,
   saveDayNote,
   setDayLog,
-} from "./server/routeHandlers/app.ts";
+} from "./routeHandlers/app.ts";
 import {
   deleteFile,
   deleteFiles,
@@ -25,7 +26,7 @@ import {
   migrateFilesToR2,
   renameFile,
   uploadFile,
-} from "./server/routeHandlers/files.ts";
+} from "./routeHandlers/files.ts";
 import {
   emptyTrash,
   getDayNotes,
@@ -42,15 +43,15 @@ import {
   restoreNoteVersion,
   saveNote,
   trashNote,
-} from "./server/routeHandlers/notes.ts";
-import { authCheck, login, logout } from "./server/routeHandlers/auth.ts";
+} from "./routeHandlers/notes.ts";
+import { authCheck, login, logout } from "./routeHandlers/auth.ts";
 import {
   getPreferences,
   patchPreferences,
-} from "./server/routeHandlers/preferences.ts";
-import { streamSync } from "./server/routeHandlers/sync.ts";
+} from "./routeHandlers/preferences.ts";
+import { exportEntries, importEntries } from "./routeHandlers/admin.ts";
 
-const app = new Hono();
+export const app = new Hono();
 
 app.onError((err, c) => {
   console.error(`[CRASH] ${err.message}`);
@@ -66,15 +67,13 @@ app.use(
   }),
 );
 
-// Protected routes: API Logs and KV Entries (EXCEPT public notes)
+// Everything under /api is rate-limited and auth'd, except public routes and
+// the login trio. The sync WebSocket never reaches this app: the Durable
+// Object handles /api/sync/ws itself (see hawkDO.ts).
 app.use(
   "/api/*",
   async (c, next) => {
     const path = c.req.path;
-    // SSE stream skips rate-limit (reconnect storms shouldn't trip the IP cap)
-    // and middleware auth — it authenticates from the query string itself,
-    // since EventSource can't set headers.
-    if (path === "/api/sync/stream") return await next();
     // Login has its own stricter bucket so brute-force is bounded without
     // sharing the budget with normal API traffic — otherwise a chatty session
     // can drain the general bucket and the user gets 429 on their own login.
@@ -88,13 +87,12 @@ app.use(
   },
   async (c, next) => {
     const path = c.req.path;
-    // Skip auth for public, login, logout, auth-check, and sync stream routes
+    // Skip auth for public, login, logout and auth-check routes
     if (
       path.startsWith("/api/public/") ||
       path === "/api/login" ||
       path === "/api/logout" ||
-      path === "/api/auth-check" ||
-      path === "/api/sync/stream"
+      path === "/api/auth-check"
     ) {
       return await next();
     }
@@ -160,23 +158,8 @@ app.get("/shared/collection/:cid", getSharedCollectionPage);
 app.get("/api/preferences", getPreferences);
 app.post("/api/preferences", patchPreferences);
 
-// Cross-device sync stream (SSE; auths from query string)
-app.get("/api/sync/stream", streamSync);
+// Raw data dump/restore (migration from Deno KV, backups)
+app.get("/api/admin/export", exportEntries);
+app.post("/api/admin/import", importEntries);
 
-// Serve frontend
-app.use(
-  "/kv/*",
-  serveStatic({
-    root: "./kv",
-    rewriteRequestPath: (path: string) => path.replace(/^\/kv/, ""),
-  }),
-);
-// Frontend is built by Vite into app/dist (see app/vite.config.ts).
-// In dev, run `deno task dev` — Vite serves the frontend on :5173 and proxies API to this server.
-app.use("/*", serveStatic({ root: "./app/dist" }));
-
-// 404 handler
 app.notFound((c) => c.text("Not found", 404));
-
-const port = Number(Deno.env.get("PORT")) || 8000;
-Deno.serve({ port }, app.fetch);

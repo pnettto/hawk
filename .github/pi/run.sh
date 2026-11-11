@@ -23,11 +23,11 @@ pi_run() {
 verify() {
   local t c
   {
-    echo '$ deno task test'
-    deno task test 2>&1; t=$?
+    echo '$ npm test'
+    npm test 2>&1; t=$?
     echo
-    echo '$ cd app && npm run check'
-    (cd app && npm run check) 2>&1; c=$?
+    echo '$ npm run check'
+    npm run check 2>&1; c=$?
   } > "$checks"
   [ "$t" -eq 0 ] && [ "$c" -eq 0 ]
 }

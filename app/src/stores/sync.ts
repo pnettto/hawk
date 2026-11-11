@@ -28,11 +28,27 @@ interface SyncState {
   connected: boolean
 }
 
+// Keepalive: the server's runtime answers "ping" with "pong" without waking
+// the backend. If nothing comes back for a while the socket is dead (sleep,
+// network change) even though no close event fired, so we reconnect.
+const PING_MS = 30_000
+const DEAD_AFTER_MS = 75_000
+
+function syncUrl(token: string): string {
+  const base = apiBase() || location.origin
+  const url = new URL('/api/sync/ws', base)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  url.searchParams.set('token', token)
+  url.searchParams.set('clientId', getClientId())
+  return url.toString()
+}
+
 function createSyncStore() {
   const { subscribe, set } = writable<SyncState>({ connected: false })
 
-  let es: EventSource | null = null
+  let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let pingTimer: ReturnType<typeof setInterval> | null = null
   let stopped = false
   // Backoff: 1s, 2s, 4s, ... cap 30s, with ±25% jitter.
   let attempt = 0
@@ -53,16 +69,22 @@ function createSyncStore() {
   }
 
   function teardown() {
-    if (es) {
-      try { es.close() } catch { /* noop */ }
-      es = null
+    if (pingTimer) {
+      clearInterval(pingTimer)
+      pingTimer = null
+    }
+    if (ws) {
+      const old = ws
+      ws = null
+      old.onopen = old.onmessage = old.onclose = old.onerror = null
+      try { old.close() } catch { /* noop */ }
     }
     set({ connected: false })
   }
 
   function start() {
     if (stopped) stopped = false
-    if (es) return // already running
+    if (ws) return // already running
     open()
   }
 
@@ -85,39 +107,76 @@ function createSyncStore() {
     attempt += 1
   }
 
+  const dispatch = (evt: SyncEvent) => {
+    try {
+      if (evt.type === 'log.saved') {
+        logsStore.applySyncEvent(evt)
+      } else if (evt.type === 'preferences.saved') {
+        preferencesStore.loadFromServer()
+      } else if (evt.type === 'files.changed') {
+        filesStore.applySyncEvent()
+      } else {
+        notesStore.applySyncEvent(evt)
+      }
+    } catch (e) {
+      console.error('[sync] dispatch failed', evt, e)
+    }
+  }
+
   function open() {
     teardown()
     const token = getToken()
     if (!token) return // not authenticated yet
-    const url = `${apiBase()}/api/sync/stream?token=${encodeURIComponent(
-      token,
-    )}&clientId=${encodeURIComponent(getClientId())}`
 
-    let source: EventSource
+    let socket: WebSocket
     try {
-      source = new EventSource(url)
+      socket = new WebSocket(syncUrl(token))
     } catch (e) {
-      console.error('[sync] EventSource construct failed', e)
+      console.error('[sync] WebSocket construct failed', e)
       scheduleReconnect()
       return
     }
-    es = source
+    ws = socket
+    let sawHello = false
+    let lastHeard = Date.now()
 
-    source.addEventListener('hello', () => {
-      attempt = 0
-      failuresSinceHello = 0
-      set({ connected: true })
-    })
+    socket.onmessage = (e: MessageEvent) => {
+      lastHeard = Date.now()
+      if (e.data === 'pong') return
+      let msg: SyncEvent | { type: 'hello' }
+      try {
+        msg = JSON.parse(String(e.data))
+      } catch (err) {
+        console.error('[sync] bad payload', e.data, err)
+        return
+      }
+      if (msg.type === 'hello') {
+        sawHello = true
+        attempt = 0
+        failuresSinceHello = 0
+        set({ connected: true })
+        return
+      }
+      dispatch(msg as SyncEvent)
+    }
 
-    source.addEventListener('error', () => {
-      // EventSource auto-reconnects, but we want jittered backoff and the
-      // ability to give up after repeated failures (e.g. expired token).
-      const wasConnected = source.readyState === EventSource.OPEN
-      try { source.close() } catch { /* noop */ }
-      if (es === source) es = null
-      set({ connected: false })
+    socket.onopen = () => {
+      pingTimer = setInterval(() => {
+        if (Date.now() - lastHeard > DEAD_AFTER_MS) {
+          // Treat a silent socket like a dropped one.
+          socket.onclose?.(new CloseEvent('close'))
+          return
+        }
+        try { socket.send('ping') } catch { /* closing */ }
+      }, PING_MS)
+    }
 
-      if (!wasConnected) {
+    // A rejected handshake (bad token, server down) surfaces as a close
+    // without a `hello`. Errors are always followed by a close.
+    socket.onclose = () => {
+      if (ws !== socket) return
+      teardown()
+      if (!sawHello) {
         failuresSinceHello += 1
         if (failuresSinceHello >= 3) {
           // Likely an auth problem (or the server is down hard). Bounce the
@@ -128,43 +187,7 @@ function createSyncStore() {
         }
       }
       scheduleReconnect()
-    })
-
-    const dispatch = (evt: SyncEvent) => {
-      try {
-        if (evt.type === 'log.saved') {
-          logsStore.applySyncEvent(evt)
-        } else if (evt.type === 'preferences.saved') {
-          preferencesStore.loadFromServer()
-        } else if (evt.type === 'files.changed') {
-          filesStore.applySyncEvent()
-        } else {
-          notesStore.applySyncEvent(evt)
-        }
-      } catch (e) {
-        console.error('[sync] dispatch failed', evt, e)
-      }
     }
-
-    const onMessage = (e: MessageEvent<string>) => {
-      try {
-        dispatch(JSON.parse(e.data) as SyncEvent)
-      } catch (err) {
-        console.error('[sync] bad payload', e.data, err)
-      }
-    }
-
-    const types: SyncEventType[] = [
-      'note.saved',
-      'note.trashed',
-      'note.restored',
-      'note.deleted',
-      'trash.emptied',
-      'log.saved',
-      'preferences.saved',
-      'files.changed',
-    ]
-    for (const t of types) source.addEventListener(t, onMessage as EventListener)
   }
 
   return { subscribe, start, stop }

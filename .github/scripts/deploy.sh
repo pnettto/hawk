@@ -1,29 +1,19 @@
 #!/usr/bin/env bash
 # Usage: deploy.sh prod|preview
-# CI version of `deno task deploy`. Expects app/dist to be built and
-# DENO_DEPLOY_TOKEN to be set. Writes the deployment URL to GITHUB_OUTPUT as `url`.
+# Deploys the Worker with Wrangler. Expects app/dist to be built, root npm deps
+# installed, and CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID set. Writes the
+# deployment URL to GITHUB_OUTPUT as `url`.
 set -euo pipefail
 
 mode="${1:?usage: deploy.sh prod|preview}"
-args=(--org pnettto --app hawk --json --non-interactive)
 case "$mode" in
-  prod) args+=(--prod) ;;
-  preview) ;;
+  prod) env_flag=(--env "") ; name=hawk ;;
+  preview) env_flag=(--env preview) ; name=hawk-preview ;;
   *) echo "unknown mode: $mode" >&2; exit 2 ;;
 esac
 
-# `deno deploy` respects .gitignore (denoland/deploy_feedback#940), so un-ignore
-# the Vite build output for the upload and restore the files afterwards.
-trap 'git checkout -- .gitignore app/.gitignore' EXIT
-sed -i '\|^app/dist$|d' .gitignore
-sed -i '\|^dist$|d' app/.gitignore
+out="$(npx wrangler deploy "${env_flag[@]}" 2>&1)"
+echo "$out"
 
-result="$(deno deploy "${args[@]}")"
-echo "$result"
-
-if [ "$mode" = prod ]; then
-  url="$(jq -r '.productionUrl // empty' <<<"$result" || true)"
-else
-  url="$(jq -r '[.timelines[]? | select(.partition == "Preview") | .domains[0]][0] // empty' <<<"$result" || true)"
-fi
+url="$(grep -oE "https://${name}\.[a-z0-9-]+\.workers\.dev" <<<"$out" | head -1 || true)"
 echo "url=$url" >> "${GITHUB_OUTPUT:-/dev/null}"

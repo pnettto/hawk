@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hawk",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+
+  // The SPA (built by Vite). Unknown paths fall back to index.html; /api and
+  // /shared go to the Worker first.
+  "assets": {
+    "directory": "./app/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/shared/*"]
+  },
+
+  // One instance holds all data (SQLite) and the sync sockets.
+  "durable_objects": {
+    "bindings": [{ "name": "HAWK", "class_name": "HawkDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HawkDO"] }],
+
+  // File bodies, object key "files/<id>". Same bucket the Deno app wrote to.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "hawk-files" }],
+
+  // Share page templates are imported as strings.
+  "rules": [{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true }],
+
+  // Secrets (set with `wrangler secret put [--env preview]`): API_KEY
+
+  // `wrangler deploy --env preview` → hawk-preview.<subdomain>.workers.dev.
+  // A separate Worker, so it gets its own Durable Object (its own data) and
+  // never touches prod. Used by the pi workflow for PR previews.
+  "env": {
+    "preview": {
+      "durable_objects": {
+        "bindings": [{ "name": "HAWK", "class_name": "HawkDO" }]
+      },
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "hawk-files-preview" }]
+    }
+  }
+}

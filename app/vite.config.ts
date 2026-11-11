@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-// Backend (Hono) port — keep in sync with the PORT env passed to `deno task dev:server`.
-const backend = `http://localhost:${process.env.BACKEND_PORT || 8000}`
+// Backend (`wrangler dev`) port — keep in sync with `npm run dev:server`.
+const backend = `http://localhost:${process.env.BACKEND_PORT || 8787}`
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,9 +11,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': backend,
+      '/api': { target: backend, ws: true },
       '/shared': backend,
-      '/kv': backend,
     },
   },
   build: {

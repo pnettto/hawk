@@ -3,7 +3,7 @@ import { kv } from "../utils/kvConn.ts";
 import { deleteObject, getObject, putObject, r2Enabled } from "../utils/r2.ts";
 import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 
-// File metadata lives in KV; bodies live in Cloudflare R2 (server/utils/r2.ts):
+// File metadata lives in KV; bodies live in the R2 bucket (server/utils/r2.ts):
 //   ["files", "meta", id]  -> FileMeta
 //   R2 object "files/<id>" -> body
 // The object is written before the meta, so a half-finished upload is never
@@ -79,11 +79,9 @@ export async function listFiles(c: Context) {
   return c.json(out);
 }
 
-// Read a stream into memory, bailing out as soon as it passes `limit`.
-// Uploads are buffered rather than streamed to R2 because R2's PutObject needs
-// a known Content-Length; at 100 MB max that's acceptable. `sizeHint` (the
-// declared Content-Length) lets us allocate once and fill in place, so peak
-// memory is ~1× the file rather than 2× from collecting parts and joining.
+// Read a stream into memory, bailing out as soon as it passes `limit`. Only
+// used to move small legacy KV-chunked files into R2; uploads stream.
+// `sizeHint` lets us allocate once and fill in place.
 async function readCapped(
   body: ReadableStream<Uint8Array>,
   limit: number,
@@ -112,32 +110,36 @@ async function readCapped(
 
 // Raw body upload. Name comes in the X-File-Name header (URI-encoded),
 // type from Content-Type. `?inline=1` marks editor-embedded images.
+//
+// The body streams straight into R2 instead of being buffered: the Durable
+// Object has 128 MB of memory, less than the largest allowed file. R2 needs the
+// length up front, so Content-Length is required (browsers always send it for
+// a File/Blob body) and FixedLengthStream enforces it.
 export async function uploadFile(c: Context) {
-  if (!r2Enabled) return c.json({ error: "File storage is not configured" }, 503);
-  const declared = Number(c.req.header("Content-Length") ?? "0");
+  if (!r2Enabled()) return c.json({ error: "File storage is not configured" }, 503);
+  const lengthHeader = c.req.header("Content-Length");
+  const declared = Number(lengthHeader);
+  if (!lengthHeader || !Number.isInteger(declared) || declared < 0) {
+    return c.json({ error: "Missing Content-Length" }, 411);
+  }
   if (declared > MAX_FILE_BYTES) {
     return c.json({ error: "File is too large (max 100 MB)" }, 413);
   }
-  const body = c.req.raw.body;
-  if (!body) return c.json({ error: "Empty body" }, 400);
 
   const id = crypto.randomUUID();
   const name = cleanName(c.req.header("X-File-Name"));
   const type = (c.req.header("Content-Type") || "application/octet-stream").split(";")[0];
   const inline = c.req.query("inline") === "1";
 
-  let bytes: Uint8Array<ArrayBuffer>;
-  try {
-    bytes = await readCapped(body, MAX_FILE_BYTES, declared);
-  } catch (e) {
-    if (e instanceof RangeError) {
-      return c.json({ error: "File is too large (max 100 MB)" }, 413);
-    }
-    throw e;
+  const body = c.req.raw.body;
+  if (body && declared > 0) {
+    const { readable, writable } = new FixedLengthStream(declared);
+    await Promise.all([putObject(objectKey(id), readable, type), body.pipeTo(writable)]);
+  } else {
+    await putObject(objectKey(id), new Uint8Array(0), type);
   }
-  await putObject(objectKey(id), bytes, type);
 
-  const meta: FileMeta = { id, name, type, size: bytes.byteLength, createdAt: Date.now(), storage: "r2" };
+  const meta: FileMeta = { id, name, type, size: declared, createdAt: Date.now(), storage: "r2" };
   if (inline) meta.inline = true;
   await kv.set(metaKey(id), meta);
   await emitFilesChanged(c, id);
@@ -266,7 +268,7 @@ export async function deleteFile(c: Context) {
 // `remaining` is 0. Safe to re-run; the meta only flips to R2 after the
 // object is written, and chunks are dropped after that.
 export async function migrateFilesToR2(c: Context) {
-  if (!r2Enabled) return c.json({ error: "File storage is not configured" }, 503);
+  if (!r2Enabled()) return c.json({ error: "File storage is not configured" }, 503);
   const limit = Math.min(Math.max(Number(c.req.query("limit")) || 10, 1), 50);
   const legacy: FileMeta[] = [];
   for await (const e of kv.list<FileMeta>({ prefix: ["files", "meta"] })) {
