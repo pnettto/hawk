@@ -19,7 +19,6 @@ on:
     types: [created]
 
 permissions:
-  actions: write # save the pi session cache
   contents: write
   pull-requests: write
   issues: write
@@ -81,10 +80,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Work branches may predate the current CI scripts; keep main's copy.
       - name: Check out work branch
         env:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: |
+          mkdir -p "$RUNNER_TEMP/ci"
+          cp -r .github/pi .github/scripts "$RUNNER_TEMP/ci/"
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
             git checkout -B "$BRANCH" "origin/$BRANCH"
           else
@@ -107,11 +109,9 @@ jobs:
           npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
 
       - name: Restore pi session
-        uses: actions/cache/restore@v5
-        with:
-          path: ~/.pi-sessions
-          key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
-          restore-keys: pi-session-${{ steps.branch.outputs.session }}-
+        env:
+          SESSION_ID: ${{ steps.branch.outputs.session }}
+        run: bash "$RUNNER_TEMP/ci/pi/session.sh" restore
 
       - name: Write prompt
         env:
@@ -144,14 +144,14 @@ jobs:
           PI_MODEL: ${{ vars.PI_MODEL }}
           SESSION_ID: ${{ steps.branch.outputs.session }}
           PROMPT_FILE: ${{ runner.temp }}/prompt.md
-        run: bash .github/pi/run.sh
+        run: bash "$RUNNER_TEMP/ci/pi/run.sh"
 
       - name: Save pi session
         if: always()
-        uses: actions/cache/save@v5
-        with:
-          path: ~/.pi-sessions
-          key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SESSION_ID: ${{ steps.branch.outputs.session }}
+        run: bash "$RUNNER_TEMP/ci/pi/session.sh" save
 
       - name: Commit and push
         id: push
@@ -203,7 +203,7 @@ jobs:
           DENO_DEPLOY_TOKEN: ${{ secrets.DENO_DEPLOY_TOKEN }}
         run: |
           (cd app && npm run build)
-          bash .github/scripts/deploy.sh preview
+          bash "$RUNNER_TEMP/ci/scripts/deploy.sh" preview
 
       - name: Report
         if: always()
