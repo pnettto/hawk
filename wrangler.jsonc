@@ -5,6 +5,12 @@
   "compatibility_date": "2026-11-01",
   "observability": { "enabled": true },
 
+  // Prod answers on the custom domain (pnetto.store is a zone in this
+  // account; Cloudflare creates the DNS record and certificate) and on
+  // hawk.pedro-535.workers.dev.
+  "routes": [{ "pattern": "hawk.pnetto.store", "custom_domain": true }],
+  "workers_dev": true,
+
   // The SPA (built by Vite). Unknown paths fall back to index.html; /api and
   // /shared go to the Worker first.
   "assets": {
@@ -33,6 +39,9 @@
   // never touches prod. Used by the pi workflow for PR previews.
   "env": {
     "preview": {
+      // workers.dev only; must not inherit the prod custom domain.
+      "routes": [],
+      "workers_dev": true,
       "durable_objects": {
         "bindings": [{ "name": "HAWK", "class_name": "HawkDO" }]
       },

@@ -5,7 +5,7 @@
 //   deno run -A --unstable-kv scripts/kv-to-cloudflare.ts dump <kv-url-or-path> kv-export.json
 //
 //   # 2. Load the file into the Worker (HAWK_PASSWORD = the API_KEY password):
-//   HAWK_PASSWORD=… deno run -A scripts/kv-to-cloudflare.ts load kv-export.json https://hawk.pedro-535.workers.dev
+//   HAWK_PASSWORD=… deno run -A scripts/kv-to-cloudflare.ts load kv-export.json https://hawk.pnetto.store
 //
 // The dump contains every note, private ones included. Keep it outside the
 // repo or rely on the kv-export*.json rule in .gitignore; never commit it.

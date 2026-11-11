@@ -7,6 +7,7 @@
     "newtab": "index.html"
   },
   "host_permissions": [
+    "https://hawk.pnetto.store/*",
     "https://hawk.pedro-535.workers.dev/*"
   ]
 }

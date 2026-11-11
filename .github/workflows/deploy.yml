@@ -98,7 +98,7 @@ jobs:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
           if [ "$OUTCOME" = success ]; then
-            msg="Deployed to prod: ${URL:-https://hawk.pedro-535.workers.dev}"
+            msg="Deployed to prod: https://hawk.pnetto.store"
           else
             msg="Deploy failed."
           fi

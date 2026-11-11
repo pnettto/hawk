@@ -10,7 +10,7 @@ const CLIENT_ID_KEY = 'hawk_client_id'
 
 // In a Chrome extension, location.origin is `chrome-extension://<id>` so relative
 // `/api/...` requests would go nowhere. Fall back to the deployed backend.
-const PROD_API_BASE = 'https://hawk.pedro-535.workers.dev'
+const PROD_API_BASE = 'https://hawk.pnetto.store'
 const isExtension = location.protocol === 'chrome-extension:'
 
 // Resolution order: runtime localStorage override → build-time VITE_API_BASE →

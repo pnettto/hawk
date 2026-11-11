@@ -42,13 +42,13 @@ Note the per-family counts the dump prints.
 ### 3. Back up the Cloudflare side
 Anything created on Cloudflare since the switch should be saved before importing:
 ```sh
-curl -H "Authorization: Bearer <token>" "https://hawk.pedro-535.workers.dev/api/admin/export?limit=2000" > ~/hawk-backup/cf-before-import.json
+curl -H "Authorization: Bearer <token>" "https://hawk.pnetto.store/api/admin/export?limit=2000" > ~/hawk-backup/cf-before-import.json
 ```
 (Follow `cursor` if it's not null.)
 
 ### 4. Import
 ```sh
-HAWK_PASSWORD=… deno run -A scripts/kv-to-cloudflare.ts load ~/hawk-backup/kv-export.json https://hawk.pedro-535.workers.dev
+HAWK_PASSWORD=… deno run -A scripts/kv-to-cloudflare.ts load ~/hawk-backup/kv-export.json https://hawk.pnetto.store
 ```
 Import **merges**: keys only on Cloudflare are kept; keys in both are overwritten by the Deno value. Where they can collide:
 - the day note for a date that has notes on both sides (fixed id `day-<date>`), and its version history;
