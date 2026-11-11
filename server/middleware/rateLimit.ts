@@ -1,43 +1,40 @@
 import { Context, Next } from "hono";
-import { getConnInfo } from "hono/deno";
-import { kv } from "../utils/kvConn.ts";
 import { getClientIp } from "../utils/ipTools.ts";
+
+// Fixed-window rate limits kept in memory. Every request goes through the one
+// Durable Object, so a Map sees all traffic; it resets when the object is
+// evicted, which only ever makes the limit more lenient for a moment.
 
 interface RateLimitOpts {
   limit: number;
   windowMs: number;
-  prefix: string;
   label: string;
 }
 
-const makeRateLimit = (opts: RateLimitOpts) =>
-async (c: Context, next: Next) => {
-  const info = getConnInfo(c);
-  const ip = info.remote.address || getClientIp(c.req.raw);
+const makeRateLimit = (opts: RateLimitOpts) => {
+  const windows = new Map<string, { count: number; ts: number }>();
+  return async (c: Context, next: Next) => {
+    const ip = getClientIp(c.req.raw);
+    const now = Date.now();
+    const record = windows.get(ip);
 
-  const key = [opts.prefix, ip];
-  const now = Date.now();
-  const record = await kv.get<{ count: number; ts: number }>(key);
+    if (!record || now - record.ts > opts.windowMs) {
+      // Drop stale windows so the map can't grow without bound.
+      if (windows.size > 1000) {
+        for (const [k, v] of windows) if (now - v.ts > opts.windowMs) windows.delete(k);
+      }
+      windows.set(ip, { count: 1, ts: now });
+      return await next();
+    }
 
-  if (!record.value || now - record.value.ts > opts.windowMs) {
-    await kv.set(key, { count: 1, ts: now });
-    console.log(`[${opts.label}] New window for ${ip}: 1/${opts.limit}`);
+    if (record.count >= opts.limit) {
+      console.warn(`[${opts.label}] Exceeded for ${ip}: ${record.count}/${opts.limit}`);
+      return c.text("Too many requests", 429);
+    }
+
+    record.count++;
     return await next();
-  }
-
-  if (record.value.count >= opts.limit) {
-    console.warn(
-      `[${opts.label}] Exceeded for ${ip}: ${record.value.count}/${opts.limit}`,
-    );
-    return c.text("Too many requests", 429);
-  }
-
-  await kv.set(key, { count: record.value.count + 1, ts: record.value.ts });
-  console.log(
-    `[${opts.label}] ${ip}: ${record.value.count + 1}/${opts.limit}`,
-  );
-
-  return await next();
+  };
 };
 
 // General API budget. Generous because the SPA fans out a lot per page load
@@ -45,7 +42,6 @@ async (c: Context, next: Next) => {
 export const rateLimit = makeRateLimit({
   limit: 240,
   windowMs: 60_000,
-  prefix: "rate_limit",
   label: "RATE_LIMIT",
 });
 
@@ -55,6 +51,5 @@ export const rateLimit = makeRateLimit({
 export const loginRateLimit = makeRateLimit({
   limit: 8,
   windowMs: 15 * 60_000,
-  prefix: "login_rate_limit",
   label: "LOGIN_RATE_LIMIT",
 });

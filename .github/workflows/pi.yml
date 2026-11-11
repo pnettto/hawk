@@ -7,7 +7,7 @@
 #
 # Nothing here deploys to prod; see deploy.yml.
 #
-# Secrets: DEEPSEEK_API_KEY, DENO_DEPLOY_TOKEN (preview deploy only).
+# Secrets: DEEPSEEK_API_KEY, CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (preview deploy only).
 # Variables (optional): PI_MODEL (default deepseek-v4-pro).
 
 name: pi
@@ -100,14 +100,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
 
       - name: Install dependencies
         run: |
+          npm ci
           (cd app && npm ci)
           npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
 
@@ -203,7 +202,8 @@ jobs:
         if: steps.push.outcome == 'success'
         continue-on-error: true
         env:
-          DENO_DEPLOY_TOKEN: ${{ secrets.DENO_DEPLOY_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           (cd app && npm run build)
           bash "$RUNNER_TEMP/ci/scripts/deploy.sh" preview

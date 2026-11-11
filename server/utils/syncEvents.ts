@@ -1,28 +1,10 @@
 import { Context } from "hono";
-import { kv } from "./kvConn.ts";
 
-// Sync event log uses an indexed queue + a monotonic tail counter:
-//   ["sync", "tail"]        -> Deno.KvU64, current head index N
-//   ["sync", "queue", N]    -> SyncEvent (90s TTL)
-//
-// The SSE handler polls `kv.get(["sync","tail"])` to detect changes and fetches
-// each new index with `kv.get(["sync","queue", N])`. We deliberately do not use
-// `kv.watch` or `kv.list` — Deno Deploy's KV proxy intermittently rejects
-// `/watch` and `/snapshot_read` for those two operations with
-// `invalidAuthorizationHeader`, while `kv.get`/`kv.set`/atomic CAS keep working
-// on the same deployment. Polling at this cadence is cheap and avoids the
-// failure mode entirely.
-
-const TAIL_KEY = ["sync", "tail"] as const;
-const QUEUE_PREFIX = ["sync", "queue"] as const;
-const EVENT_TTL_MS = 90_000;
-
-// Exported so the SSE handler can use the same key shapes without duplicating
-// them.
-export const SYNC_KEYS = {
-  tail: () => [...TAIL_KEY] as Deno.KvKey,
-  queue: (n: bigint | number) => [...QUEUE_PREFIX, Number(n)] as Deno.KvKey,
-} as const;
+// Cross-device sync. Every mutating handler calls emitSyncEvent(); the Durable
+// Object (server/hawkDO.ts) registers a broadcaster that pushes the event to
+// every open WebSocket except the one belonging to the client that made the
+// change (echo suppression by originClientId). Nothing is stored, so events
+// missed while a client is disconnected aren't replayed.
 
 export type SyncEventType =
   | "note.saved"
@@ -100,12 +82,15 @@ interface EmitArgs {
   originClientId?: string;
 }
 
-// CAS-increment the tail and write the event at the new index in one atomic
-// commit. On conflict (another concurrent emit landed between our read and our
-// commit), retry — bounded so a misbehaving caller can't loop forever.
-const MAX_EMIT_RETRIES = 5;
+type Broadcaster = (event: SyncEvent) => void;
+let broadcaster: Broadcaster | null = null;
 
-export async function emitSyncEvent(args: EmitArgs): Promise<void> {
+export function setBroadcaster(fn: Broadcaster) {
+  broadcaster = fn;
+}
+
+// Async to keep the call sites (`await emitSyncEvent(...)`) unchanged.
+export function emitSyncEvent(args: EmitArgs): Promise<void> {
   const event: SyncEvent = {
     id: ulid(),
     type: args.type,
@@ -113,19 +98,12 @@ export async function emitSyncEvent(args: EmitArgs): Promise<void> {
     originClientId: args.originClientId,
     ts: Date.now(),
   };
-
-  for (let attempt = 0; attempt < MAX_EMIT_RETRIES; attempt++) {
-    const tailRes = await kv.get<Deno.KvU64>(SYNC_KEYS.tail());
-    const cur = tailRes.value?.value ?? 0n;
-    const next = cur + 1n;
-    const res = await kv.atomic()
-      .check({ key: SYNC_KEYS.tail(), versionstamp: tailRes.versionstamp })
-      .set(SYNC_KEYS.tail(), new Deno.KvU64(next))
-      .set(SYNC_KEYS.queue(next), event, { expireIn: EVENT_TTL_MS })
-      .commit();
-    if (res.ok) return;
+  try {
+    broadcaster?.(event);
+  } catch (e) {
+    console.error("[sync] broadcast failed", e);
   }
-  console.error("[sync] emit failed after retries", event);
+  return Promise.resolve();
 }
 
 export function getClientIdFromCtx(c: Context): string | undefined {

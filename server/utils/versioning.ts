@@ -1,4 +1,5 @@
 import { kv } from "./kvConn.ts";
+import type { KvKey } from "./sqliteKv.ts";
 
 // Sliding-window of recent snapshots per entity. Entries beyond MAX_VERSIONS
 // (oldest by savedAt) are pruned on every write.
@@ -16,8 +17,8 @@ export interface SnapshotMeta {
 export type SnapshotKind = "note" | "day-notes" | "day-tasks";
 
 interface KeyShape {
-  entry: (id: string, savedAt: number) => Deno.KvKey;
-  index: (id: string) => Deno.KvKey;
+  entry: (id: string, savedAt: number) => KvKey;
+  index: (id: string) => KvKey;
 }
 
 const KEYS: Record<SnapshotKind, KeyShape> = {

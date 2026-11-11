@@ -1,11 +1,11 @@
-# Production deploy to Deno Deploy (org pnettto, app hawk).
+# Production deploy to Cloudflare Workers (Worker `hawk`).
 #
 #   - Every push to main (including merging a PR in the UI).
 #   - "/deploy" comment from the owner: on a PR it squash-merges the PR first,
 #     on an issue it deploys main as is.
 #   - Manually from the Actions tab.
 #
-# Secrets: DENO_DEPLOY_TOKEN.
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 
 name: deploy
 
@@ -72,22 +72,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
 
       - name: Install, test, build
         run: |
+          npm ci
           (cd app && npm ci)
-          deno task test
+          npm test
           (cd app && npm run build)
 
       - name: Deploy to prod
         id: deploy
         env:
-          DENO_DEPLOY_TOKEN: ${{ secrets.DENO_DEPLOY_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bash .github/scripts/deploy.sh prod
 
       - name: Report
@@ -98,7 +98,7 @@ jobs:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
           if [ "$OUTCOME" = success ]; then
-            msg="Deployed to prod: ${URL:-https://hawk.pnettto.deno.net}"
+            msg="Deployed to prod: ${URL:-https://hawk.pedro-535.workers.dev}"
           else
             msg="Deploy failed."
           fi

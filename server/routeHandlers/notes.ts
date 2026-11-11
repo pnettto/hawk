@@ -19,15 +19,9 @@ import {
 } from "../utils/notesStore.ts";
 import { parseTags } from "../utils/tags.ts";
 
-// Pre-load the HTML templates
-let shareTemplate = "";
-let shareCollectionTemplate = "";
-try {
-  shareTemplate = await Deno.readTextFile("./server/share_template.html");
-  shareCollectionTemplate = await Deno.readTextFile("./server/shared_collection_template.html");
-} catch (e) {
-  console.error("Failed to load share templates:", e);
-}
+// Bundled as text modules (see "rules" in wrangler.jsonc).
+import shareTemplate from "../share_template.html";
+import shareCollectionTemplate from "../shared_collection_template.html";
 
 interface Collection {
   id: string;
@@ -116,7 +110,7 @@ export async function getSharedNotePage(c: Context) {
   return c.html(html);
 }
 
-// Deno KV rejects values over 64 KiB; surface that as a clear 413.
+// Size cap inherited from Deno KV's 64 KiB value limit; surface it as a clear 413.
 const MAX_NOTE_BYTES = 63 * 1024;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

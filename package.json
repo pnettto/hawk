@@ -1,0 +1,29 @@
+{
+  "name": "hawk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "wrangler dev --env \"\" --port ${BACKEND_PORT:-8787}",
+    "dev:client": "cd app && npm run dev",
+    "build": "cd app && npm install && npm run build",
+    "check": "tsc -p tsconfig.json && cd app && npm run check",
+    "test": "vitest run && cd app && npm test",
+    "deploy": "npm run build && wrangler deploy --env \"\""
+  },
+  "dependencies": {
+    "hono": "^4.13.18",
+    "marked": "^18.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261110.1",
+    "concurrently": "^10.0.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261110.1": true
+  }
+}

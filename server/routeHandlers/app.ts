@@ -21,8 +21,8 @@ import {
   tasksPreview,
 } from "../utils/dayLog.ts";
 
-// Deno KV rejects values over 64 KiB. Fail loudly with a clear status instead
-// of letting the commit throw an opaque 500.
+// Size cap inherited from Deno KV's 64 KiB value limit, kept so clients see the
+// same behaviour. Fail loudly with a clear status.
 const MAX_DAY_BYTES = 63 * 1024;
 
 const dayKey = (dateStr: string) => ["logs", dateStr];

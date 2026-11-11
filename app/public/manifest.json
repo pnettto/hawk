@@ -7,6 +7,6 @@
     "newtab": "index.html"
   },
   "host_permissions": [
-    "https://hawk.pnettto.deno.net/*"
+    "https://hawk.pedro-535.workers.dev/*"
   ]
 }

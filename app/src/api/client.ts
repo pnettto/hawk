@@ -1,16 +1,16 @@
 // Typed fetch wrapper. Replaces app-legacy/js/utils/storage.js.
-// Same-origin in prod (Hono serves the SPA), Vite-proxied in dev.
+// Same-origin in prod (the Worker serves the SPA), Vite-proxied in dev.
 // For non-same-origin contexts (Chrome extension), API_BASE points at the backend.
 
 const TOKEN_KEY = 'hawk_token'
 const API_BASE_KEY = 'hawk_api_base'
-// Per-tab so each open tab is its own SSE subscriber and gets each other's
+// Per-tab so each open tab is its own sync subscriber and gets each other's
 // edits live. localStorage would coalesce all tabs into one origin.
 const CLIENT_ID_KEY = 'hawk_client_id'
 
 // In a Chrome extension, location.origin is `chrome-extension://<id>` so relative
 // `/api/...` requests would go nowhere. Fall back to the deployed backend.
-const PROD_API_BASE = 'https://hawk.pnettto.deno.net'
+const PROD_API_BASE = 'https://hawk.pedro-535.workers.dev'
 const isExtension = location.protocol === 'chrome-extension:'
 
 // Resolution order: runtime localStorage override → build-time VITE_API_BASE →
@@ -34,7 +34,7 @@ export const setApiBase = (url: string): void => localStorage.setItem(API_BASE_K
 // can't use location.origin since that's chrome-extension://...).
 export const apiOrigin = (): string => getApiBase() || location.origin
 
-// Used by stores/sync.ts to build the SSE URL.
+// Used by stores/sync.ts to build the WebSocket URL.
 export const apiBase = (): string => getApiBase()
 
 // Guest mode ("Let me test it"): requests go to the in-browser stand-in in
