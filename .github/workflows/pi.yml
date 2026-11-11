@@ -19,6 +19,7 @@ on:
     types: [created]
 
 permissions:
+  actions: write # save the pi session cache
   contents: write
   pull-requests: write
   issues: write
