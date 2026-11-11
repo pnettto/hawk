@@ -1,4 +1,4 @@
-// Hawk's single Hono app: mounts the API under /api/* and serves the built SPA as a static fallback.
+// Hawk's single Hono app: mounts the API under /api/*, streams live sync via SSE, and serves the built SPA as a static fallback.
 import { Hono } from "hono";
 import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
