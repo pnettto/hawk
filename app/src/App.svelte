@@ -15,6 +15,7 @@
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
   import AboutDialog from './lib/ui/AboutDialog.svelte'
   import ConfirmDialog from './lib/ui/ConfirmDialog.svelte'
+  import Mascot from './lib/ui/Mascot.svelte'
 
   let aboutOpen = $state(false)
 
@@ -210,6 +211,7 @@
     {/key}
   </div>
   <ZenMode />
+  <Mascot />
 {/if}
 
 <Toast />
