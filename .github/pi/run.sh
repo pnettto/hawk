@@ -17,7 +17,7 @@ pi_run() {
     --provider deepseek --model "${PI_MODEL:-deepseek-v4-pro}" \
     --session-dir "$HOME/.pi-sessions" --session-id "$SESSION_ID" \
     --append-system-prompt "$(dirname "$0")/system.md" \
-    "$1" > "$summary"
+    "$1" | tee "$summary"
 }
 
 verify() {

@@ -244,6 +244,7 @@ jobs:
               echo "</details>"
             fi
           } > "$body"
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
           gh issue comment "$NUMBER" -R "$REPO" --body-file "$body"
           # Started from an issue: post the same report on the PR, where the preview matters.
           if [ "$IS_PR" != true ] && [ -n "$PR_URL" ]; then
