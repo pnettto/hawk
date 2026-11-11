@@ -21,5 +21,9 @@ sed -i '\|^dist$|d' app/.gitignore
 result="$(deno deploy "${args[@]}")"
 echo "$result"
 
-url="$(jq -r '[.. | strings | select(test("^https://[^ ]+\\.deno\\.(net|dev)"))][0] // empty' <<<"$result" || true)"
+if [ "$mode" = prod ]; then
+  url="$(jq -r '.productionUrl // empty' <<<"$result" || true)"
+else
+  url="$(jq -r '[.timelines[]? | select(.partition == "Preview") | .domains[0]][0] // empty' <<<"$result" || true)"
+fi
 echo "url=$url" >> "${GITHUB_OUTPUT:-/dev/null}"

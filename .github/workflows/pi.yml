@@ -75,7 +75,7 @@ jobs:
           echo "session=$(echo "$branch" | tr -c 'A-Za-z0-9._\n' '-')" >> "$GITHUB_OUTPUT"
 
       # No credentials left in .git/config, so pi can't push or read the token.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -90,7 +90,7 @@ jobs:
             git checkout -b "$BRANCH"
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
