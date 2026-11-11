@@ -1,0 +1,105 @@
+# Production deploy to Deno Deploy (org pnettto, app hawk).
+#
+#   - Every push to main (including merging a PR in the UI).
+#   - "/deploy" comment from the owner: on a PR it squash-merges the PR first,
+#     on an issue it deploys main as is.
+#   - Manually from the Actions tab.
+#
+# Secrets: DENO_DEPLOY_TOKEN.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "plans/**"
+      - ".github/pi/**"
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Public repo: only the owner may trigger from comments or manually.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.actor == 'pnettto') ||
+      (github.event_name == 'issue_comment' && github.actor == 'pnettto' &&
+        startsWith(github.event.comment.body, '/deploy'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NUMBER: ${{ github.event.issue.number }}
+      IS_PR: ${{ github.event.issue.pull_request != null }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Acknowledge
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=rocket >/dev/null
+
+      # A merge made with GITHUB_TOKEN doesn't trigger the push event, so this
+      # job deploys right after merging instead.
+      - name: Merge PR
+        if: github.event_name == 'issue_comment' && env.IS_PR == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "$NUMBER" -R "$REPO" --squash --delete-branch
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install, test, build
+        run: |
+          (cd app && npm ci)
+          deno task test
+          (cd app && npm run build)
+
+      - name: Deploy to prod
+        id: deploy
+        env:
+          DENO_DEPLOY_TOKEN: ${{ secrets.DENO_DEPLOY_TOKEN }}
+        run: bash .github/scripts/deploy.sh prod
+
+      - name: Report
+        if: always() && github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.deploy.outcome }}
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          if [ "$OUTCOME" = success ]; then
+            msg="Deployed to prod: ${URL:-https://hawk.pnettto.deno.net}"
+          else
+            msg="Deploy failed."
+          fi
+          gh issue comment "$NUMBER" -R "$REPO" --body "$msg
+          Run: $RUN_URL"

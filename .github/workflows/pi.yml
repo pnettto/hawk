@@ -1,0 +1,241 @@
+# Ask pi (with DeepSeek) to change the code from GitHub.
+#
+#   - Comment "/pi <request>" on an issue or PR, or open an issue whose body starts with "/pi".
+#   - pi works on branch pi/issue-<n> (or the PR's own branch), runs tests and type-check,
+#     pushes, opens a PR against main, deploys a preview, and comments the result.
+#   - Follow-up "/pi …" comments continue the same pi session.
+#
+# Nothing here deploys to prod; see deploy.yml.
+#
+# Secrets: DEEPSEEK_API_KEY, DENO_DEPLOY_TOKEN (preview deploy only).
+# Variables (optional): PI_MODEL (default deepseek-v4-pro).
+
+name: pi
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pi-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  pi:
+    # Public repo: anyone can open issues or comment, and these events run with
+    # access to secrets. Only the owner may trigger a run.
+    if: >-
+      github.actor == 'pnettto' &&
+      (
+        (github.event_name == 'issues' && startsWith(github.event.issue.body, '/pi')) ||
+        (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/pi'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NUMBER: ${{ github.event.issue.number }}
+      IS_PR: ${{ github.event.issue.pull_request != null }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Acknowledge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes >/dev/null
+          else
+            gh api "repos/$REPO/issues/$NUMBER/reactions" -f content=eyes >/dev/null
+          fi
+
+      - name: Pick branch
+        id: branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$IS_PR" = true ]; then
+            read -r branch cross < <(gh pr view "$NUMBER" -R "$REPO" --json headRefName,isCrossRepository -q '"\(.headRefName) \(.isCrossRepository)"')
+            if [ "$cross" = true ]; then
+              echo "PRs from forks aren't supported" >&2
+              exit 1
+            fi
+          else
+            branch="pi/issue-$NUMBER"
+          fi
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+          echo "session=$(echo "$branch" | tr -c 'A-Za-z0-9._\n' '-')" >> "$GITHUB_OUTPUT"
+
+      # No credentials left in .git/config, so pi can't push or read the token.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out work branch
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: |
+          (cd app && npm ci)
+          npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
+
+      - name: Restore pi session
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.pi-sessions
+          key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
+          restore-keys: pi-session-${{ steps.branch.outputs.session }}-
+
+      - name: Write prompt
+        env:
+          TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ -n "$COMMENT_BODY" ]; then request="$COMMENT_BODY"; else request="$ISSUE_BODY"; fi
+          request="${request#/pi}"
+          {
+            echo "# Request"
+            echo
+            echo "$request"
+            echo
+            if [ -n "$COMMENT_BODY" ]; then
+              echo "# Context: the $( [ "$IS_PR" = true ] && echo PR || echo issue ) this was posted on"
+              echo
+              echo "## $TITLE"
+              echo
+              echo "$ISSUE_BODY"
+            fi
+          } > "$RUNNER_TEMP/prompt.md"
+          cat "$RUNNER_TEMP/prompt.md"
+
+      # Only the DeepSeek key is exposed to pi.
+      - name: Run pi
+        id: pi
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PI_MODEL: ${{ vars.PI_MODEL }}
+          SESSION_ID: ${{ steps.branch.outputs.session }}
+          PROMPT_FILE: ${{ runner.temp }}/prompt.md
+        run: bash .github/pi/run.sh
+
+      - name: Save pi session
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.pi-sessions
+          key: pi-session-${{ steps.branch.outputs.session }}-${{ github.run_id }}
+
+      - name: Commit and push
+        id: push
+        if: steps.pi.outputs.status == 'passed' || steps.pi.outputs.status == 'failed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "pi: $TITLE (#$NUMBER)"
+          git push "https://x-access-token:$GH_TOKEN@github.com/$REPO.git" "HEAD:refs/heads/$BRANCH"
+
+      - name: Open PR
+        id: pr
+        if: steps.push.outcome == 'success' || env.IS_PR == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          if [ "$IS_PR" = true ]; then
+            echo "url=$(gh pr view "$NUMBER" -R "$REPO" --json url -q .url)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          url="$(gh pr list -R "$REPO" --head "$BRANCH" --state open --json url -q '.[0].url')"
+          if [ -z "$url" ]; then
+            {
+              echo "Closes #$NUMBER"
+              echo
+              cat "$RUNNER_TEMP/pi-summary.md"
+            } > "$RUNNER_TEMP/pr-body.md"
+            url="$(gh pr create -R "$REPO" --base main --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md")"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy preview
+        id: preview
+        if: steps.push.outcome == 'success'
+        continue-on-error: true
+        env:
+          DENO_DEPLOY_TOKEN: ${{ secrets.DENO_DEPLOY_TOKEN }}
+        run: |
+          (cd app && npm run build)
+          bash .github/scripts/deploy.sh preview
+
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.pi.outputs.status }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          PREVIEW_OUTCOME: ${{ steps.preview.outcome }}
+        run: |
+          body="$RUNNER_TEMP/report.md"
+          {
+            case "$STATUS" in
+              passed)     echo "**pi:** tests and type-check pass." ;;
+              failed)     echo "**pi:** pushed, but tests or type-check still fail." ;;
+              no-changes) echo "**pi:** no code changes." ;;
+              *)          echo "**pi:** the run failed." ;;
+            esac
+            echo
+            [ -n "$PR_URL" ] && [ "$IS_PR" != true ] && echo "PR: $PR_URL"
+            if [ -n "$PREVIEW_URL" ]; then
+              echo "Preview: $PREVIEW_URL"
+            elif [ "$PREVIEW_OUTCOME" = failure ]; then
+              echo "Preview deploy failed."
+            fi
+            echo "Run: $RUN_URL"
+            if [ -s "$RUNNER_TEMP/pi-summary.md" ]; then
+              echo
+              cat "$RUNNER_TEMP/pi-summary.md"
+            fi
+            if [ "$STATUS" = failed ] && [ -s "$RUNNER_TEMP/checks.log" ]; then
+              echo
+              echo "<details><summary>Check output</summary>"
+              echo
+              echo '```'
+              tail -c 15000 "$RUNNER_TEMP/checks.log"
+              echo '```'
+              echo "</details>"
+            fi
+          } > "$body"
+          gh issue comment "$NUMBER" -R "$REPO" --body-file "$body"
