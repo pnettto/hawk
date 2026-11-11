@@ -107,6 +107,7 @@
     }),
   )
   let selectedStr = $derived(formatDate(currentDate))
+  let isToday = $derived(selectedStr === todayStr)
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -162,6 +163,9 @@
   </div>
   {#if !hideArrows}
     <button class="cal-arrow" aria-label="Next day" title="Next day" onclick={goNext}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+  {/if}
+  {#if !hideArrows && !isToday}
+    <button type="button" class="today-btn" onclick={goToday}>Today</button>
   {/if}
 </div>
 {#if showCalendar}
@@ -319,6 +323,29 @@
   }
   .cal-today:hover {
     background-color: var(--glass);
+  }
+  .today-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    height: var(--h-sm);
+    padding: 0 0.8rem;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--font-ui, inherit);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  .today-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--glass-dark);
   }
   .modal-overlay {
     position: fixed;

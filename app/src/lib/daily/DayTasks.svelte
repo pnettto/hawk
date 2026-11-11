@@ -313,6 +313,19 @@
 
             <button
               type="button"
+              class="icon-btn ghost carry-over"
+              title="Carry over to next day"
+              aria-label="Carry over to next day"
+              onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 8h9" />
+                <path d="M9 4.5L12.5 8 9 11.5" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
               class="icon-btn ghost comment-toggle"
               class:active={!!task.comment || openComments.has(task.id)}
               title="Comment"
@@ -548,17 +561,23 @@
   .task :global(.time.open) { opacity: 1; }
 
   .comment-toggle,
+  .carry-over,
   .remove { opacity: 0; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
+  .task:hover .carry-over,
+  .task:focus-within .carry-over,
   .task:hover .remove,
   .task:focus-within .remove { opacity: 0.6; }
   .comment-toggle.active { opacity: 0.8; color: var(--accent); }
   .comment-toggle:hover,
+  .carry-over:hover,
   .remove:hover { opacity: 1 !important; }
+  .carry-over:hover { color: var(--accent); }
   @media (hover: none) {
     .task :global(.time:not(.set)),
     .comment-toggle,
+    .carry-over,
     .remove { opacity: 0.45; }
   }
 
