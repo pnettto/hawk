@@ -3,25 +3,25 @@
 ```mermaid
 flowchart TB
   client["<b>Browser</b><br/>web app (hawk.pnetto.store)<br/>Chrome extension (new tab)"]
-  pub["<b>Shared links</b><br/>/shared/&lt;id&gt; (public)"]
+  pub["<b>Shared links</b><br/>/shared/#lt;id#gt; (public)"]
 
   subgraph Edge["Cloudflare · hawk.pnetto.store · hawk.pedro-535.workers.dev"]
     assets["<b>Static Assets</b><br/>app/dist (Svelte SPA)<br/>SPA fallback → index.html"]
     worker["<b>Worker hawk</b><br/>server/worker.ts<br/>forwards /api/* and /shared/*"]
 
-    subgraph DO["Durable Object HawkDO · single instance &quot;hawk&quot;"]
+    subgraph DO["Durable Object HawkDO · single instance 'hawk'"]
       hono["<b>Hono app</b> · server/app.ts<br/>CORS → rate limit → auth<br/>→ route handlers"]
       sockets["<b>Sync WebSockets</b><br/>/api/sync/ws · tagged by clientId<br/>hibernating · ping→pong auto-reply"]
       sqlite[("<b>SQLite</b> via SqliteKv<br/>notes · day logs · versions<br/>file meta · preferences")]
     end
 
-    r2[("<b>R2 hawk-files</b><br/>files/&lt;id&gt;")]
+    r2[("<b>R2 hawk-files</b><br/>files/#lt;id#gt;")]
   end
 
   client -- "page load" --> assets
   client -- "HTTPS /api/*<br/>WebSocket /api/sync/ws" --> worker
   pub -- "HTTPS /shared/*" --> worker
-  worker -- "idFromName(&quot;hawk&quot;)" --> hono
+  worker -- "idFromName('hawk')" --> hono
   worker -- "upgrade" --> sockets
   hono -- "get · set · list · atomic" --> sqlite
   hono -- "file bodies<br/>(streamed put, Range get)" --> r2
@@ -37,7 +37,7 @@ flowchart LR
   pi["/pi on an issue or PR"] --> piwf["GitHub Actions<br/>pi.yml<br/>pi edits · test · PR"] -- "wrangler deploy --env preview" --> prev["Worker <b>hawk-preview</b><br/>hawk-preview.pedro-535.workers.dev"]
   prev --> prevdo[("own HawkDO<br/>(separate data)")]
   prev --> prevr2[("R2 hawk-files-preview")]
-  prod --> proddo[("HawkDO &quot;hawk&quot;")]
+  prod --> proddo[("HawkDO 'hawk'")]
   prod --> prodr2[("R2 hawk-files")]
 ```
 
