@@ -6,6 +6,7 @@
   import { appStore } from './stores/app'
   import { logsStore } from './stores/logs'
   import { preferencesStore } from './stores/preferences'
+  import { pomodoroStore } from './stores/pomodoro'
   import { syncStore } from './stores/sync'
   import { formatDate } from './utils/date'
   import { hasUnsavedWork } from './stores/saving'
@@ -91,7 +92,9 @@
     if (!$authStore.isAuth || $authStore.isGuest) return
     if (prefsLoadedFor) return
     prefsLoadedFor = true
-    preferencesStore.loadFromServer()
+    // Load extensions before the shared timer, so the widget starts with the
+    // right settings instead of the defaults.
+    void preferencesStore.loadFromServer().then(() => pomodoroStore.loadFromServer())
   })
 
   // Open the cross-device sync stream once authenticated. Guest mode skips

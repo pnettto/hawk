@@ -14,6 +14,7 @@ export type SyncEventType =
   | "trash.emptied"
   | "log.saved"
   | "preferences.saved"
+  | "pomodoro.saved"
   | "files.changed";
 
 export interface SyncEvent {
@@ -108,4 +109,10 @@ export function emitSyncEvent(args: EmitArgs): Promise<void> {
 
 export function getClientIdFromCtx(c: Context): string | undefined {
   return c.req.header("X-Client-Id") || undefined;
+}
+
+// Stable per browser (localStorage), unlike the per-tab client id. Used to
+// prefer a sibling tab when the Pomodoro notifier closes.
+export function getBrowserIdFromCtx(c: Context): string | undefined {
+  return c.req.header("X-Browser-Id") || undefined;
 }

@@ -1,10 +1,11 @@
 import { writable } from 'svelte/store'
-import { apiBase, getClientId, getToken } from '../api/client'
+import { apiBase, getBrowserId, getClientId, getToken } from '../api/client'
 import { authStore } from './auth'
 import { notesStore } from './notes'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
 import { filesStore } from './files'
+import { pomodoroStore } from './pomodoro'
 
 export type SyncEventType =
   | 'note.saved'
@@ -14,6 +15,7 @@ export type SyncEventType =
   | 'trash.emptied'
   | 'log.saved'
   | 'preferences.saved'
+  | 'pomodoro.saved'
   | 'files.changed'
 
 export interface SyncEvent {
@@ -40,6 +42,7 @@ function syncUrl(token: string): string {
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('token', token)
   url.searchParams.set('clientId', getClientId())
+  url.searchParams.set('browserId', getBrowserId())
   return url.toString()
 }
 
@@ -113,6 +116,8 @@ function createSyncStore() {
         logsStore.applySyncEvent(evt)
       } else if (evt.type === 'preferences.saved') {
         preferencesStore.loadFromServer()
+      } else if (evt.type === 'pomodoro.saved') {
+        pomodoroStore.loadFromServer()
       } else if (evt.type === 'files.changed') {
         filesStore.applySyncEvent()
       } else {
@@ -155,6 +160,9 @@ function createSyncStore() {
         attempt = 0
         failuresSinceHello = 0
         set({ connected: true })
+        // Pomodoro events aren't replayed; catch up on the timer (and its
+        // notification owner) after a reconnect.
+        void pomodoroStore.loadFromServer()
         return
       }
       dispatch(msg as SyncEvent)

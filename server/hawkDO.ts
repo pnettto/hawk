@@ -3,6 +3,7 @@ import { app } from "./app.ts";
 import { initKv } from "./utils/kvConn.ts";
 import { type Env, setEnv } from "./utils/env.ts";
 import { setBroadcaster } from "./utils/syncEvents.ts";
+import { ensurePomodoroDuty, relayPomodoroDuty } from "./utils/pomodoro.ts";
 import { isValidToken } from "./middleware/auth.ts";
 
 // The whole backend: one Durable Object instance ("hawk") that owns the data
@@ -23,7 +24,10 @@ export class HawkDO extends DurableObject<Env> {
       for (const ws of ctx.getWebSockets()) {
         // Each socket is tagged with its tab's clientId; skip the tab that made
         // the change.
-        if (event.originClientId && ctx.getTags(ws).includes(event.originClientId)) continue;
+        if (
+          event.originClientId &&
+          ctx.getTags(ws).includes(`client:${event.originClientId}`)
+        ) continue;
         try {
           ws.send(frame);
         } catch {
@@ -49,20 +53,37 @@ export class HawkDO extends DurableObject<Env> {
       return new Response("Unauthorized", { status: 401 });
     }
     const clientId = (url.searchParams.get("clientId") || "").slice(0, 200);
+    const browserId = (url.searchParams.get("browserId") || "").slice(0, 200);
+    const tags = [
+      clientId ? `client:${clientId}` : "",
+      browserId ? `browser:${browserId}` : "",
+    ].filter(Boolean);
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server, clientId ? [clientId] : []);
+    this.ctx.acceptWebSocket(server, tags);
     server.send(JSON.stringify({ type: "hello", ts: Date.now() }));
+    // A fresh session may need to take over the Pomodoro notification if the
+    // previous owner is gone (hibernation, crash, or an older state).
+    await ensurePomodoroDuty(this.ctx, clientId || null, browserId || null);
     return new Response(null, { status: 101, webSocket: client });
   }
 
   // Clients only ever send "ping", which the auto-response handles.
   override webSocketMessage() {}
 
-  override webSocketClose(ws: WebSocket, code: number) {
+  override async webSocketClose(ws: WebSocket, code: number) {
+    let clientId: string | null = null;
+    let browserId: string | null = null;
+    for (const tag of this.ctx.getTags(ws)) {
+      if (tag.startsWith("client:")) clientId = tag.slice("client:".length);
+      else if (tag.startsWith("browser:")) browserId = tag.slice("browser:".length);
+    }
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code);
     } catch {
       /* already closed */
+    }
+    if (clientId) {
+      await relayPomodoroDuty(this.ctx, { clientId, browserId }, ws);
     }
   }
 }

@@ -7,6 +7,9 @@ const API_BASE_KEY = 'hawk_api_base'
 // Per-tab so each open tab is its own sync subscriber and gets each other's
 // edits live. localStorage would coalesce all tabs into one origin.
 const CLIENT_ID_KEY = 'hawk_client_id'
+// Stable per browser, so a closing Pomodoro tab can hand its notifications to
+// a sibling tab before falling back to another device.
+const BROWSER_ID_KEY = 'hawk_browser_id'
 
 // In a Chrome extension, location.origin is `chrome-extension://<id>` so relative
 // `/api/...` requests would go nowhere. Fall back to the deployed backend.
@@ -76,6 +79,21 @@ export function getClientId(): string {
   }
 }
 const fallbackClientId = crypto.randomUUID()
+const fallbackBrowserId = crypto.randomUUID()
+
+export function getBrowserId(): string {
+  try {
+    let id = localStorage.getItem(BROWSER_ID_KEY)
+    if (!id) {
+      id = crypto.randomUUID()
+      localStorage.setItem(BROWSER_ID_KEY, id)
+    }
+    return id
+  } catch {
+    // localStorage unavailable (rare); fall back to a process-lifetime id.
+    return fallbackBrowserId
+  }
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -106,6 +124,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Client-Id': getClientId(),
+    'X-Browser-Id': getBrowserId(),
   }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
