@@ -405,12 +405,15 @@ function phaseCopy(state: PomodoroState, finished: PomodoroMode) {
   }
 }
 
-// Show a system notification when a block ends while the app is out of sight:
-// another tab, another app, a minimised window. The widget and toast already
-// cover the case where it's right in front of you.
+// Show a system notification whenever a block ends, whether or not the app is
+// in focus.
 async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return
-  if (typeof document === 'undefined' || document.hasFocus()) return
+  await showPhaseNotification(state, finished)
+}
+
+// Builds and shows the notification. Returns false if the browser refused.
+async function showPhaseNotification(state: PomodoroState, finished: PomodoroMode): Promise<boolean> {
   const { title, body, action } = phaseCopy(state, finished)
   const auto = autoStarts()
   const options: PhaseNotificationOptions = {
@@ -432,7 +435,7 @@ async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
   if (registration) {
     try {
       await registration.showNotification(title, options)
-      return
+      return true
     } catch {
       /* fall back to the page's own notification */
     }
@@ -445,9 +448,32 @@ async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
       showTimer()
       notification.close()
     }
+    return true
   } catch {
     /* mobile browsers only have the service worker route */
+    return false
   }
+}
+
+// Show the end-of-focus notification now, regardless of focus, so the
+// browser and OS settings can be checked without waiting for a block to end.
+export async function sendTestNotification(): Promise<void> {
+  if (!notificationsSupported()) {
+    showToast("This browser doesn't support notifications")
+    return
+  }
+  if (Notification.permission !== 'granted') await requestNotificationPermission()
+  if (Notification.permission !== 'granted') return
+  const state = get(pomodoroStore)
+  const shown = await showPhaseNotification(
+    { ...state, taskText: state.taskText || 'Test task' },
+    'focus',
+  )
+  showToast(
+    shown
+      ? "Notification sent. If it didn't appear, check your system's notification settings."
+      : "Couldn't show a notification.",
+  )
 }
 
 // Open the Journal where the timer lives, starting the block if it was waiting.

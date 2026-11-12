@@ -12,6 +12,7 @@
     notificationsSupported,
     previewChime,
     requestNotificationPermission,
+    sendTestNotification,
   } from '../stores/pomodoro'
 
   type NotifPermission = NotificationPermission | 'unsupported'
@@ -173,6 +174,10 @@
                 {#if notifPermission === 'default'}
                   <button type="button" class="btn-secondary test-sound" onclick={allowNotifications}>
                     Turn on notifications
+                  </button>
+                {:else if notifPermission === 'granted'}
+                  <button type="button" class="btn-secondary test-sound" onclick={() => sendTestNotification()}>
+                    Test notification
                   </button>
                 {/if}
                 <button
