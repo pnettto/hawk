@@ -66,8 +66,6 @@
 
   const kindOf = (item: Item) => ('sort' in item ? 'sort' : item.filter.kind)
 
-  const isTagLike = (item: Item) => kindOf(item) === 'tag' || kindOf(item) === 'untagged'
-
   const isCurrent = (item: Item) =>
     'sort' in item ? item.sort === $notesStore.sort : item.key === keyOf($notesStore.filter)
 
@@ -143,9 +141,7 @@
     <div class="menu">
       <div class="items" role="listbox" aria-label="Show" tabindex="-1" bind:this={menuEl} onkeydown={onKeydown}>
         {#each items as item, i (item.key)}
-          {#if isTagLike(item) && (i === 0 || !isTagLike(items[i - 1]))}
-            <div class="section">Tags</div>
-          {:else if kindOf(item) === 'trash'}
+          {#if kindOf(item) === 'trash'}
             {#if counts.tags.length === 0}
               <div class="hint">Type <code>#word</code> in a note to tag it.</div>
             {/if}
