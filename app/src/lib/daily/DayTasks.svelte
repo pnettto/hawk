@@ -155,7 +155,7 @@
   let openComments = $state(new Set<string>())
 
   function focusTask(id: string, caret: 'end' | 'start' = 'end') {
-    const el = listEl?.querySelector<HTMLInputElement>(`[data-task-input="${id}"]`)
+    const el = listEl?.querySelector<HTMLTextAreaElement>(`[data-task-input="${id}"]`)
     if (!el) return
     el.focus()
     const pos = caret === 'end' ? el.value.length : 0
@@ -164,7 +164,7 @@
 
   function onTextKeydown(e: KeyboardEvent, task: Task, index: number) {
     if (e.isComposing) return
-    const input = e.currentTarget as HTMLInputElement
+    const input = e.currentTarget as HTMLTextAreaElement
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })
@@ -305,18 +305,20 @@
               </svg>
             </button>
 
-            <input
+            <textarea
               class="text"
               data-task-input={task.id}
+              rows="1"
               value={task.text}
               placeholder="Task"
               aria-label="Task"
+              use:autosize
               oninput={(e) => logsStore.editTask(dateStr, task.id, { text: e.currentTarget.value })}
               onkeydown={(e) => onTextKeydown(e, task, i)}
               onblur={() => {
                 if (task.id === freshId) finishFresh()
               }}
-            />
+            ></textarea>
 
             <button
               type="button"
@@ -575,11 +577,12 @@
     color: var(--text);
     font: inherit;
     font-size: 1rem;
-    line-height: var(--row-h);
-    padding: 0 0.4rem;
+    line-height: 1.4;
+    padding: 0.2rem 0.4rem;
     border-radius: 6px;
     outline: none;
-    text-overflow: ellipsis;
+    resize: none;
+    overflow: hidden;
     transition: color var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
   }
   .text:hover,
