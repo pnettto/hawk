@@ -34,12 +34,19 @@ export interface SelectSetting extends SettingBase {
   options: { value: string; label: string }[]
 }
 
-export type ExtensionSetting = NumberSetting | SwitchSetting | SelectSetting
+export interface RangeSetting extends SettingBase {
+  kind: 'range'
+  min: number
+  max: number
+  step: number
+  unit?: string
+}
+
+export type ExtensionSetting = NumberSetting | RangeSetting | SwitchSetting | SelectSetting
 
 export interface Extension {
   id: string
   name: string
-  description: string
   // Where the feature turns up, shown next to the name.
   where: string
   defaultEnabled: boolean
@@ -63,7 +70,6 @@ export const EXTENSIONS: Extension[] = [
   {
     id: 'pomodoro',
     name: 'Pomodoro',
-    description: 'A focus timer on every task — work in blocks, then take a short break.',
     where: 'Journal → Tasks',
     defaultEnabled: false,
     settings: [
@@ -96,16 +102,19 @@ export const EXTENSIONS: Extension[] = [
           { value: 'double', label: 'Two notes' },
           { value: 'single', label: 'One note' },
           { value: 'soft', label: 'Soft' },
+          { value: 'bell', label: 'Bell' },
+          { value: 'rise', label: 'Rising' },
+          { value: 'knock', label: 'Wooden' },
           { value: 'off', label: 'Off' },
         ],
       },
       {
-        kind: 'number',
+        kind: 'range',
         key: 'volume',
         label: 'Volume',
         min: 0,
         max: 100,
-        step: 10,
+        step: 5,
         unit: '%',
         hideWhen: { key: 'chime', equals: 'off' },
       },
@@ -118,8 +127,7 @@ export function getExtension(id: string): Extension | undefined {
   return EXTENSIONS.find((e) => e.id === id)
 }
 
-function clamp(value: number, setting: ExtensionSetting): number {
-  if (setting.kind !== 'number') return value
+function clamp(value: number, setting: NumberSetting | RangeSetting): number {
   return Math.min(setting.max, Math.max(setting.min, value))
 }
 
@@ -136,7 +144,7 @@ export function extensionState(
   const settings: Record<string, ExtensionSettingValue> = { ...ext.defaults }
   for (const setting of ext.settings) {
     const value = raw.settings?.[setting.key]
-    if (setting.kind === 'number') {
+    if (setting.kind === 'number' || setting.kind === 'range') {
       if (typeof value === 'number' && Number.isFinite(value)) {
         settings[setting.key] = clamp(value, setting)
       }

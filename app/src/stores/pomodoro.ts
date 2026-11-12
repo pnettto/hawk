@@ -246,26 +246,59 @@ interface ChimeNote {
   wave: OscillatorType
 }
 
-const CHIMES: Record<string, ChimeNote[]> = {
-  double: [
-    { freq: 880, at: 0, dur: 0.4, wave: 'sine' },
-    { freq: 660, at: 0.18, dur: 0.45, wave: 'sine' },
-  ],
-  single: [{ freq: 880, at: 0, dur: 0.45, wave: 'sine' }],
-  soft: [
-    { freq: 523.25, at: 0, dur: 0.7, wave: 'triangle' },
-    { freq: 392, at: 0.22, dur: 0.9, wave: 'triangle' },
-  ],
+interface Chime {
+  // Relative loudness, for tones that should sit further back.
+  gain?: number
+  notes: ChimeNote[]
 }
 
+const CHIMES: Record<string, Chime> = {
+  double: {
+    notes: [
+      { freq: 880, at: 0, dur: 0.4, wave: 'sine' },
+      { freq: 660, at: 0.18, dur: 0.45, wave: 'sine' },
+    ],
+  },
+  single: { notes: [{ freq: 880, at: 0, dur: 0.45, wave: 'sine' }] },
+  soft: {
+    gain: 0.6,
+    notes: [
+      { freq: 523.25, at: 0, dur: 0.7, wave: 'triangle' },
+      { freq: 392, at: 0.22, dur: 0.9, wave: 'triangle' },
+    ],
+  },
+  bell: {
+    gain: 0.7,
+    notes: [
+      { freq: 1046.5, at: 0, dur: 1.1, wave: 'sine' },
+      { freq: 2093, at: 0, dur: 0.45, wave: 'sine' },
+    ],
+  },
+  rise: {
+    notes: [
+      { freq: 523.25, at: 0, dur: 0.3, wave: 'triangle' },
+      { freq: 659.25, at: 0.11, dur: 0.3, wave: 'triangle' },
+      { freq: 783.99, at: 0.22, dur: 0.35, wave: 'triangle' },
+    ],
+  },
+  knock: {
+    gain: 0.8,
+    notes: [
+      { freq: 320, at: 0, dur: 0.07, wave: 'sine' },
+      { freq: 240, at: 0.09, dur: 0.09, wave: 'sine' },
+    ],
+  },
+}
+
+export const CHIME_IDS = Object.keys(CHIMES)
+
 function chime(sound: string, volume: number) {
-  const notes = CHIMES[sound]
-  if (!notes || volume <= 0) return
+  const preset = CHIMES[sound]
+  if (!preset || volume <= 0) return
   const ctx = audio()
   if (!ctx) return
-  // Soft tones sit further back at the same volume.
-  const peak = 0.12 * (volume / 100) * (sound === 'soft' ? 0.6 : 1)
-  for (const note of notes) {
+  const peak = 0.12 * (volume / 100) * (preset.gain ?? 1)
+  for (const note of preset.notes) {
     const start = ctx.currentTime + note.at
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
@@ -278,6 +311,12 @@ function chime(sound: string, volume: number) {
     osc.start(start)
     osc.stop(start + note.dur + 0.05)
   }
+}
+
+// Play the configured sound at the configured volume, for the settings page.
+export function previewChime() {
+  const settings = chimeSettings()
+  chime(settings.sound, settings.volume)
 }
 
 function announce(state: PomodoroState, finished: PomodoroMode) {

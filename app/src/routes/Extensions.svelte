@@ -5,10 +5,12 @@
     extensionState,
     type Extension,
     type NumberSetting,
+    type RangeSetting,
   } from '../lib/extensions/registry'
   import { preferencesStore } from '../stores/preferences'
+  import { previewChime } from '../stores/pomodoro'
 
-  function setNumber(ext: Extension, setting: NumberSetting, e: Event & { currentTarget: HTMLInputElement }) {
+  function setNumber(ext: Extension, setting: NumberSetting | RangeSetting, e: Event & { currentTarget: HTMLInputElement }) {
     const input = e.currentTarget
     const value = Number(input.value)
     const current = extensionState($preferencesStore.extensions, ext.id).settings[setting.key]
@@ -20,12 +22,16 @@
     input.value = String(clamped)
     if (clamped !== current) preferencesStore.setExtensionSetting(ext.id, setting.key, clamped)
   }
+
+  function setRange(ext: Extension, setting: RangeSetting, e: Event & { currentTarget: HTMLInputElement }) {
+    const value = Number(e.currentTarget.value)
+    if (Number.isFinite(value)) preferencesStore.setExtensionSetting(ext.id, setting.key, value)
+  }
 </script>
 
 <div class="extensions">
   <header>
     <h1>Extensions</h1>
-    <p class="lede">Extra features, off unless you want them. Turn one on and it shows up where it helps.</p>
   </header>
 
   <div class="list">
@@ -38,7 +44,6 @@
               {ext.name}
               <span class="where">{ext.where}</span>
             </h2>
-            <p>{ext.description}</p>
           </div>
           <label class="switch">
             <input
@@ -75,6 +80,25 @@
                     {#if setting.unit}<span class="unit">{setting.unit}</span>{/if}
                   </span>
                 </label>
+              {:else if setting.kind === 'range'}
+                <label class="setting">
+                  <span class="setting-text">
+                    <span class="setting-label">{setting.label}</span>
+                    {#if setting.help}<span class="setting-help">{setting.help}</span>{/if}
+                  </span>
+                  <span class="range-field">
+                    <input
+                      type="range"
+                      min={setting.min}
+                      max={setting.max}
+                      step={setting.step}
+                      value={Number(state.settings[setting.key])}
+                      aria-label={setting.label}
+                      oninput={(e) => setRange(ext, setting, e)}
+                    />
+                    <span class="range-value">{state.settings[setting.key]}{setting.unit}</span>
+                  </span>
+                </label>
               {:else if setting.kind === 'select'}
                 <label class="setting">
                   <span class="setting-text">
@@ -85,7 +109,11 @@
                     class="select-field"
                     aria-label={setting.label}
                     value={state.settings[setting.key]}
-                    onchange={(e) => preferencesStore.setExtensionSetting(ext.id, setting.key, e.currentTarget.value)}
+                    onchange={(e) => {
+                      preferencesStore.setExtensionSetting(ext.id, setting.key, e.currentTarget.value)
+                      // Play the pick so the choices can be compared by ear.
+                      previewChime()
+                    }}
                   >
                     {#each setting.options as option (option.value)}
                       <option value={option.value}>{option.label}</option>
@@ -109,13 +137,28 @@
                 </label>
               {/if}
             {/each}
+            {#if ext.id === 'pomodoro'}
+              <div class="settings-foot">
+                <button
+                  type="button"
+                  class="btn-secondary test-sound"
+                  disabled={state.settings.chime === 'off'}
+                  onclick={() => previewChime()}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h2l3.5-2.5v9L5 10H3z" fill="currentColor" />
+                    <path d="M10.5 6.2a2.5 2.5 0 0 1 0 3.6" />
+                    <path d="M12.3 4.4a5 5 0 0 1 0 7.2" />
+                  </svg>
+                  Play
+                </button>
+              </div>
+            {/if}
           </div>
         {/if}
       </section>
     {/each}
   </div>
-
-  <p class="footnote">Extensions are saved with your settings and follow you across devices.</p>
 </div>
 
 <style>
@@ -124,14 +167,8 @@
   }
   header h1 {
     font-size: 1.6rem;
-    margin: 0 0 0.5rem;
+    margin: 0 0 1.5rem;
     color: var(--text);
-  }
-  .lede {
-    margin: 0 0 1.75rem;
-    color: var(--muted);
-    font-size: 0.9rem;
-    opacity: 0.85;
   }
   .list {
     display: flex;
@@ -157,7 +194,7 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin: 0 0 0.25rem;
+    margin: 0;
     font-size: 1rem;
     font-weight: 600;
     color: var(--text);
@@ -168,12 +205,6 @@
     text-transform: uppercase;
     color: var(--muted);
     opacity: 0.65;
-  }
-  .ext-text p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.875rem;
-    opacity: 0.85;
   }
 
   .switch {
@@ -280,10 +311,36 @@
   }
   .select-field:focus { border-color: var(--accent); outline: none; }
 
-  .footnote {
-    margin: 1.5rem 0 0;
-    font-size: 0.78rem;
-    color: var(--muted);
-    opacity: 0.6;
+  .range-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    width: 11rem;
   }
+  .range-field input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .range-value {
+    width: 2.4rem;
+    text-align: right;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .settings-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.25rem 0 0.85rem;
+  }
+  .test-sound {
+    gap: 0.35rem;
+    font-size: 0.8rem;
+  }
+  .test-sound :global(svg) { width: 14px; height: 14px; }
 </style>
