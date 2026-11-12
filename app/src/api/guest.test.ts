@@ -19,6 +19,7 @@ describe('guest API', () => {
     const index = await req<NoteMetadata[]>('GET', '/api/notes/index')
     expect(index.map((n) => n.id)).toContain('demo-welcome')
     expect(index.find((n) => n.id === 'demo-trip')?.tags).toEqual(['personal', 'travel'])
+    expect(index.find((n) => n.id === 'demo-ideas')?.tags).toEqual([])
     const dayNotes = await req<Note[]>('GET', `/api/notes/days?start=${today}&end=${today}`)
     expect(dayNotes.map((n) => n.id)).toEqual([`day-${today}`])
   })

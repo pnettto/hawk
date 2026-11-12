@@ -2,8 +2,8 @@
   import { tick } from 'svelte'
   import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: All notes, Day Notes, one #tag, or Trash,
-  // plus the sort order for views that are listed by date.
+  // The Notepad list's view picker: All notes, Day Notes, untagged notes,
+  // one #tag, or Trash, plus the sort order for views that are listed by date.
 
   let open = $state(false)
   let sel = $state(0)
@@ -14,14 +14,16 @@
     let all = 0
     let day = 0
     let trash = 0
+    let untagged = 0
     for (const n of $notesStore.allNotes) {
       if (n.deletedAt) trash++
       else if (!isDayDraft(n)) {
         all++
         if (n.day) day++
+        if (!n.tags?.length) untagged++
       }
     }
-    return { all, day, trash, tags: tagCounts($notesStore.allNotes) }
+    return { all, day, trash, untagged, tags: tagCounts($notesStore.allNotes) }
   })
 
   type Item =
@@ -29,12 +31,17 @@
     | { sort: NotesSort; label: string; key: string }
 
   // Day Notes sort by day and Trash by deletion, so only the others offer a sort.
-  let sortable = $derived($notesStore.filter.kind === 'all' || $notesStore.filter.kind === 'tag')
+  let sortable = $derived(
+    $notesStore.filter.kind === 'all' ||
+      $notesStore.filter.kind === 'tag' ||
+      $notesStore.filter.kind === 'untagged',
+  )
 
   let items = $derived.by<Item[]>(() => {
     const fixed: Item[] = [
       { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'day' }, label: 'Day Notes', count: counts.day, key: 'day' },
+      { filter: { kind: 'untagged' }, label: 'Not tagged', count: counts.untagged, key: 'untagged' },
     ]
     const tags: Item[] = counts.tags.map(([tag, count]) => ({
       filter: { kind: 'tag', tag },
@@ -54,12 +61,15 @@
 
   const kindOf = (item: Item) => ('sort' in item ? 'sort' : item.filter.kind)
 
+  const isTagLike = (item: Item) => kindOf(item) === 'tag' || kindOf(item) === 'untagged'
+
   const isCurrent = (item: Item) =>
     'sort' in item ? item.sort === $notesStore.sort : item.key === keyOf($notesStore.filter)
 
   let current = $derived.by(() => {
     const f = $notesStore.filter
     if (f.kind === 'tag') return { label: `#${f.tag}`, count: counts.tags.find(([t]) => t === f.tag)?.[1] ?? 0 }
+    if (f.kind === 'untagged') return { label: 'Not tagged', count: counts.untagged }
     if (f.kind === 'day') return { label: 'Day Notes', count: counts.day }
     if (f.kind === 'trash') return { label: 'Trash', count: counts.trash }
     return { label: 'All notes', count: counts.all }
@@ -127,7 +137,7 @@
     <div class="menu">
       <div class="items" role="listbox" aria-label="Show" tabindex="-1" bind:this={menuEl} onkeydown={onKeydown}>
         {#each items as item, i (item.key)}
-          {#if kindOf(item) === 'tag' && (i === 0 || kindOf(items[i - 1]) !== 'tag')}
+          {#if isTagLike(item) && (i === 0 || !isTagLike(items[i - 1]))}
             <div class="section">Tags</div>
           {:else if kindOf(item) === 'trash'}
             {#if counts.tags.length === 0}

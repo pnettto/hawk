@@ -13,6 +13,7 @@ export type NotesFilter =
   | { kind: 'all' }
   | { kind: 'day' }
   | { kind: 'tag'; tag: string }
+  | { kind: 'untagged' }
   | { kind: 'trash' }
 
 interface NotesState {
@@ -33,7 +34,7 @@ const FILTER_KEY = 'hawk_notes_filter'
 function readFilter(): NotesFilter {
   try {
     const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null') as NotesFilter | null
-    if (f && (f.kind === 'all' || f.kind === 'day' || f.kind === 'trash')) return { kind: f.kind }
+    if (f && (f.kind === 'all' || f.kind === 'day' || f.kind === 'untagged' || f.kind === 'trash')) return { kind: f.kind }
     if (f?.kind === 'tag' && typeof f.tag === 'string') return f
   } catch {
     // Storage unavailable — fall back to the default view.

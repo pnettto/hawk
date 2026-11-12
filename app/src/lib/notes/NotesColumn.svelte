@@ -35,7 +35,12 @@
         .filter((n) => n.day)
         .sort((a, b) => dayTime(b) - dayTime(a) || (a.dayOrder ?? 0) - (b.dayOrder ?? 0))
     }
-    const shown = filter.kind === 'tag' ? live.filter((n) => n.tags?.includes(filter.tag)) : live
+    const shown =
+      filter.kind === 'tag'
+        ? live.filter((n) => n.tags?.includes(filter.tag))
+        : filter.kind === 'untagged'
+          ? live.filter((n) => !n.tags?.length)
+          : live
     return shown.sort((a, b) => listTime(b) - listTime(a))
   })
 

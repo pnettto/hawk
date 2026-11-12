@@ -239,6 +239,16 @@ function seed(): GuestData {
 #personal #books`,
         120,
       ),
+      'demo-ideas': note(
+        'demo-ideas',
+        'Ideas',
+        `A place for quick thoughts before they turn into notes.
+
+- New cover image for the blog
+- Try a no-meeting Wednesday
+- Fix the creaky kitchen drawer`,
+        90,
+      ),
       [`day-${today}`]: note(`day-${today}`, '', `Started the week with a plan. The call with the designer is the main thing today.\n\n#journal`, 30, {
         day: today,
         dayOrder: 0,
