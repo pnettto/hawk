@@ -239,8 +239,9 @@ function createLogsStore() {
 
   // Apply a new manual order to a day's tasks. `orderedIds` lists the tasks
   // in the order they should appear; timed tasks are sorted by time, so only
-  // untimed rows are meaningfully reordered.
-  function reorderTasks(dateStr: string, orderedIds: string[]) {
+  // untimed rows are meaningfully reordered. `defer` keeps the change local
+  // (for live drag reordering) until the caller flushes it.
+  function reorderTasks(dateStr: string, orderedIds: string[], opts: { defer?: boolean } = {}) {
     const orderById = new Map(orderedIds.map((id, i) => [id, i + 1]))
     const changed = dayOf(dateStr).tasks.filter((t) => {
       const next = orderById.get(t.id)
@@ -256,7 +257,8 @@ function createLogsStore() {
     }))
     const dirty = setOf(dirtyTasks, dateStr)
     for (const t of changed) dirty.add(t.id)
-    scheduleTaskWrite(dateStr, true)
+    if (opts.defer) savingStore.markPending(`tasks:${dateStr}`)
+    else scheduleTaskWrite(dateStr, true)
   }
 
   // Copy unfinished tasks to another day (as new tasks).

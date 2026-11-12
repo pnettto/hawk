@@ -230,16 +230,15 @@
 
   let reorderMode = $state(false)
   let dragId = $state<string | null>(null)
-  let dropAt = $state<{ id: string; after: boolean } | null>(null)
   let dragPointer = $state<number | null>(null)
 
   const untimed = (): Task[] => tasks.filter((t) => !t.time)
 
   function toggleReorder() {
+    if (dragId) void logsStore.flushTasks(dateStr)
     reorderMode = !reorderMode
     dragId = null
     dragPointer = null
-    dropAt = null
   }
 
   function startDrag(e: PointerEvent, task: Task) {
@@ -250,43 +249,31 @@
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
-  // Put the drop marker on the untimed row nearest the pointer, before or
-  // after its midpoint.
-  function updateDropTarget(y: number) {
-    if (!listEl) return
-    const rows = Array.from(listEl.querySelectorAll<HTMLElement>('[data-task-id]'))
-      .filter((el) => el.dataset.taskId !== dragId && !tasks.find((t) => t.id === el.dataset.taskId)?.time)
-    let best: { id: string; after: boolean } | null = null
-    let bestDist = Infinity
-    for (const el of rows) {
-      const rect = el.getBoundingClientRect()
-      const dist = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
-      if (dist < bestDist) {
-        bestDist = dist
-        best = { id: el.dataset.taskId!, after: y > rect.top + rect.height / 2 }
-      }
-    }
-    dropAt = best
-  }
-
+  // Move the row as the pointer crosses the other rows' midpoints, so the
+  // list follows the drag instead of jumping into place on release.
   function onDragMove(e: PointerEvent) {
-    if (!dragId || e.pointerId !== dragPointer) return
-    updateDropTarget(e.clientY)
+    if (!dragId || e.pointerId !== dragPointer || !listEl) return
+    const source = dragId
+    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
+    if (!ids.length) return
+    let insertAt = 0
+    for (const t of untimed()) {
+      if (t.id === source) continue
+      const el = listEl.querySelector<HTMLElement>(`[data-task-id="${t.id}"]`)
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (e.clientY > rect.top + rect.height / 2) insertAt++
+    }
+    ids.splice(insertAt, 0, source)
+    logsStore.reorderTasks(dateStr, ids, { defer: true })
   }
 
   function endDrag(e?: PointerEvent) {
     if (e && dragPointer !== null && e.pointerId !== dragPointer) return
-    const source = dragId
-    const target = dropAt
+    if (!dragId) return
     dragId = null
     dragPointer = null
-    dropAt = null
-    if (!source || !target || target.id === source) return
-    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
-    const idx = ids.indexOf(target.id)
-    if (idx === -1) return
-    ids.splice(target.after ? idx + 1 : idx, 0, source)
-    logsStore.reorderTasks(dateStr, ids)
+    void logsStore.flushTasks(dateStr)
   }
 
   // Keyboard reordering: arrow keys on the handle move the row.
@@ -376,10 +363,8 @@
           class:done={task.done}
           class:has-comment={!!task.comment}
           class:dragging={dragId === task.id}
-          class:drop-before={dropAt?.id === task.id && !dropAt?.after}
-          class:drop-after={dropAt?.id === task.id && !!dropAt?.after}
           data-task-id={task.id}
-          animate:safeFlip={{ duration: 220 }}
+          animate:safeFlip={{ duration: dragId ? 0 : 220 }}
           transition:slide={{ duration: 160 }}
         >
           {#if i === nowIndex}
@@ -637,8 +622,6 @@
   .task:hover,
   .task:focus-within { background: var(--glass-dark); }
   .task.dragging { opacity: 0.4; }
-  .task.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
-  .task.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .row {
     display: flex;
     align-items: center;
