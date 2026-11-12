@@ -2,7 +2,7 @@ import { get, writable } from 'svelte/store'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
 import { showToast } from './toast'
-import { extensionNumber, extensionState, extensionSwitch } from '../lib/extensions/registry'
+import { extensionChoice, extensionNumber, extensionState } from '../lib/extensions/registry'
 
 // A single focus timer that follows the tab around. Session state is local to
 // this browser: it's rebuilt from localStorage on reload, so leaving the page
@@ -69,8 +69,22 @@ function configuredDurations(): Durations {
   }
 }
 
-function chimeEnabled(): boolean {
-  return extensionSwitch(extensionState(get(preferencesStore).extensions, EXTENSION_ID), 'chime', true)
+function chimeSettings(): { sound: string; volume: number } {
+  const ext = extensionState(get(preferencesStore).extensions, EXTENSION_ID)
+  return {
+    sound: extensionChoice(ext, 'chime', 'double'),
+    volume: extensionNumber(ext, 'volume', 60),
+  }
+}
+
+function nextFocusSession(state: PomodoroState, now: number): PomodoroState {
+  return {
+    ...state,
+    mode: 'focus',
+    running: true,
+    endsAt: now + state.focusMs,
+    remainingMs: state.focusMs,
+  }
 }
 
 // Back to a fresh focus phase, keeping the configured lengths and count.
@@ -153,13 +167,15 @@ export function advance(
       finished: 'focus',
     }
   }
-  return { state: idleFrom(state), finished: 'break' }
+  // Blocks alternate until the timer is stopped: the break hands straight
+  // over to the next focus block on the same task.
+  return { state: nextFocusSession(state, now), finished: 'break' }
 }
 
 // End the current phase early. A skipped focus session isn't counted.
 export function skip(state: PomodoroState, now: number): PomodoroState {
   if (state.mode === 'focus') return breakSession(state, now)
-  return idleFrom(state)
+  return nextFocusSession(state, now)
 }
 
 // ---- persistence ---------------------------------------------------------
@@ -205,35 +221,70 @@ function restore(now: number): PomodoroState {
   }
 }
 
-function chime() {
+// One AudioContext for the whole tab: browsers cap how many you can create.
+let audioCtx: AudioContext | null = null
+
+function audio(): AudioContext | null {
   try {
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctor) return
-    const ctx = new Ctor()
-    if (ctx.state === 'suspended') void ctx.resume()
-    const notes = [880, 660]
-    notes.forEach((freq, i) => {
-      const start = ctx.currentTime + i * 0.18
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, start)
-      gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(start)
-      osc.stop(start + 0.5)
-    })
+    if (!audioCtx) {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!Ctor) return null
+      audioCtx = new Ctor()
+    }
+    if (audioCtx.state === 'suspended') void audioCtx.resume()
+    return audioCtx
   } catch {
-    /* audio unavailable */
+    return null
+  }
+}
+
+interface ChimeNote {
+  freq: number
+  // Seconds after the previous phase ended.
+  at: number
+  dur: number
+  wave: OscillatorType
+}
+
+const CHIMES: Record<string, ChimeNote[]> = {
+  double: [
+    { freq: 880, at: 0, dur: 0.4, wave: 'sine' },
+    { freq: 660, at: 0.18, dur: 0.45, wave: 'sine' },
+  ],
+  single: [{ freq: 880, at: 0, dur: 0.45, wave: 'sine' }],
+  soft: [
+    { freq: 523.25, at: 0, dur: 0.7, wave: 'triangle' },
+    { freq: 392, at: 0.22, dur: 0.9, wave: 'triangle' },
+  ],
+}
+
+function chime(sound: string, volume: number) {
+  const notes = CHIMES[sound]
+  if (!notes || volume <= 0) return
+  const ctx = audio()
+  if (!ctx) return
+  // Soft tones sit further back at the same volume.
+  const peak = 0.12 * (volume / 100) * (sound === 'soft' ? 0.6 : 1)
+  for (const note of notes) {
+    const start = ctx.currentTime + note.at
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = note.wave
+    osc.frequency.value = note.freq
+    gain.gain.setValueAtTime(0.0001, start)
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + note.dur)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(start)
+    osc.stop(start + note.dur + 0.05)
   }
 }
 
 function announce(state: PomodoroState, finished: PomodoroMode) {
-  if (chimeEnabled()) chime()
+  const settings = chimeSettings()
+  chime(settings.sound, settings.volume)
   if (finished === 'break') {
-    showToast('Break over')
+    showToast('Break over — back to focus')
     return
   }
   const id = state.taskId

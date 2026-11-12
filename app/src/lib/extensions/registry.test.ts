@@ -2,19 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { EXTENSIONS, extensionState } from './registry'
 
 describe('extensionState', () => {
-  it('falls back to the registry defaults', () => {
+  it('falls back to the registry defaults, switched off', () => {
     const state = extensionState(undefined, 'pomodoro')
-    expect(state.enabled).toBe(true)
-    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: true })
+    expect(state.enabled).toBe(false)
+    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
   })
 
   it('reads saved values over the defaults', () => {
     const state = extensionState(
-      { pomodoro: { enabled: false, settings: { focusMinutes: 50, chime: false } } },
+      { pomodoro: { enabled: true, settings: { focusMinutes: 50, chime: 'soft', volume: 30 } } },
       'pomodoro',
     )
-    expect(state.enabled).toBe(false)
-    expect(state.settings).toEqual({ focusMinutes: 50, breakMinutes: 5, chime: false })
+    expect(state.enabled).toBe(true)
+    expect(state.settings).toEqual({ focusMinutes: 50, breakMinutes: 5, chime: 'soft', volume: 30 })
+  })
+
+  it('only accepts values offered by a select', () => {
+    const ok = extensionState({ pomodoro: { settings: { chime: 'soft' } } }, 'pomodoro')
+    expect(ok.settings.chime).toBe('soft')
+    const bad = extensionState({ pomodoro: { settings: { chime: 'airhorn' } } }, 'pomodoro')
+    expect(bad.settings.chime).toBe('double')
   })
 
   it('clamps numbers to the setting range', () => {
@@ -29,13 +36,13 @@ describe('extensionState', () => {
       {
         pomodoro: {
           enabled: 'yes',
-          settings: { focusMinutes: '45', breakMinutes: true, chime: 'loud', nope: 1 },
+          settings: { focusMinutes: '45', breakMinutes: true, chime: 'loud', volume: '60', nope: 1 },
         },
       } as never,
       'pomodoro',
     )
-    expect(state.enabled).toBe(true)
-    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: true })
+    expect(state.enabled).toBe(false)
+    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
     expect(state.settings.nope).toBeUndefined()
   })
 

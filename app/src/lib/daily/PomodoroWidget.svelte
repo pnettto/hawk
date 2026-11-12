@@ -85,8 +85,8 @@
       <button
         type="button"
         class="icon-btn ghost"
-        title={state.mode === 'focus' ? 'Skip to break' : 'End break'}
-        aria-label={state.mode === 'focus' ? 'Skip to break' : 'End break'}
+        title={state.mode === 'focus' ? 'Skip to break' : 'Skip break'}
+        aria-label={state.mode === 'focus' ? 'Skip to break' : 'Skip break'}
         onclick={() => pomodoroStore.skip()}
       >
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

@@ -12,6 +12,9 @@ interface SettingBase {
   key: string
   label: string
   help?: string
+  // Hide this control while another setting has the given value (e.g. volume
+  // when the sound is off).
+  hideWhen?: { key: string; equals: ExtensionSettingValue }
 }
 
 export interface NumberSetting extends SettingBase {
@@ -26,7 +29,12 @@ export interface SwitchSetting extends SettingBase {
   kind: 'switch'
 }
 
-export type ExtensionSetting = NumberSetting | SwitchSetting
+export interface SelectSetting extends SettingBase {
+  kind: 'select'
+  options: { value: string; label: string }[]
+}
+
+export type ExtensionSetting = NumberSetting | SwitchSetting | SelectSetting
 
 export interface Extension {
   id: string
@@ -57,7 +65,7 @@ export const EXTENSIONS: Extension[] = [
     name: 'Pomodoro',
     description: 'A focus timer on every task — work in blocks, then take a short break.',
     where: 'Journal → Tasks',
-    defaultEnabled: true,
+    defaultEnabled: false,
     settings: [
       {
         kind: 'number',
@@ -80,13 +88,29 @@ export const EXTENSIONS: Extension[] = [
         unit: 'min',
       },
       {
-        kind: 'switch',
+        kind: 'select',
         key: 'chime',
-        label: 'Chime when a block ends',
-        help: 'A short tone, when the browser allows sound.',
+        label: 'Sound',
+        help: 'Played when a block ends.',
+        options: [
+          { value: 'double', label: 'Two notes' },
+          { value: 'single', label: 'One note' },
+          { value: 'soft', label: 'Soft' },
+          { value: 'off', label: 'Off' },
+        ],
+      },
+      {
+        kind: 'number',
+        key: 'volume',
+        label: 'Volume',
+        min: 0,
+        max: 100,
+        step: 10,
+        unit: '%',
+        hideWhen: { key: 'chime', equals: 'off' },
       },
     ],
-    defaults: { focusMinutes: 25, breakMinutes: 5, chime: true },
+    defaults: { focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 },
   },
 ]
 
@@ -116,6 +140,10 @@ export function extensionState(
       if (typeof value === 'number' && Number.isFinite(value)) {
         settings[setting.key] = clamp(value, setting)
       }
+    } else if (setting.kind === 'select') {
+      if (typeof value === 'string' && setting.options.some((o) => o.value === value)) {
+        settings[setting.key] = value
+      }
     } else if (typeof value === 'boolean') {
       settings[setting.key] = value
     }
@@ -134,4 +162,9 @@ export function extensionNumber(state: ExtensionState, key: string, fallback: nu
 export function extensionSwitch(state: ExtensionState, key: string, fallback: boolean): boolean {
   const value = state.settings[key]
   return typeof value === 'boolean' ? value : fallback
+}
+
+export function extensionChoice(state: ExtensionState, key: string, fallback: string): string {
+  const value = state.settings[key]
+  return typeof value === 'string' ? value : fallback
 }

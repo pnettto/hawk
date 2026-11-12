@@ -55,7 +55,7 @@
 
         {#if state.enabled && ext.settings.length}
           <div class="settings" transition:slide={{ duration: 180 }}>
-            {#each ext.settings as setting (setting.key)}
+            {#each ext.settings.filter((s) => !s.hideWhen || state.settings[s.hideWhen.key] !== s.hideWhen.equals) as setting (setting.key)}
               {#if setting.kind === 'number'}
                 <label class="setting">
                   <span class="setting-text">
@@ -74,6 +74,23 @@
                     />
                     {#if setting.unit}<span class="unit">{setting.unit}</span>{/if}
                   </span>
+                </label>
+              {:else if setting.kind === 'select'}
+                <label class="setting">
+                  <span class="setting-text">
+                    <span class="setting-label">{setting.label}</span>
+                    {#if setting.help}<span class="setting-help">{setting.help}</span>{/if}
+                  </span>
+                  <select
+                    class="select-field"
+                    aria-label={setting.label}
+                    value={state.settings[setting.key]}
+                    onchange={(e) => preferencesStore.setExtensionSetting(ext.id, setting.key, e.currentTarget.value)}
+                  >
+                    {#each setting.options as option (option.value)}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
                 </label>
               {:else}
                 <label class="setting">
@@ -248,6 +265,20 @@
     accent-color: var(--accent);
     cursor: pointer;
   }
+
+  .select-field {
+    flex-shrink: 0;
+    height: var(--h-md);
+    padding: 0 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--input-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .select-field:focus { border-color: var(--accent); outline: none; }
 
   .footnote {
     margin: 1.5rem 0 0;

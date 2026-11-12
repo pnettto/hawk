@@ -56,13 +56,13 @@ describe('custom block lengths', () => {
     expect(onBreak.endsAt).toBe(NOW + custom.focusMs + custom.breakMs)
   })
 
-  it('keeps the lengths through a skip and back to idle', () => {
+  it('keeps the lengths through a skipped break', () => {
     const started = startSession(IDLE, TARGET, NOW, custom)
     const onBreak = skip(started, NOW + 1000)
     expect(onBreak.remainingMs).toBe(custom.breakMs)
-    const idle = skip(onBreak, NOW + 2000)
-    expect(idle.focusMs).toBe(custom.focusMs)
-    expect(idle.remainingMs).toBe(custom.focusMs)
+    const nextFocus = skip(onBreak, NOW + 2000)
+    expect(nextFocus.focusMs).toBe(custom.focusMs)
+    expect(nextFocus.remainingMs).toBe(custom.focusMs)
   })
 })
 
@@ -105,13 +105,30 @@ describe('advance', () => {
     expect(state.taskId).toBe('t1')
   })
 
-  it('goes idle when the break runs out', () => {
+  it('starts the next focus block when the break runs out', () => {
     const onBreak = advance(startSession(IDLE, TARGET, NOW, DURATIONS), NOW + FOCUS_MS).state
     const { state, finished } = advance(onBreak, NOW + FOCUS_MS + BREAK_MS)
     expect(finished).toBe('break')
-    expect(state.taskId).toBeNull()
-    expect(state.running).toBe(false)
+    expect(state.mode).toBe('focus')
+    expect(state.running).toBe(true)
+    expect(state.taskId).toBe('t1')
+    expect(state.remainingMs).toBe(FOCUS_MS)
     expect(state.completed).toBe(1)
+  })
+
+  it('keeps alternating blocks until stopped', () => {
+    let state = startSession(IDLE, TARGET, NOW, DURATIONS)
+    let now = NOW
+    const modes: string[] = []
+    for (let i = 0; i < 5; i++) {
+      now += state.mode === 'focus' ? FOCUS_MS : BREAK_MS
+      const next = advance(state, now)
+      expect(next.finished).not.toBeNull()
+      state = next.state
+      modes.push(state.mode)
+    }
+    expect(modes).toEqual(['break', 'focus', 'break', 'focus', 'break'])
+    expect(state.completed).toBe(3)
   })
 })
 
@@ -123,11 +140,12 @@ describe('skip', () => {
     expect(state.completed).toBe(0)
   })
 
-  it('ends the break', () => {
+  it('hands a skipped break over to the next focus block', () => {
     const onBreak = skip(startSession(IDLE, TARGET, NOW, DURATIONS), NOW + 5000)
     const state = skip(onBreak, NOW + 10_000)
     expect(state.mode).toBe('focus')
-    expect(state.running).toBe(false)
-    expect(state.taskId).toBeNull()
+    expect(state.running).toBe(true)
+    expect(state.taskId).toBe('t1')
+    expect(state.remainingMs).toBe(FOCUS_MS)
   })
 })
