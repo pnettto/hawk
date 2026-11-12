@@ -26,12 +26,14 @@
 
   // Subtasks live in the same list, linked by parentId. Render parents with
   // their children directly underneath, then a group add row.
-  type Row = { task: Task; depth: number; header: boolean; addRow?: boolean; index: number }
+  type Row = { task: Task; depth: number; header: boolean; addRow?: boolean; now?: boolean; index: number }
+  // Placeholder for the "now" divider, which needs a row but isn't a task.
+  const NOW_TASK: Task = { id: '__now__', text: '', done: false, order: 0 }
   let topLevel = $derived.by(() => {
     const ids = new Set(tasks.map((t) => t.id))
     return tasks.filter((t) => !t.parentId || !ids.has(t.parentId))
   })
-  let rows = $derived.by(() => {
+  let baseRows = $derived.by(() => {
     const out: Row[] = []
     let index = 0
     for (const parent of topLevel) {
@@ -45,7 +47,7 @@
     }
     return out
   })
-  let taskRows = $derived(rows.filter((r) => !r.addRow))
+  let taskRows = $derived(baseRows.filter((r) => !r.addRow))
 
   let prevDateStr = $derived.by(() => {
     const d = new Date($appStore.selectedDate)
@@ -87,6 +89,23 @@
     for (let i = 0; i < taskRows.length; i++) if (taskRows[i].task.time) lastTimed = i
     const next = taskRows.findIndex((r, i) => i > lastTimed && r.depth === 0 && !r.task.time)
     return next === -1 ? taskRows.length : next
+  })
+
+  // The "now" divider is its own row, so dragging a task never carries it along.
+  let rows = $derived.by(() => {
+    if (nowIndex === -1) return baseRows
+    const marker: Row = { task: NOW_TASK, depth: 0, header: false, now: true, index: -1 }
+    const out: Row[] = []
+    let inserted = false
+    for (const row of baseRows) {
+      if (!row.addRow && row.index === nowIndex) {
+        out.push(marker)
+        inserted = true
+      }
+      out.push(row)
+    }
+    if (!inserted) out.push(marker)
+    return out
   })
 
   // ---- add -----------------------------------------------------------------
@@ -623,24 +642,27 @@
       class:reordering={!!dragId}
       class:reorder-mode={reorderMode}
     >
-      {#each rows as row (row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
+      {#each rows as row (row.now ? `n:${dateStr}` : row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
         {@const task = row.task}
-        {@const shift = row.addRow ? 0 : shiftFor(task.id)}
+        {@const shift = row.now || row.addRow ? 0 : shiftFor(task.id)}
         <li
-          class:task={!row.addRow}
+          class:task={!row.addRow && !row.now}
           class:group-add-row={row.addRow}
-          class:done={!row.addRow && task.done && !row.header}
-          class:header={!row.addRow && row.header}
-          class:sub={!row.addRow && row.depth > 0}
-          class:has-comment={!row.addRow && !!task.comment}
-          class:dragging={!row.addRow && dragId === task.id}
-          class:following={!row.addRow && isDraggedBlockRow(task.id)}
-          data-task-id={row.addRow ? undefined : task.id}
-          style:transform={!row.addRow && shift ? `translateY(${shift}px)` : undefined}
+          class:now-row={row.now}
+          class:done={!row.now && !row.addRow && task.done && !row.header}
+          class:header={!row.now && !row.addRow && row.header}
+          class:sub={!row.now && !row.addRow && row.depth > 0}
+          class:has-comment={!row.now && !row.addRow && !!task.comment}
+          class:dragging={!row.now && !row.addRow && dragId === task.id}
+          class:following={!row.now && !row.addRow && isDraggedBlockRow(task.id)}
+          data-task-id={row.now || row.addRow ? undefined : task.id}
+          style:transform={!row.now && !row.addRow && shift ? `translateY(${shift}px)` : undefined}
           animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
-        {#if row.addRow}
+        {#if row.now}
+          <div class="now-marker" aria-label="Now"><span>now</span></div>
+        {:else if row.addRow}
           <div class="add group-add" class:has-draft={!!groupDrafts[task.id]?.trim()}>
             <div class="row">
               <button
@@ -666,9 +688,6 @@
             </div>
           </div>
         {:else}
-          {#if row.index === nowIndex}
-            <div class="now-marker" aria-label="Now" transition:fade={{ duration: 150 }}><span>now</span></div>
-          {/if}
           <div class="row">
             {#if reorderMode}
               <button
@@ -832,9 +851,6 @@
         {/if}
         </li>
       {/each}
-      {#if nowIndex === taskRows.length && taskRows.length}
-        <li class="now-marker" aria-label="Now"><span>now</span></li>
-      {/if}
     </ul>
   {/key}
 
