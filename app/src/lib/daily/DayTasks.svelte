@@ -228,52 +228,159 @@
 
   // ---- reordering ----------------------------------------------------------
 
+  interface DragRow {
+    id: string
+    // Position among untimed rows and its top/height relative to the list.
+    index: number
+    top: number
+    height: number
+  }
+
   let reorderMode = $state(false)
   let dragId = $state<string | null>(null)
-  let dragPointer = $state<number | null>(null)
+  // How far the dragged row follows the pointer, and where the gap opens.
+  let dragOffset = $state(0)
+  let dropIndex = $state<number | null>(null)
+
+  let dragRows: DragRow[] = []
+  let dragFrom = -1
+  let dragHeight = 0
+  let dragPointer: number | null = null
+  let dragStartListY = 0
+  let lastPointerY = 0
+  let dragMoved = false
+  let autoScrollFrame = 0
 
   const untimed = (): Task[] => tasks.filter((t) => !t.time)
 
   function toggleReorder() {
-    if (dragId) void logsStore.flushTasks(dateStr)
+    if (dragId) endDrag()
     reorderMode = !reorderMode
-    dragId = null
-    dragPointer = null
   }
 
   function startDrag(e: PointerEvent, task: Task) {
-    if (!reorderMode || task.time || e.button !== 0) return
+    if (!reorderMode || task.time || e.button !== 0 || !listEl) return
     e.preventDefault()
+    const listRect = listEl.getBoundingClientRect()
+    dragRows = untimed().map((t, index) => {
+      const el = listEl!.querySelector<HTMLElement>(`[data-task-id="${t.id}"]`)
+      const rect = el?.getBoundingClientRect()
+      return {
+        id: t.id,
+        index,
+        top: (rect?.top ?? 0) - listRect.top,
+        height: rect?.height ?? 0,
+      }
+    })
+    const source = dragRows.find((r) => r.id === task.id)
+    if (!source) return
     dragId = task.id
     dragPointer = e.pointerId
+    dragFrom = source.index
+    dragHeight = source.height + 2
+    dragStartListY = e.clientY - listRect.top
+    dragOffset = 0
+    dropIndex = dragFrom
+    lastPointerY = e.clientY
+    dragMoved = false
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    startAutoScroll()
   }
 
-  // Move the row as the pointer crosses the other rows' midpoints, so the
-  // list follows the drag instead of jumping into place on release.
-  function onDragMove(e: PointerEvent) {
-    if (!dragId || e.pointerId !== dragPointer || !listEl) return
-    const source = dragId
-    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
-    if (!ids.length) return
-    let insertAt = 0
-    for (const t of untimed()) {
-      if (t.id === source) continue
-      const el = listEl.querySelector<HTMLElement>(`[data-task-id="${t.id}"]`)
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (e.clientY > rect.top + rect.height / 2) insertAt++
+  // Rows keep their original geometry for the whole drag, so the insertion
+  // point stays stable while the other rows slide around to make room.
+  function updateDrag(clientY: number) {
+    if (!dragId || !listEl) return
+    const listRect = listEl.getBoundingClientRect()
+    const pointerY = clientY - listRect.top
+    dragOffset = pointerY - dragStartListY
+    let at = 0
+    for (const row of dragRows) {
+      if (row.id === dragId) continue
+      if (pointerY > row.top + row.height / 2) at++
     }
-    ids.splice(insertAt, 0, source)
-    logsStore.reorderTasks(dateStr, ids, { defer: true })
+    dropIndex = at
+  }
+
+  function onDragMove(e: PointerEvent) {
+    if (!dragId || e.pointerId !== dragPointer) return
+    dragMoved = true
+    lastPointerY = e.clientY
+    updateDrag(e.clientY)
+  }
+
+  // How far a non-dragged row slides to open the gap, in list coordinates.
+  function shiftFor(id: string): number {
+    if (!dragId || dropIndex === null) return 0
+    const row = dragRows.find((r) => r.id === id)
+    if (!row || row.id === dragId) return 0
+    if (dropIndex > dragFrom && row.index > dragFrom && row.index <= dropIndex) return -dragHeight
+    if (dropIndex < dragFrom && row.index >= dropIndex && row.index < dragFrom) return dragHeight
+    return 0
+  }
+
+  function startAutoScroll() {
+    if (autoScrollFrame) return
+    const step = () => {
+      if (!dragId) {
+        autoScrollFrame = 0
+        return
+      }
+      if (!dragMoved) {
+        autoScrollFrame = requestAnimationFrame(step)
+        return
+      }
+      const margin = 80
+      let dy = 0
+      if (lastPointerY < margin) dy = -Math.ceil((margin - lastPointerY) / 4)
+      else if (lastPointerY > window.innerHeight - margin) {
+        dy = Math.ceil((lastPointerY - (window.innerHeight - margin)) / 4)
+      }
+      if (dy) {
+        const before = window.scrollY
+        window.scrollBy(0, dy)
+        if (window.scrollY !== before) updateDrag(lastPointerY)
+      }
+      autoScrollFrame = requestAnimationFrame(step)
+    }
+    autoScrollFrame = requestAnimationFrame(step)
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame)
+    autoScrollFrame = 0
+  }
+
+  function resetDrag() {
+    dragId = null
+    dragPointer = null
+    dragOffset = 0
+    dropIndex = null
+    dragRows = []
+    dragFrom = -1
+    dragHeight = 0
+    dragMoved = false
+    stopAutoScroll()
   }
 
   function endDrag(e?: PointerEvent) {
     if (e && dragPointer !== null && e.pointerId !== dragPointer) return
-    if (!dragId) return
-    dragId = null
-    dragPointer = null
+    const source = dragId
+    const to = dropIndex
+    const from = dragFrom
+    resetDrag()
+    if (!source || to === null || to === from) return
+    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
+    if (!tasks.some((t) => t.id === source)) return
+    ids.splice(Math.min(to, ids.length), 0, source)
+    logsStore.reorderTasks(dateStr, ids, { defer: true })
     void logsStore.flushTasks(dateStr)
+  }
+
+  function onReorderKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !dragId) return
+    e.preventDefault()
+    resetDrag()
   }
 
   // Keyboard reordering: arrow keys on the handle move the row.
@@ -303,9 +410,12 @@
 
   onDestroy(() => {
     clearInterval(ticker)
+    stopAutoScroll()
     void logsStore.flushTasks(dateStr)
   })
 </script>
+
+<svelte:window onkeydown={onReorderKeydown} />
 
 <section class="tasks" bind:this={rootEl} aria-label="Tasks">
   <div class="toolbar">
@@ -356,15 +466,17 @@
   </div>
 
   {#key dateStr}
-    <ul class="list" bind:this={listEl} class:loading={!loaded}>
+    <ul class="list" bind:this={listEl} class:loading={!loaded} class:reordering={!!dragId}>
       {#each tasks as task, i (task.id)}
+        {@const shift = dragId === task.id ? dragOffset : shiftFor(task.id)}
         <li
           class="task"
           class:done={task.done}
           class:has-comment={!!task.comment}
           class:dragging={dragId === task.id}
           data-task-id={task.id}
-          animate:safeFlip={{ duration: dragId ? 0 : 220 }}
+          style:transform={shift ? `translateY(${shift}px)` : undefined}
+          animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
           {#if i === nowIndex}
@@ -383,6 +495,7 @@
                 onpointermove={onDragMove}
                 onpointerup={endDrag}
                 onpointercancel={endDrag}
+                onlostpointercapture={endDrag}
                 onkeydown={(e) => onHandleKeydown(e, task)}
               >
                 <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -621,7 +734,15 @@
   }
   .task:hover,
   .task:focus-within { background: var(--glass-dark); }
-  .task.dragging { opacity: 0.4; }
+  .list.reordering { cursor: grabbing; user-select: none; }
+  .list.reordering .task:not(.dragging) { transition: transform 170ms var(--ease-out); }
+  .task.dragging {
+    position: relative;
+    z-index: 3;
+    background: var(--glass-dark);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
+    cursor: grabbing;
+  }
   .row {
     display: flex;
     align-items: center;
@@ -632,24 +753,31 @@
 
   .handle {
     flex-shrink: 0;
-    width: 1.1rem;
-    height: 1.75rem;
+    width: 1.4rem;
+    height: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    margin-left: -0.2rem;
     padding: 0;
     border: 0;
+    border-radius: 6px;
     background: none;
     color: var(--muted);
     opacity: 0.55;
     cursor: grab;
     touch-action: none;
-    transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+    transition:
+      opacity var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
   }
-  .handle:hover { opacity: 1; color: var(--text); }
+  .handle:hover { opacity: 1; color: var(--text); background: var(--glass); }
   .handle:active { cursor: grabbing; }
+  .handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .handle.disabled { opacity: 0.2; cursor: default; }
-  .handle svg { width: 13px; height: 13px; }
+  .handle.disabled:hover { opacity: 0.2; color: var(--muted); background: none; }
+  .handle svg { width: 14px; height: 14px; }
 
   .check {
     flex-shrink: 0;
