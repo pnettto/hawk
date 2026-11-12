@@ -12,6 +12,7 @@
   import Auth from './lib/auth/Auth.svelte'
   import Toast from './lib/ui/Toast.svelte'
   import ZenMode from './lib/ui/ZenMode.svelte'
+  import PomodoroWidget from './lib/daily/PomodoroWidget.svelte'
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
   import AboutDialog from './lib/ui/AboutDialog.svelte'
   import ConfirmDialog from './lib/ui/ConfirmDialog.svelte'
@@ -210,6 +211,7 @@
     {/key}
   </div>
   <ZenMode />
+  <PomodoroWidget />
 {/if}
 
 <Toast />

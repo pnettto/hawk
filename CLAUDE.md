@@ -49,6 +49,7 @@ Go straight to these instead of exploring. Frontend paths are under `app/src/`.
 | --- | --- |
 | Shell: nav, page switching, lazy routes | `App.svelte`, `stores/app.ts` (`Page`, `JournalTab`) |
 | Journal: date picker, tasks, day notes | `routes/Journal.svelte`, `lib/daily/` (`DatePicker`, `DayTasks`, `DayNotes`, `quickTask.ts` for "14:30 Gym" parsing), `stores/logs.ts` |
+| Focus timer (pomodoro) | `stores/pomodoro.ts` (25/5 phases, localStorage), `lib/daily/PomodoroWidget.svelte` (floating widget, mounted in `App.svelte`), start button on each task row in `DayTasks.svelte` |
 | Overview (date-range roll-up) | `routes/Overview.svelte` |
 | Notepad: list, filter menu, editor, sharing | `routes/Notes.svelte`, `lib/notes/` (`NotesColumn`, `NotesFilter`, `NoteEditor`, `NoteSharePopover`, `tags.ts`), `stores/notes.ts` |
 | Rich text editor (Tiptap) | `lib/editor/` (`RichEditor`, `schema.ts`, `blocks.ts` for the +/"/" menu, `paste.ts`) |
