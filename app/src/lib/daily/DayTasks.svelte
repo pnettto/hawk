@@ -774,7 +774,7 @@
               </svg>
             </button>
 
-            {#if pomodoroOn && row.depth === 0 && !row.header}
+            {#if pomodoroOn && !row.header}
               <button
                 type="button"
                 class="icon-btn ghost focus-btn"
@@ -822,7 +822,11 @@
               title="Delete task"
               aria-label="Delete task"
               onclick={() => {
-                if (focusedId === task.id) pomodoroStore.stop()
+                // Deleting a group takes its subtasks along, timer and all.
+                const focused = tasks.find((t) => t.id === focusedId)
+                if (focused && (focused.id === task.id || focused.parentId === task.id)) {
+                  pomodoroStore.stop()
+                }
                 logsStore.removeTask(dateStr, task.id)
               }}
             >
