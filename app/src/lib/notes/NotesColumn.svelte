@@ -40,7 +40,9 @@
         ? live.filter((n) => n.tags?.includes(filter.tag))
         : filter.kind === 'untagged'
           ? live.filter((n) => !n.tags?.length)
-          : live
+          : filter.kind === 'notepad'
+            ? live.filter((n) => !n.day)
+            : live
     return shown.sort((a, b) => listTime(b) - listTime(a))
   })
 

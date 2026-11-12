@@ -2,8 +2,9 @@
   import { tick } from 'svelte'
   import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: All notes, Day Notes, untagged notes,
-  // one #tag, or Trash, plus the sort order for views that are listed by date.
+  // The Notepad list's view picker: All notes, Notepad notes, Day Notes,
+  // untagged notes, one #tag, or Trash, plus the sort order for views
+  // that are listed by date.
 
   let open = $state(false)
   let sel = $state(0)
@@ -12,6 +13,7 @@
 
   let counts = $derived.by(() => {
     let all = 0
+    let notepad = 0
     let day = 0
     let trash = 0
     let untagged = 0
@@ -20,10 +22,11 @@
       else if (!isDayDraft(n)) {
         all++
         if (n.day) day++
+        else notepad++
         if (!n.tags?.length) untagged++
       }
     }
-    return { all, day, trash, untagged, tags: tagCounts($notesStore.allNotes) }
+    return { all, notepad, day, trash, untagged, tags: tagCounts($notesStore.allNotes) }
   })
 
   type Item =
@@ -33,6 +36,7 @@
   // Day Notes sort by day and Trash by deletion, so only the others offer a sort.
   let sortable = $derived(
     $notesStore.filter.kind === 'all' ||
+      $notesStore.filter.kind === 'notepad' ||
       $notesStore.filter.kind === 'tag' ||
       $notesStore.filter.kind === 'untagged',
   )
@@ -40,6 +44,7 @@
   let items = $derived.by<Item[]>(() => {
     const fixed: Item[] = [
       { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
+      { filter: { kind: 'notepad' }, label: 'Notepad notes', count: counts.notepad, key: 'notepad' },
       { filter: { kind: 'day' }, label: 'Day Notes', count: counts.day, key: 'day' },
       { filter: { kind: 'untagged' }, label: 'Not tagged', count: counts.untagged, key: 'untagged' },
     ]
@@ -69,6 +74,7 @@
   let current = $derived.by(() => {
     const f = $notesStore.filter
     if (f.kind === 'tag') return { label: `#${f.tag}`, count: counts.tags.find(([t]) => t === f.tag)?.[1] ?? 0 }
+    if (f.kind === 'notepad') return { label: 'Notepad notes', count: counts.notepad }
     if (f.kind === 'untagged') return { label: 'Not tagged', count: counts.untagged }
     if (f.kind === 'day') return { label: 'Day Notes', count: counts.day }
     if (f.kind === 'trash') return { label: 'Trash', count: counts.trash }
