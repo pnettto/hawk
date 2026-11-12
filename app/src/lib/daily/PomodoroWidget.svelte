@@ -67,7 +67,10 @@
     const id = setInterval(() => pomodoroStore.tick(), 1000)
     // Catch up immediately after the tab was asleep.
     const onVisible = () => {
-      if (document.visibilityState === 'visible') pomodoroStore.tick()
+      if (document.visibilityState !== 'visible') return
+      pomodoroStore.tick()
+      // Catch up on a removal/pause that landed while this tab was hidden.
+      void pomodoroStore.loadFromServer()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {

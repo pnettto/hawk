@@ -4,9 +4,6 @@
 
 const TOKEN_KEY = 'hawk_token'
 const API_BASE_KEY = 'hawk_api_base'
-// Per-tab so each open tab is its own sync subscriber and gets each other's
-// edits live. localStorage would coalesce all tabs into one origin.
-const CLIENT_ID_KEY = 'hawk_client_id'
 // Stable per browser, so a closing Pomodoro tab can hand its notifications to
 // a sibling tab before falling back to another device.
 const BROWSER_ID_KEY = 'hawk_browser_id'
@@ -65,20 +62,15 @@ export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY)
 export const saveToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token)
 export const removeToken = (): void => localStorage.removeItem(TOKEN_KEY)
 
+// Unique per page/tab, kept in memory. sessionStorage can't be used here:
+// duplicating a tab copies its sessionStorage, which made both tabs share one
+// sync origin and swallow each other's live events.
+const pageClientId = crypto.randomUUID()
+
 export function getClientId(): string {
-  try {
-    let id = sessionStorage.getItem(CLIENT_ID_KEY)
-    if (!id) {
-      id = crypto.randomUUID()
-      sessionStorage.setItem(CLIENT_ID_KEY, id)
-    }
-    return id
-  } catch {
-    // sessionStorage unavailable (rare); fall back to a process-lifetime id.
-    return fallbackClientId
-  }
+  return pageClientId
 }
-const fallbackClientId = crypto.randomUUID()
+
 const fallbackBrowserId = crypto.randomUUID()
 
 export function getBrowserId(): string {

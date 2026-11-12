@@ -571,6 +571,12 @@ function createPomodoroStore() {
   // Bumped by an event that carries a record, so an older GET can't apply
   // after it (relays change the owner without bumping rev).
   let eventSeq = 0
+  // Same-browser tabs exchange accepted records directly as well. The sync
+  // socket covers devices, but this keeps tabs in step even if their sockets
+  // are reconnecting or were given the same origin by a duplicated tab.
+  const channel = typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('hawk-pomodoro')
+    : null
 
   const current = () => get({ subscribe })
   const isNotifier = () => ownerClientId === getClientId()
@@ -589,6 +595,7 @@ function createPomodoroStore() {
           if (res.data.rev < rev) return
           rev = res.data.rev
           if (version === localVersion) ownerClientId = res.data.ownerClientId
+          channel?.postMessage({ payload: res.data })
           return
         }
         // Someone else wrote a newer state. Apply it unless this tab has
@@ -727,6 +734,13 @@ function createPomodoroStore() {
       return
     }
     void loadFromServer()
+  }
+
+  if (channel) {
+    channel.onmessage = (event: MessageEvent) => {
+      const payload = (event.data as { payload?: unknown } | null)?.payload
+      if (isPomodoroRecord(payload)) applySyncEvent({ payload })
+    }
   }
 
   return {

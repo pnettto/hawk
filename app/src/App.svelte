@@ -107,6 +107,7 @@
 
   // Refresh today on window focus, mirroring the legacy behaviour.
   let onFocus: (() => void) | null = null
+  let onVisible: (() => void) | null = null
   $effect(() => {
     if (!$authStore.isAuth) return
     onFocus = () => {
@@ -114,14 +115,22 @@
       const dateStr = formatDate(get(appStore).selectedDate)
       logsStore.loadForDate(dateStr, true)
     }
+    // A hidden/suspended tab may have missed live events; catch up on the
+    // shared timer as soon as it is looked at again.
+    onVisible = () => {
+      if (document.visibilityState === 'visible') void pomodoroStore.loadFromServer()
+    }
     globalThis.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       if (onFocus) globalThis.removeEventListener('focus', onFocus)
+      if (onVisible) document.removeEventListener('visibilitychange', onVisible)
     }
   })
 
   onDestroy(() => {
     if (onFocus) globalThis.removeEventListener('focus', onFocus)
+    if (onVisible) document.removeEventListener('visibilitychange', onVisible)
   })
 
   // Block reload/close while there's any unsaved work — both in-flight saves
