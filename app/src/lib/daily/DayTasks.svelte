@@ -349,9 +349,9 @@
                   <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
                 {:else}
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="8" cy="8.5" r="5" />
-                    <path d="M8 6v2.8l1.8 1.2" />
-                    <path d="M6.4 1.8h3.2" />
+                    <path d="M6 5.1C3.9 5.3 2.5 6.9 2.5 9.4 2.5 12.4 5 14.3 8 14.3s5.5-1.9 5.5-4.9c0-2.5-1.4-4.1-3.5-4.3" />
+                    <path d="M8 5.6 5.4 4.3M8 5.6l2.6-1.3M8 5.6 8 3.4c0-.6.3-1 .9-1.2" />
+                    <path d="M4.9 9.2c.1-.8.6-1.5 1.3-1.8" />
                   </svg>
                 {/if}
               </button>

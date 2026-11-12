@@ -11,8 +11,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
-// A click either opens the app or, when the "start" action was used, asks the
-// open tab to resume the parked timer. "Dismiss" just closes it.
+// Clicking the body opens the app. The "start" action tells the open tab to
+// resume the parked timer without bringing it forward, so the notification
+// works as a remote control. "Dismiss" just closes it.
 self.addEventListener('notificationclick', (event) => {
   const action = event.action || 'open'
   event.notification.close()
@@ -24,6 +25,10 @@ self.addEventListener('notificationclick', (event) => {
       const client = windows.find((c) => c.url.startsWith(self.location.origin))
 
       if (client) {
+        if (action === 'resume') {
+          client.postMessage({ type: 'hawk-pomodoro', action })
+          return
+        }
         const focused = await client.focus()
         focused?.postMessage({ type: 'hawk-pomodoro', action })
         return

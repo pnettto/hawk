@@ -419,9 +419,12 @@ async function showPhaseNotification(state: PomodoroState, finished: PomodoroMod
   const options: PhaseNotificationOptions = {
     body,
     tag: 'hawk-pomodoro',
-    icon: '/favicon.svg',
+    // PNG, not the SVG favicon: Chromium can't draw SVG notification icons.
+    icon: '/notification-icon.png',
     // Same tag for every block, but still alert when it replaces the old one.
     renotify: true,
+    // Let the OS play its notification sound. Browsers can't pick the sound.
+    silent: false,
     // With auto-start off the block waits for you, so keep it on screen.
     requireInteraction: !auto,
     actions: auto
@@ -576,15 +579,15 @@ function createPomodoroStore() {
 
 export const pomodoroStore = createPomodoroStore()
 
-// A notification click lands here: bring the app forward and, when the action
-// asked for it, start the block that was waiting.
+// A notification click lands here. The "start" action only starts the block
+// that was waiting, leaving the app where it is; clicking the body brings you
+// to the timer.
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
     const data = event.data as { type?: string; action?: string } | null
     if (data?.type !== 'hawk-pomodoro') return
-    // Both the body and the "start" action bring you back to the app; the
-    // latter also starts the block that was waiting.
-    showTimer()
+    if (data.action === 'resume') pomodoroStore.resume()
+    else showTimer()
   })
 }
 
