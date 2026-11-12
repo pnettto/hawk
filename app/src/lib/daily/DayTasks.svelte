@@ -305,25 +305,6 @@
               }}
             />
 
-            <TimePicker
-              class="time"
-              value={task.time}
-              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
-            />
-
-            <button
-              type="button"
-              class="icon-btn ghost carry-over"
-              title="Carry over to next day"
-              aria-label="Carry over to next day"
-              onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2.5 8h9" />
-                <path d="M9 4.5L12.5 8 9 11.5" />
-              </svg>
-            </button>
-
             <button
               type="button"
               class="icon-btn ghost comment-toggle"
@@ -335,6 +316,24 @@
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z" />
+              </svg>
+            </button>
+
+            <TimePicker
+              class="time"
+              value={task.time}
+              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+            />
+            <button
+              type="button"
+              class="icon-btn ghost carry-over"
+              title="Carry over to next day"
+              aria-label="Carry over to next day"
+              onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 8h9" />
+                <path d="M9 4.5L12.5 8 9 11.5" />
               </svg>
             </button>
             <button
