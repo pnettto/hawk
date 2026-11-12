@@ -30,16 +30,26 @@
       : state.taskText,
   )
 
-  onMount(() => {
-    pomodoroStore.tick()
-    // Notifications live in the service worker, so keep it registered while
-    // the extension is on (it stays put across reloads otherwise).
+  onMount(() => pomodoroStore.tick())
+
+  // Notifications live in the service worker, so keep it registered while the
+  // extension is on. The extension can arrive from the server after mount.
+  $effect(() => {
     if (ext.enabled) void ensureServiceWorker()
   })
 
   // Turning the extension off puts the timer away for good.
   $effect(() => {
     if (!ext.enabled && $pomodoroStore.taskId) pomodoroStore.stop()
+  })
+
+  // Background tabs throttle the one-second ticker, so also wake up exactly
+  // when the block ends: that's what makes the notification timely.
+  let endsAt = $derived(state.running ? state.endsAt : null)
+  $effect(() => {
+    if (endsAt === null) return
+    const id = setTimeout(() => pomodoroStore.tick(), Math.max(0, endsAt - Date.now()) + 100)
+    return () => clearTimeout(id)
   })
 
   // One ticker for the whole app: it runs whether or not the Journal is open.

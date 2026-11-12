@@ -12,10 +12,11 @@ self.addEventListener('activate', (event) => {
 })
 
 // A click either opens the app or, when the "start" action was used, asks the
-// open tab to resume the parked timer.
+// open tab to resume the parked timer. "Dismiss" just closes it.
 self.addEventListener('notificationclick', (event) => {
   const action = event.action || 'open'
   event.notification.close()
+  if (action === 'dismiss') return
 
   event.waitUntil(
     (async () => {

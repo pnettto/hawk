@@ -380,10 +380,11 @@ export async function requestNotificationPermission(): Promise<void> {
   if (permission === 'granted') await ensureServiceWorker()
 }
 
-// TypeScript's DOM lib dropped `actions`, but browsers that can show action
-// buttons still read it.
+// TypeScript's DOM lib dropped `actions` and `renotify`, but browsers that can
+// show action buttons still read them.
 interface PhaseNotificationOptions extends NotificationOptions {
   actions?: { action: string; title: string }[]
+  renotify?: boolean
 }
 
 // Copy for the notification that reports a finished block.
@@ -404,19 +405,28 @@ function phaseCopy(state: PomodoroState, finished: PomodoroMode) {
   }
 }
 
-// Show a system notification when a block ends while the tab is in the
-// background. The widget and toast already cover the visible case.
+// Show a system notification when a block ends while the app is out of sight:
+// another tab, another app, a minimised window. The widget and toast already
+// cover the case where it's right in front of you.
 async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return
-  if (typeof document === 'undefined' || !document.hidden) return
+  if (typeof document === 'undefined' || document.hasFocus()) return
   const { title, body, action } = phaseCopy(state, finished)
+  const auto = autoStarts()
   const options: PhaseNotificationOptions = {
     body,
     tag: 'hawk-pomodoro',
     icon: '/favicon.svg',
+    // Same tag for every block, but still alert when it replaces the old one.
+    renotify: true,
     // With auto-start off the block waits for you, so keep it on screen.
-    requireInteraction: !autoStarts(),
-    actions: [{ action: 'resume', title: action }],
+    requireInteraction: !auto,
+    actions: auto
+      ? [{ action: 'dismiss', title: 'Dismiss' }]
+      : [
+          { action: 'resume', title: action },
+          { action: 'dismiss', title: 'Dismiss' },
+        ],
   }
   const registration = await ensureServiceWorker()
   if (registration) {
@@ -432,13 +442,19 @@ async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
     // Bring the tab forward and show the Journal where the timer lives.
     notification.onclick = () => {
       window.focus()
-      appStore.setCurrentPage('app')
-      appStore.setJournalTab('tasks')
+      showTimer()
       notification.close()
     }
   } catch {
     /* mobile browsers only have the service worker route */
   }
+}
+
+// Open the Journal where the timer lives, starting the block if it was waiting.
+function showTimer() {
+  appStore.setCurrentPage('app')
+  appStore.setJournalTab('tasks')
+  pomodoroStore.resume()
 }
 
 function announce(state: PomodoroState, finished: PomodoroMode) {
@@ -467,6 +483,14 @@ function announce(state: PomodoroState, finished: PomodoroMode) {
   showToast(message)
 }
 
+// Ask for notification permission the first time a block is started: the click
+// is the user gesture browsers want, and it covers anyone who switched the
+// extension on before notifications existed.
+function askForNotifications() {
+  if (!notificationsSupported() || Notification.permission !== 'default') return
+  void requestNotificationPermission()
+}
+
 function createPomodoroStore() {
   const { subscribe, set } = writable<PomodoroState>(restore(Date.now()))
 
@@ -483,14 +507,17 @@ function createPomodoroStore() {
       const state = get({ subscribe })
       const now = Date.now()
       if (state.taskId === target.id && state.mode === 'focus') {
+        if (!state.running) askForNotifications()
         commit(state.running ? pause(state, now) : resume(state, now))
         return
       }
+      askForNotifications()
       commit(startSession(state, target, now, configuredDurations()))
     },
     toggle() {
       const state = get({ subscribe })
       const now = Date.now()
+      if (!state.running) askForNotifications()
       commit(state.running ? pause(state, now) : resume(state, now))
     },
     skip() {
@@ -529,9 +556,9 @@ if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
     const data = event.data as { type?: string; action?: string } | null
     if (data?.type !== 'hawk-pomodoro') return
-    appStore.setCurrentPage('app')
-    appStore.setJournalTab('tasks')
-    if (data.action === 'resume') pomodoroStore.resume()
+    // Both the body and the "start" action bring you back to the app; the
+    // latter also starts the block that was waiting.
+    showTimer()
   })
 }
 

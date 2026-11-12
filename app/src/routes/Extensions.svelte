@@ -8,7 +8,24 @@
     type RangeSetting,
   } from '../lib/extensions/registry'
   import { preferencesStore } from '../stores/preferences'
-  import { previewChime, requestNotificationPermission } from '../stores/pomodoro'
+  import {
+    notificationsSupported,
+    previewChime,
+    requestNotificationPermission,
+  } from '../stores/pomodoro'
+
+  type NotifPermission = NotificationPermission | 'unsupported'
+
+  function currentNotifPermission(): NotifPermission {
+    return notificationsSupported() ? Notification.permission : 'unsupported'
+  }
+
+  let notifPermission = $state<NotifPermission>(currentNotifPermission())
+
+  async function allowNotifications() {
+    await requestNotificationPermission()
+    notifPermission = currentNotifPermission()
+  }
 
   function setNumber(ext: Extension, setting: NumberSetting | RangeSetting, e: Event & { currentTarget: HTMLInputElement }) {
     const input = e.currentTarget
@@ -51,12 +68,15 @@
               role="switch"
               checked={state.enabled}
               aria-label={`${ext.name} extension`}
-              onchange={(e) => {
+              onchange={async (e) => {
                 const enabled = e.currentTarget.checked
                 preferencesStore.setExtensionEnabled(ext.id, enabled)
                 // The timer reports finished blocks from the background, which
                 // needs the browser's permission first.
-                if (enabled && ext.id === 'pomodoro') void requestNotificationPermission()
+                if (enabled && ext.id === 'pomodoro') {
+                  await requestNotificationPermission()
+                  notifPermission = currentNotifPermission()
+                }
               }}
             />
             <span class="track" aria-hidden="true"><span class="knob"></span></span>
@@ -145,6 +165,16 @@
             {/each}
             {#if ext.id === 'pomodoro'}
               <div class="settings-foot">
+                <span class="notif-hint">
+                  {#if notifPermission === 'denied'}
+                    Notifications are blocked in your browser settings.
+                  {/if}
+                </span>
+                {#if notifPermission === 'default'}
+                  <button type="button" class="btn-secondary test-sound" onclick={allowNotifications}>
+                    Turn on notifications
+                  </button>
+                {/if}
                 <button
                   type="button"
                   class="btn-secondary test-sound"
@@ -341,8 +371,16 @@
 
   .settings-foot {
     display: flex;
+    align-items: center;
+    gap: 0.5rem;
     justify-content: flex-end;
     padding: 0.25rem 0 0.85rem;
+  }
+  .notif-hint {
+    margin-right: auto;
+    font-size: 0.78rem;
+    color: var(--muted);
+    opacity: 0.85;
   }
   .test-sound {
     gap: 0.35rem;
