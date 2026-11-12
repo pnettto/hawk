@@ -26,6 +26,22 @@ Write interface text (labels, buttons, tooltips, dialogs, toasts, empty states, 
 - Errors say what went wrong in a few words ("Couldn't copy to the clipboard."); toasts confirm the result ("File deleted").
 - Reuse existing phrasing for the same situation so the app speaks with one voice.
 
+## UI and interaction
+
+Interactions should feel direct and stay stable with a fast pointer or on a slow phone. Task reordering in `lib/daily/DayTasks.svelte` is the reference implementation.
+
+- **Move the thing, not a stand-in.** During a gesture the element itself follows the pointer and the surrounding content makes room. Show the result while dragging, not only on release, and don't replace movement with a temporary drop border.
+- **Preview in transforms; commit once.** Capture row geometry when the gesture starts and keep using it, computing insertion from stable midpoints. Offset rows with `transform`, animate `transform`/`opacity` only, and write the real order once when the gesture ends. Re-measuring transformed rows or writing state on every pointer move causes jitter and fights the animation.
+- **Use Pointer Events for dragging.** `setPointerCapture` keeps the gesture alive outside the element; handle `pointercancel` and `lostpointercapture`; `touch-action: none` on the handle stops the page scrolling under a touch drag. `Escape` cancels.
+- **Make edge cases easy.** Auto-scroll near the viewport edge with `requestAnimationFrame`. Clamp stale indexes if the list changes mid-gesture, and no-op if the dragged item disappeared.
+- **Always provide a non-drag path.** Keyboard arrows on the focused handle reorder it. Controls get `aria-label`s and `aria-pressed`/`aria-disabled` where they map to state, comfortable touch targets, `:focus-visible`, and hover feedback.
+- **Motion uses the shared tokens.** Use `--dur-fast`/`--dur-base` with `--ease-out`/`--ease-spring`, and `utils/safeFlip` for list movement. Keep transitions short; the global `prefers-reduced-motion` rule already removes them.
+- **Keep transient states quiet.** Lift a moving row with elevation or background instead of accent-colored borders. Put a mode toggle next to the related action, and only show affordances such as reorder handles while that mode is on.
+- **Save on settle, not on every frame.** Batch the final change through the existing saving/flush path so the UI never shows per-move network saves.
+- **Prefer one predictable rule.** Simple, stable geometry (cross a row's midpoint to insert) beats special cases for each direction. If a gesture needs a branch per case, simplify until it doesn't.
+
+Reuse the shared controls in `lib/ui/` and the global CSS/tokens before adding one-off markup or styles.
+
 ## Commands
 
 | Task | Command |
