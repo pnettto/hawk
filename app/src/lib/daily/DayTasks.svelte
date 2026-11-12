@@ -186,6 +186,10 @@
     const next = { ...groupDrafts }
     delete next[id]
     groupDrafts = next
+    // The draft is set and cleared in the same tick, so Svelte can think the
+    // value never changed and leave the typed character in the DOM input.
+    const input = listEl?.querySelector<HTMLInputElement>(`[data-group-add="${id}"]`)
+    if (input) input.value = ''
   }
 
   async function createGroupTaskFromDraft(parent: Task) {
