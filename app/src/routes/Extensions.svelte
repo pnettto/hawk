@@ -35,7 +35,7 @@
     const clamped = Number.isFinite(value)
       ? Math.min(setting.max, Math.max(setting.min, Math.round(value)))
       : fallback
-    // Keep the field honest after clamping ("3" with a 5 min minimum).
+    // Keep the field honest after clamping ("0" with a 1 min minimum).
     input.value = String(clamped)
     if (clamped !== current) preferencesStore.setExtensionSetting(ext.id, setting.key, clamped)
   }

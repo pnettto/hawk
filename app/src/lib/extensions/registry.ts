@@ -78,9 +78,9 @@ export const EXTENSIONS: Extension[] = [
         key: 'focusMinutes',
         label: 'Focus block',
         help: 'How long one stretch of work lasts.',
-        min: 5,
+        min: 1,
         max: 90,
-        step: 5,
+        step: 1,
         unit: 'min',
       },
       {

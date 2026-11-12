@@ -38,8 +38,8 @@ describe('extensionState', () => {
   })
 
   it('clamps numbers to the setting range', () => {
-    const low = extensionState({ pomodoro: { settings: { focusMinutes: 1 } } }, 'pomodoro')
-    expect(low.settings.focusMinutes).toBe(5)
+    const low = extensionState({ pomodoro: { settings: { focusMinutes: 0 } } }, 'pomodoro')
+    expect(low.settings.focusMinutes).toBe(1)
     const high = extensionState({ pomodoro: { settings: { breakMinutes: 999, volume: 250 } } }, 'pomodoro')
     expect(high.settings.breakMinutes).toBe(30)
     expect(high.settings.volume).toBe(100)
