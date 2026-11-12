@@ -26,9 +26,9 @@ export class MapDataError extends Error {
   }
 }
 
-// A valid starting point for the insert menu. It gives a prompt with the right
-// shape without inserting anything until the data is filled in or replaced.
-export const MAP_TEMPLATE = `{
+// Shown as the placeholder in an empty map prompt: the shape the pasted data
+// needs, without inserting anything into the note.
+export const MAP_EXAMPLE = `{
   "type": "FeatureCollection",
   "properties": { "title": "Map", "center": [18.065, 59.329], "zoom": 12 },
   "features": [
@@ -111,6 +111,7 @@ function parseFeature(value: unknown, index: number): GeoJSON.Feature<GeoJSON.Ge
 // Parse and validate a ```map fenced block. Coordinates are [longitude,
 // latitude], per RFC 7946.
 export function parseMapSource(source: string): ParsedMap {
+  if (!source.trim()) throw new MapDataError('Paste some GeoJSON first.')
   let root: unknown
   try {
     root = JSON.parse(source)
@@ -240,7 +241,10 @@ function mapNodeView() {
     let map: L.Map | null = null
     let frame = 0
     let observer: ResizeObserver | null = null
+    let widthObserver: ResizeObserver | null = null
     let destroyed = false
+    let fullscreen = false
+    let fullscreenButton: HTMLButtonElement | null = null
 
     const clear = () => {
       if (frame) cancelAnimationFrame(frame)
@@ -249,6 +253,7 @@ function mapNodeView() {
       observer = null
       map?.remove()
       map = null
+      fullscreenButton = null
       dom.replaceChildren()
     }
 
@@ -266,20 +271,85 @@ function mapNodeView() {
       })
     }
 
-    const addEditButton = () => {
-      if (!editor.isEditable) return
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'note-map-edit'
-      button.textContent = 'Edit data'
-      button.setAttribute('aria-label', 'Edit map data')
-      button.addEventListener('mousedown', (e) => e.preventDefault())
-      button.addEventListener('click', (e) => {
+    const button = (label: string, ariaLabel: string, onClick: () => void) => {
+      const el = document.createElement('button')
+      el.type = 'button'
+      el.className = 'note-map-button'
+      el.textContent = label
+      el.setAttribute('aria-label', ariaLabel)
+      el.addEventListener('mousedown', (e) => e.preventDefault())
+      el.addEventListener('click', (e) => {
         e.preventDefault()
         e.stopPropagation()
-        edit()
+        onClick()
       })
-      dom.append(button)
+      return el
+    }
+
+    const addActions = (withFullscreen: boolean) => {
+      if (!editor.isEditable) return
+      const actions = document.createElement('div')
+      actions.className = 'note-map-actions'
+      if (withFullscreen) {
+        fullscreenButton = button(fullscreen ? 'Exit full screen' : 'Full screen', fullscreen ? 'Exit full screen' : 'Full screen map', () =>
+          setFullscreen(!fullscreen),
+        )
+        fullscreenButton.setAttribute('aria-pressed', String(fullscreen))
+        actions.append(fullscreenButton)
+      }
+      actions.append(button('Edit data', 'Edit map data', edit))
+      dom.append(actions)
+    }
+
+    // The note text column is capped at 70ch; the map uses the whole pane.
+    const sizeToNote = (root?: HTMLElement | null) => {
+      const pane = root ?? (dom.closest('.rich-editor') as HTMLElement | null)
+      const parent = dom.parentElement
+      if (!pane || !parent) return
+      if (fullscreen) {
+        dom.style.width = ''
+        dom.style.marginLeft = ''
+        return
+      }
+      const paneStyle = getComputedStyle(pane)
+      const padLeft = parseFloat(paneStyle.paddingLeft) || 0
+      const padRight = parseFloat(paneStyle.paddingRight) || 0
+      const width = pane.clientWidth - padLeft - padRight
+      if (width <= parent.clientWidth) {
+        dom.style.width = ''
+        dom.style.marginLeft = ''
+        return
+      }
+      const parentLeft = parent.getBoundingClientRect().left + (parseFloat(getComputedStyle(parent).paddingLeft) || 0)
+      const paneLeft = pane.getBoundingClientRect().left + padLeft
+      dom.style.width = `${width}px`
+      dom.style.marginLeft = `${paneLeft - parentLeft}px`
+    }
+
+    const onKeydown = (e: KeyboardEvent) => {
+      if (!fullscreen || e.key !== 'Escape' || e.defaultPrevented) return
+      // The map data prompt sits on top and handles its own Escape.
+      if ((e.target as HTMLElement | null)?.closest('.map-prompt-layer')) return
+      e.preventDefault()
+      e.stopPropagation()
+      setFullscreen(false)
+    }
+
+    function setFullscreen(on: boolean) {
+      if (fullscreen === on) return
+      fullscreen = on
+      dom.classList.toggle('is-fullscreen', on)
+      document.body.classList.toggle('note-map-fullscreen', on)
+      if (on) document.addEventListener('keydown', onKeydown, true)
+      else document.removeEventListener('keydown', onKeydown, true)
+      if (fullscreenButton) {
+        fullscreenButton.textContent = on ? 'Exit full screen' : 'Full screen'
+        fullscreenButton.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen map')
+        fullscreenButton.setAttribute('aria-pressed', String(on))
+      }
+      sizeToNote()
+      requestAnimationFrame(() => map?.invalidateSize())
+      fullscreenButton?.focus()
     }
 
     const showError = (message: string) => {
@@ -290,14 +360,30 @@ function mapNodeView() {
       dom.append(error)
     }
 
+    const showPlaceholder = () => {
+      const empty = document.createElement('div')
+      empty.className = 'note-map-empty'
+      const text = document.createElement('p')
+      text.textContent = 'No map data yet.'
+      empty.append(text)
+      if (editor.isEditable) empty.append(button('Add data', 'Add map data', edit))
+      dom.append(empty)
+    }
+
     const render = (source: string) => {
       clear()
+      if (!source.trim()) {
+        if (fullscreen) setFullscreen(false)
+        showPlaceholder()
+        return
+      }
       let parsed: ParsedMap
       try {
         parsed = parseMapSource(source)
       } catch (error) {
+        if (fullscreen) setFullscreen(false)
         showError(error instanceof MapDataError ? error.message : 'Could not read this map.')
-        addEditButton()
+        addActions(false)
         return
       }
 
@@ -327,10 +413,22 @@ function mapNodeView() {
         canvas.remove()
         showError(error instanceof MapDataError ? error.message : 'Could not show this map.')
       }
-      addEditButton()
+      addActions(true)
+      sizeToNote()
     }
 
     render(current.attrs.source ?? '')
+
+    // Node views are created detached, so wait until the editor has mounted the
+    // DOM to measure the note pane.
+    queueMicrotask(() => {
+      if (destroyed || typeof ResizeObserver === 'undefined') return
+      const pane = dom.closest('.rich-editor')
+      if (!(pane instanceof HTMLElement)) return
+      widthObserver = new ResizeObserver(() => sizeToNote(pane))
+      widthObserver.observe(pane)
+      sizeToNote(pane)
+    })
 
     return {
       dom,
@@ -343,6 +441,10 @@ function mapNodeView() {
       },
       destroy() {
         destroyed = true
+        document.removeEventListener('keydown', onKeydown, true)
+        document.body.classList.remove('note-map-fullscreen')
+        widthObserver?.disconnect()
+        widthObserver = null
         clear()
       },
     }
