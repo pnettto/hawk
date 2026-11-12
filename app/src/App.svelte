@@ -12,6 +12,7 @@
   import Auth from './lib/auth/Auth.svelte'
   import Toast from './lib/ui/Toast.svelte'
   import ZenMode from './lib/ui/ZenMode.svelte'
+  import PomodoroWidget from './lib/daily/PomodoroWidget.svelte'
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
   import AboutDialog from './lib/ui/AboutDialog.svelte'
   import ConfirmDialog from './lib/ui/ConfirmDialog.svelte'
@@ -26,6 +27,7 @@
     app: () => import('./routes/Journal.svelte'),
     notes: () => import('./routes/Notes.svelte'),
     files: () => import('./routes/Files.svelte'),
+    extensions: () => import('./routes/Extensions.svelte'),
     admin: () => import('./routes/Admin.svelte'),
   } as const
   type PageId = keyof typeof routeLoaders
@@ -166,6 +168,10 @@
           onclick={() => appStore.setCurrentPage('files')}>Files</button
         >
       {/if}
+      <button
+        class:active={$appStore.currentPage === 'extensions'}
+        onclick={() => appStore.setCurrentPage('extensions')}>Extensions</button
+      >
       <span class="nav-spacer"></span>
       <SavingIndicator />
       <button
@@ -210,6 +216,7 @@
     {/key}
   </div>
   <ZenMode />
+  <PomodoroWidget />
 {/if}
 
 <Toast />

@@ -49,6 +49,8 @@ Go straight to these instead of exploring. Frontend paths are under `app/src/`.
 | --- | --- |
 | Shell: nav, page switching, lazy routes | `App.svelte`, `stores/app.ts` (`Page`, `JournalTab`) |
 | Journal: date picker, tasks, day notes | `routes/Journal.svelte`, `lib/daily/` (`DatePicker`, `DayTasks`, `DayNotes`, `quickTask.ts` for "14:30 Gym" parsing), `stores/logs.ts` |
+| Focus timer (pomodoro) | `stores/pomodoro.ts` (focus/break phases, localStorage), `lib/daily/PomodoroWidget.svelte` (floating widget, mounted in `App.svelte`), start button on each task row in `DayTasks.svelte`; block lengths come from extension settings |
+| Extensions (optional features) | `lib/extensions/registry.ts` (list, defaults, sanitising), `routes/Extensions.svelte` (toggles + settings), saved under the `extensions` key of the preferences blob. New features get a registry entry and an `extensionState($preferencesStore.extensions, id).enabled` check where they render |
 | Overview (date-range roll-up) | `routes/Overview.svelte` |
 | Notepad: list, filter menu, editor, sharing | `routes/Notes.svelte`, `lib/notes/` (`NotesColumn`, `NotesFilter`, `NoteEditor`, `NoteSharePopover`, `tags.ts`), `stores/notes.ts` |
 | Rich text editor (Tiptap) | `lib/editor/` (`RichEditor`, `schema.ts`, `blocks.ts` for the +/"/" menu, `paste.ts`) |

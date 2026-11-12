@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest'
+import { EXTENSIONS, extensionState } from './registry'
+import { CHIME_IDS } from '../../stores/pomodoro'
+
+describe('extensionState', () => {
+  it('falls back to the registry defaults, switched off', () => {
+    const state = extensionState(undefined, 'pomodoro')
+    expect(state.enabled).toBe(false)
+    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
+  })
+
+  it('reads saved values over the defaults', () => {
+    const state = extensionState(
+      { pomodoro: { enabled: true, settings: { focusMinutes: 50, chime: 'soft', volume: 30 } } },
+      'pomodoro',
+    )
+    expect(state.enabled).toBe(true)
+    expect(state.settings).toEqual({ focusMinutes: 50, breakMinutes: 5, chime: 'soft', volume: 30 })
+  })
+
+  it('only accepts values offered by a select', () => {
+    const ok = extensionState({ pomodoro: { settings: { chime: 'soft' } } }, 'pomodoro')
+    expect(ok.settings.chime).toBe('soft')
+    const bad = extensionState({ pomodoro: { settings: { chime: 'airhorn' } } }, 'pomodoro')
+    expect(bad.settings.chime).toBe('double')
+  })
+
+  it('clamps numbers to the setting range', () => {
+    const low = extensionState({ pomodoro: { settings: { focusMinutes: 1 } } }, 'pomodoro')
+    expect(low.settings.focusMinutes).toBe(5)
+    const high = extensionState({ pomodoro: { settings: { breakMinutes: 999, volume: 250 } } }, 'pomodoro')
+    expect(high.settings.breakMinutes).toBe(30)
+    expect(high.settings.volume).toBe(100)
+  })
+
+  it('ignores values of the wrong type and unknown keys', () => {
+    const state = extensionState(
+      {
+        pomodoro: {
+          enabled: 'yes',
+          settings: { focusMinutes: '45', breakMinutes: true, chime: 'loud', volume: '60', nope: 1 },
+        },
+      } as never,
+      'pomodoro',
+    )
+    expect(state.enabled).toBe(false)
+    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
+    expect(state.settings.nope).toBeUndefined()
+  })
+
+  it('returns a disabled state for an unknown extension', () => {
+    expect(extensionState({}, 'nope')).toEqual({ enabled: false, settings: {} })
+  })
+})
+
+describe('registry', () => {
+  it('gives every extension defaults for each of its settings', () => {
+    for (const ext of EXTENSIONS) {
+      for (const setting of ext.settings) {
+        expect(ext.defaults[setting.key]).toBeDefined()
+      }
+    }
+  })
+
+  it('uses unique ids', () => {
+    const ids = EXTENSIONS.map((e) => e.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('only offers sounds the timer knows', () => {
+    const sound = EXTENSIONS.find((e) => e.id === 'pomodoro')?.settings.find((s) => s.key === 'chime')
+    if (!sound || sound.kind !== 'select') throw new Error('expected a chime select')
+    for (const option of sound.options) {
+      if (option.value === 'off') continue
+      expect(CHIME_IDS).toContain(option.value)
+    }
+  })
+})

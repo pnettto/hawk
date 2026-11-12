@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store'
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../lib/themes/themes'
+import type { ExtensionSettingValue, SavedExtensions } from '../lib/extensions/registry'
 import { getPreferences, patchPreferences } from '../api/preferences'
 
 const STORAGE_KEY = 'hawk_theme'
@@ -10,10 +11,34 @@ export type DayNotesView = 'tabs' | 'list'
 interface PreferencesState {
   theme: ThemeId
   dayNotesView: DayNotesView
+  // Raw saved extension state; read it through `extensionState()` so defaults
+  // and invalid values are handled in one place.
+  extensions: SavedExtensions
 }
 
 const VIEW_KEY = 'hawk_day_notes_view'
+const EXTENSIONS_KEY = 'hawk_extensions'
 const isView = (v: unknown): v is DayNotesView => v === 'tabs' || v === 'list'
+
+function readLocalExtensions(): SavedExtensions {
+  try {
+    const raw = localStorage.getItem(EXTENSIONS_KEY)
+    if (!raw) return {}
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return parsed as SavedExtensions
+  } catch {
+    return {}
+  }
+}
+
+function writeLocalExtensions(value: SavedExtensions) {
+  try {
+    localStorage.setItem(EXTENSIONS_KEY, JSON.stringify(value))
+  } catch {
+    /* localStorage unavailable */
+  }
+}
 
 function readLocalView(): DayNotesView {
   try {
@@ -58,6 +83,7 @@ function createPreferencesStore() {
   const { subscribe, update } = writable<PreferencesState>({
     theme: initialTheme,
     dayNotesView: readLocalView(),
+    extensions: readLocalExtensions(),
   })
 
   let serverTimer: ReturnType<typeof setTimeout> | null = null
@@ -77,6 +103,16 @@ function createPreferencesStore() {
     }, SERVER_DEBOUNCE_MS)
   }
 
+  function updateExtensions(fn: (all: SavedExtensions) => SavedExtensions) {
+    let next: SavedExtensions = {}
+    update((s) => {
+      next = fn(s.extensions)
+      return { ...s, extensions: next }
+    })
+    writeLocalExtensions(next)
+    scheduleServerWrite({ extensions: next })
+  }
+
   return {
     subscribe,
     setTheme(id: ThemeId) {
@@ -93,6 +129,18 @@ function createPreferencesStore() {
       }
       update((s) => ({ ...s, dayNotesView: view }))
       scheduleServerWrite({ dayNotesView: view })
+    },
+    setExtensionEnabled(id: string, enabled: boolean) {
+      updateExtensions((all) => ({ ...all, [id]: { ...all[id], enabled } }))
+    },
+    setExtensionSetting(id: string, key: string, value: ExtensionSettingValue) {
+      updateExtensions((all) => {
+        const current = all[id] ?? {}
+        return {
+          ...all,
+          [id]: { ...current, settings: { ...current.settings, [key]: value } },
+        }
+      })
     },
     async loadFromServer() {
       try {
@@ -111,6 +159,12 @@ function createPreferencesStore() {
             /* ignore */
           }
           update((s) => ({ ...s, dayNotesView: view }))
+        }
+        const remoteExtensions = remote.extensions
+        if (remoteExtensions && typeof remoteExtensions === 'object' && !Array.isArray(remoteExtensions)) {
+          const extensions = remoteExtensions as SavedExtensions
+          writeLocalExtensions(extensions)
+          update((s) => ({ ...s, extensions }))
         }
       } catch {
         // Offline / unauthenticated — keep whatever local has.

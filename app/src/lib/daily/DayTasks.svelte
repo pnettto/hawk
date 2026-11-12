@@ -9,6 +9,9 @@
   import { parseQuickTask } from './quickTask'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import TimePicker from '../ui/TimePicker.svelte'
+  import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
+  import { preferencesStore } from '../../stores/preferences'
+  import { extensionState } from '../extensions/registry'
   import type { Task } from '../../types/models'
 
   let dateStr = $derived(formatDate($appStore.selectedDate))
@@ -213,6 +216,16 @@
     return { destroy: () => el.removeEventListener('input', fit) }
   }
 
+  // ---- pomodoro ------------------------------------------------------------
+
+  let timer = $derived($pomodoroStore)
+  let pomodoroOn = $derived(extensionState($preferencesStore.extensions, EXTENSION_ID).enabled)
+  let focusedId = $derived(timer.mode === 'focus' ? timer.taskId : null)
+
+  function toggleFocus(task: Task) {
+    pomodoroStore.focusOn({ id: task.id, text: task.text.trim() || 'Task', dateStr })
+  }
+
   // ---- history / checkpoints -----------------------------------------------
 
   let showHistory = $state(false)
@@ -319,6 +332,29 @@
               </svg>
             </button>
 
+            {#if pomodoroOn}
+              <button
+                type="button"
+                class="icon-btn ghost focus-btn"
+                class:active={focusedId === task.id}
+                class:paused={focusedId === task.id && !timer.running}
+                title={focusedId === task.id ? 'Pause or resume the timer' : 'Start a focus timer'}
+                aria-label={focusedId === task.id ? 'Pause or resume the focus timer' : 'Start a focus timer'}
+                aria-pressed={focusedId === task.id}
+                onclick={() => toggleFocus(task)}
+              >
+                {#if focusedId === task.id}
+                  <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
+                {:else}
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="8" cy="8.5" r="5" />
+                    <path d="M8 6v2.8l1.8 1.2" />
+                    <path d="M6.4 1.8h3.2" />
+                  </svg>
+                {/if}
+              </button>
+            {/if}
+
             <TimePicker
               class="time"
               value={task.time}
@@ -341,7 +377,10 @@
               class="icon-btn ghost danger remove"
               title="Delete task"
               aria-label="Delete task"
-              onclick={() => logsStore.removeTask(dateStr, task.id)}
+              onclick={() => {
+                if (focusedId === task.id) pomodoroStore.stop()
+                logsStore.removeTask(dateStr, task.id)
+              }}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
                 <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
@@ -560,22 +599,41 @@
   .task :global(.time.open) { opacity: 1; }
 
   .comment-toggle,
+  .focus-btn,
   .carry-over,
   .remove { opacity: 0; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
+  .task:hover .focus-btn,
+  .task:focus-within .focus-btn,
   .task:hover .carry-over,
   .task:focus-within .carry-over,
   .task:hover .remove,
   .task:focus-within .remove { opacity: 0.6; }
   .comment-toggle.active { opacity: 0.8; color: var(--accent); }
+  /* A running timer stays visible on its row. */
+  .task .focus-btn.active {
+    opacity: 1;
+    width: auto;
+    min-width: 28px;
+    padding: 0 0.35rem;
+    color: var(--accent);
+  }
+  .task .focus-btn.active.paused { color: var(--muted); }
+  .focus-clock {
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
   .comment-toggle:hover,
+  .focus-btn:hover,
   .carry-over:hover,
   .remove:hover { opacity: 1 !important; }
   .carry-over:hover { color: var(--accent); }
   @media (hover: none) {
     .task :global(.time:not(.set)),
     .comment-toggle,
+    .focus-btn,
     .carry-over,
     .remove { opacity: 0.45; }
   }
