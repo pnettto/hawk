@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte'
+  import { safeFlip } from '../../utils/safeFlip'
   import { fade, slide } from 'svelte/transition'
   import { appStore } from '../../stores/app'
   import { logsStore, sortTasks } from '../../stores/logs'
@@ -349,6 +350,201 @@
     pomodoroStore.focusOn({ id: task.id, text: task.text.trim() || 'Task', dateStr })
   }
 
+  // ---- reordering ----------------------------------------------------------
+
+  interface DragRow {
+    id: string
+    // Every row in the block that moves together — a group header takes its
+    // subtasks along.
+    ids: string[]
+    // Position among the draggable siblings and its top/height in the list.
+    index: number
+    top: number
+    height: number
+  }
+
+  let reorderMode = $state(false)
+  let dragId = $state<string | null>(null)
+  // How far the dragged block follows the pointer, and where the gap opens.
+  let dragOffset = $state(0)
+  let dropIndex = $state<number | null>(null)
+
+  let dragRows: DragRow[] = []
+  let dragFrom = -1
+  let dragHeight = 0
+  let dragPointer: number | null = null
+  let dragStartListY = 0
+  let lastPointerY = 0
+  let dragMoved = false
+  let autoScrollFrame = 0
+
+  // Siblings share a parent (top-level tasks have none). Reordering keeps
+  // groups intact: a header moves with its subtasks, and subtasks move only
+  // within their own group.
+  const siblingsOf = (task: Task): Task[] => {
+    const parentId = task.parentId ?? null
+    return tasks.filter((t) => (t.parentId ?? null) === parentId)
+  }
+  const untimedSiblings = (task: Task): Task[] => siblingsOf(task).filter((t) => !t.time)
+  const blockIds = (task: Task): string[] =>
+    task.parentId
+      ? [task.id]
+      : [task.id, ...tasks.filter((t) => t.parentId === task.id).map((t) => t.id)]
+
+  function blockRect(task: Task, listRect: DOMRect) {
+    const rects = blockIds(task)
+      .map((id) => listEl?.querySelector<HTMLElement>(`[data-task-id="${id}"]`)?.getBoundingClientRect())
+      .filter((r): r is DOMRect => !!r)
+    if (!rects.length) return { top: 0, height: 0 }
+    const top = Math.min(...rects.map((r) => r.top))
+    const bottom = Math.max(...rects.map((r) => r.bottom))
+    return { top: top - listRect.top, height: bottom - top }
+  }
+
+  function toggleReorder() {
+    if (dragId) endDrag()
+    reorderMode = !reorderMode
+  }
+
+  function startDrag(e: PointerEvent, task: Task) {
+    if (!reorderMode || task.time || e.button !== 0 || !listEl) return
+    e.preventDefault()
+    const listRect = listEl.getBoundingClientRect()
+    dragRows = untimedSiblings(task).map((t, index) => {
+      const rect = blockRect(t, listRect)
+      return { id: t.id, ids: blockIds(t), index, top: rect.top, height: rect.height }
+    })
+    const source = dragRows.find((r) => r.id === task.id)
+    if (!source) return
+    dragId = task.id
+    dragPointer = e.pointerId
+    dragFrom = source.index
+    dragHeight = source.height + 2
+    dragStartListY = e.clientY - listRect.top
+    dragOffset = 0
+    dropIndex = dragFrom
+    lastPointerY = e.clientY
+    dragMoved = false
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    startAutoScroll()
+  }
+
+  // Rows keep their original geometry for the whole drag, so the insertion
+  // point stays stable while the other rows slide around to make room.
+  function updateDrag(clientY: number) {
+    if (!dragId || !listEl) return
+    const listRect = listEl.getBoundingClientRect()
+    const pointerY = clientY - listRect.top
+    dragOffset = pointerY - dragStartListY
+    let at = 0
+    for (const row of dragRows) {
+      if (row.id === dragId) continue
+      if (pointerY > row.top + row.height / 2) at++
+    }
+    dropIndex = at
+  }
+
+  function onDragMove(e: PointerEvent) {
+    if (!dragId || e.pointerId !== dragPointer) return
+    dragMoved = true
+    lastPointerY = e.clientY
+    updateDrag(e.clientY)
+  }
+
+  // Rows moving with the dragged block shouldn't animate behind the pointer.
+  function isDraggedBlockRow(id: string): boolean {
+    if (!dragId) return false
+    return !!dragRows.find((r) => r.id === dragId)?.ids.includes(id)
+  }
+
+  // How far a row moves to open the gap, in list coordinates.
+  function shiftFor(id: string): number {
+    if (!dragId || dropIndex === null) return 0
+    const row = dragRows.find((r) => r.ids.includes(id))
+    if (!row) return 0
+    if (row.id === dragId) return dragOffset
+    if (dropIndex > dragFrom && row.index > dragFrom && row.index <= dropIndex) return -dragHeight
+    if (dropIndex < dragFrom && row.index >= dropIndex && row.index < dragFrom) return dragHeight
+    return 0
+  }
+
+  function startAutoScroll() {
+    if (autoScrollFrame) return
+    const step = () => {
+      if (!dragId) {
+        autoScrollFrame = 0
+        return
+      }
+      if (!dragMoved) {
+        autoScrollFrame = requestAnimationFrame(step)
+        return
+      }
+      const margin = 80
+      let dy = 0
+      if (lastPointerY < margin) dy = -Math.ceil((margin - lastPointerY) / 4)
+      else if (lastPointerY > window.innerHeight - margin) {
+        dy = Math.ceil((lastPointerY - (window.innerHeight - margin)) / 4)
+      }
+      if (dy) {
+        const before = window.scrollY
+        window.scrollBy(0, dy)
+        if (window.scrollY !== before) updateDrag(lastPointerY)
+      }
+      autoScrollFrame = requestAnimationFrame(step)
+    }
+    autoScrollFrame = requestAnimationFrame(step)
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame)
+    autoScrollFrame = 0
+  }
+
+  function resetDrag() {
+    dragId = null
+    dragPointer = null
+    dragOffset = 0
+    dropIndex = null
+    dragRows = []
+    dragFrom = -1
+    dragHeight = 0
+    dragMoved = false
+    stopAutoScroll()
+  }
+
+  function endDrag(e?: PointerEvent) {
+    if (e && dragPointer !== null && e.pointerId !== dragPointer) return
+    const sourceId = dragId
+    const to = dropIndex
+    const from = dragFrom
+    const source = sourceId ? tasks.find((t) => t.id === sourceId) : undefined
+    resetDrag()
+    if (!source || !sourceId || to === null || to === from) return
+    if (!tasks.some((t) => t.id === sourceId)) return
+    const ids = untimedSiblings(source).filter((t) => t.id !== sourceId).map((t) => t.id)
+    ids.splice(Math.min(to, ids.length), 0, sourceId)
+    logsStore.reorderTasks(dateStr, ids, { defer: true })
+    void logsStore.flushTasks(dateStr)
+  }
+
+  function onReorderKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !dragId) return
+    e.preventDefault()
+    resetDrag()
+  }
+
+  // Keyboard reordering: arrow keys on the handle move the row.
+  function onHandleKeydown(e: KeyboardEvent, task: Task) {
+    if (task.time || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+    e.preventDefault()
+    const ids = untimedSiblings(task).map((t) => t.id)
+    const i = ids.indexOf(task.id)
+    const j = i + (e.key === 'ArrowUp' ? -1 : 1)
+    if (i === -1 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    logsStore.reorderTasks(dateStr, ids)
+  }
+
   // ---- history / checkpoints -----------------------------------------------
 
   let showHistory = $state(false)
@@ -364,9 +560,12 @@
 
   onDestroy(() => {
     clearInterval(ticker)
+    stopAutoScroll()
     void logsStore.flushTasks(dateStr)
   })
 </script>
+
+<svelte:window onkeydown={onReorderKeydown} />
 
 <section class="tasks" bind:this={rootEl} aria-label="Tasks">
   <div class="toolbar">
@@ -375,76 +574,122 @@
         {doneCount} of {leafTasks.length} done
       {/if}
     </span>
-    <div class="history-wrap">
+    <div class="tools">
       <button
-        class="icon-btn history-toggle"
-        title="Version history"
-        aria-label="Version history"
-        bind:this={historyAnchorEl}
-        onclick={() => (showHistory = !showHistory)}
+        class="icon-btn reorder-toggle"
+        class:active={reorderMode}
+        title={reorderMode ? 'Done reordering' : 'Reorder tasks'}
+        aria-label={reorderMode ? 'Done reordering' : 'Reorder tasks'}
+        aria-pressed={reorderMode}
+        onclick={toggleReorder}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-          <path d="M3 3v5h5" />
-          <path d="M12 7v5l3 2" />
+          <path d="M8 5v14M8 5 5 8M8 5l3 3" />
+          <path d="M16 19V5M16 19l-3-3M16 19l3-3" />
         </svg>
       </button>
-      {#if showHistory}
-        <HistoryPopover
-          kind="day-tasks"
-          entityId={dateStr}
-          anchor={historyAnchorEl}
-          prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
-          onClose={() => (showHistory = false)}
-        />
-      {/if}
+      <div class="history-wrap">
+        <button
+          class="icon-btn history-toggle"
+          title="Version history"
+          aria-label="Version history"
+          bind:this={historyAnchorEl}
+          onclick={() => (showHistory = !showHistory)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        {#if showHistory}
+          <HistoryPopover
+            kind="day-tasks"
+            entityId={dateStr}
+            anchor={historyAnchorEl}
+            prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
+            onClose={() => (showHistory = false)}
+          />
+        {/if}
+      </div>
     </div>
   </div>
 
   {#key dateStr}
-    <ul class="list" bind:this={listEl} class:loading={!loaded}>
+    <ul
+      class="list"
+      bind:this={listEl}
+      class:loading={!loaded}
+      class:reordering={!!dragId}
+      class:reorder-mode={reorderMode}
+    >
       {#each rows as row (row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
         {@const task = row.task}
-        {#if row.addRow}
-          <li class="group-add-row">
-            <div class="add group-add" class:has-draft={!!groupDrafts[task.id]?.trim()}>
-              <div class="row">
-                <button
-                  type="button"
-                  class="add-icon"
-                  title="Add a task"
-                  aria-label="Add a task to this group"
-                  onclick={() => focusGroupAdd(task.id)}
-                >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
-                </button>
-                <input
-                  class="add-input"
-                  data-group-add={task.id}
-                  value={groupDrafts[task.id] ?? ''}
-                  placeholder="Add a task"
-                  aria-label="Add a task to this group"
-                  enterkeyhint="done"
-                  oninput={(e) => onGroupAddInput(task, e)}
-                  oncompositionend={() => void createGroupTaskFromDraft(task)}
-                  onkeydown={(e) => onGroupAddKeydown(e, task)}
-                />
-              </div>
-            </div>
-          </li>
-        {:else}
+        {@const shift = row.addRow ? 0 : shiftFor(task.id)}
         <li
-          class="task"
-          class:done={task.done && !row.header}
-          class:header={row.header}
-          class:sub={row.depth > 0}
-          class:has-comment={!!task.comment}
+          class:task={!row.addRow}
+          class:group-add-row={row.addRow}
+          class:done={!row.addRow && task.done && !row.header}
+          class:header={!row.addRow && row.header}
+          class:sub={!row.addRow && row.depth > 0}
+          class:has-comment={!row.addRow && !!task.comment}
+          class:dragging={!row.addRow && dragId === task.id}
+          class:following={!row.addRow && isDraggedBlockRow(task.id)}
+          data-task-id={row.addRow ? undefined : task.id}
+          style:transform={!row.addRow && shift ? `translateY(${shift}px)` : undefined}
+          animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
+        {#if row.addRow}
+          <div class="add group-add" class:has-draft={!!groupDrafts[task.id]?.trim()}>
+            <div class="row">
+              <button
+                type="button"
+                class="add-icon"
+                title="Add a task"
+                aria-label="Add a task to this group"
+                onclick={() => focusGroupAdd(task.id)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+              </button>
+              <input
+                class="add-input"
+                data-group-add={task.id}
+                value={groupDrafts[task.id] ?? ''}
+                placeholder="Add a task"
+                aria-label="Add a task to this group"
+                enterkeyhint="done"
+                oninput={(e) => onGroupAddInput(task, e)}
+                oncompositionend={() => void createGroupTaskFromDraft(task)}
+                onkeydown={(e) => onGroupAddKeydown(e, task)}
+              />
+            </div>
+          </div>
+        {:else}
           {#if row.index === nowIndex}
             <div class="now-marker" aria-label="Now" transition:fade={{ duration: 150 }}><span>now</span></div>
           {/if}
           <div class="row">
+            {#if reorderMode}
+              <button
+                type="button"
+                class="handle"
+                class:disabled={!!task.time}
+                title={task.time ? 'Timed tasks stay in time order' : 'Drag to reorder'}
+                aria-label={task.time ? 'Timed tasks stay in time order' : 'Drag to reorder'}
+                aria-disabled={!!task.time}
+                onpointerdown={(e) => startDrag(e, task)}
+                onpointermove={onDragMove}
+                onpointerup={endDrag}
+                onpointercancel={endDrag}
+                onlostpointercapture={endDrag}
+                onkeydown={(e) => onHandleKeydown(e, task)}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </button>
+            {/if}
             {#if row.header}
               <span class="group-mark" aria-hidden="true">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
@@ -584,8 +829,8 @@
               transition:slide={{ duration: 140 }}
             ></textarea>
           {/if}
-        </li>
         {/if}
+        </li>
       {/each}
       {#if nowIndex === taskRows.length && taskRows.length}
         <li class="now-marker" aria-label="Now"><span>now</span></li>
@@ -681,6 +926,8 @@
     transition: color var(--dur-base) var(--ease-out);
   }
   .progress.all-done { color: var(--accent); opacity: 1; }
+  .tools { display: flex; align-items: center; gap: 0.35rem; }
+  .reorder-toggle.active { color: var(--accent); border-color: var(--accent); }
   .history-wrap { position: relative; }
 
   .list {
@@ -693,6 +940,21 @@
     transition: opacity var(--dur-base) var(--ease-out);
   }
   .list.loading { opacity: 0.4; }
+  .list.reordering { cursor: grabbing; user-select: none; }
+  .list.reordering .task:not(.dragging):not(.following) { transition: transform 170ms var(--ease-out); }
+  /* Add rows would otherwise show up in the gap while groups move. */
+  .list.reorder-mode .group-add-row { display: none; }
+  .task.dragging {
+    position: relative;
+    z-index: 3;
+    background: var(--glass-dark);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
+    cursor: grabbing;
+  }
+  .list.reordering .task.following {
+    position: relative;
+    z-index: 2;
+  }
 
   .task {
     border-radius: 8px;
@@ -719,6 +981,34 @@
     min-height: var(--row-h);
     padding: 0 0.25rem 0 0.4rem;
   }
+
+  .handle {
+    flex-shrink: 0;
+    width: 1.4rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -0.2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    opacity: 0.55;
+    cursor: grab;
+    touch-action: none;
+    transition:
+      opacity var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  .handle:hover { opacity: 1; color: var(--text); background: var(--glass); }
+  .handle:active { cursor: grabbing; }
+  .handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .handle.disabled { opacity: 0.2; cursor: default; }
+  .handle.disabled:hover { opacity: 0.2; color: var(--muted); background: none; }
+  .handle svg { width: 14px; height: 14px; }
 
   .check {
     flex-shrink: 0;
