@@ -57,7 +57,7 @@ jobs:
 
       # A merge made with GITHUB_TOKEN doesn't trigger the push event, so this
       # job deploys right after merging instead.
-      # That also means preview-cleanup.yml won't run, so the PR's Preview is
+      # That also means pr-closed.yml won't run, so the PR's Preview is
       # deleted below.
       - name: Merge PR
         id: merge

@@ -3,7 +3,7 @@
 #   - Comment "/pi <request>" on an issue or PR, or open an issue whose body starts with "/pi".
 #   - pi works on branch pi/issue-<n> (or the PR's own branch), runs tests and type-check,
 #     pushes, opens a PR against main, deploys the branch's own Cloudflare Preview (its own
-#     URL and data; deleted when the PR closes, see preview-cleanup.yml), and comments the result.
+#     URL and data; deleted when the PR closes, see pr-closed.yml), and comments the result.
 #   - Follow-up "/pi …" comments continue the same pi session.
 #
 # Nothing here deploys to prod; see deploy.yml.
