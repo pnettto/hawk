@@ -237,6 +237,28 @@ function createLogsStore() {
     })
   }
 
+  // Apply a new manual order to a day's tasks. `orderedIds` lists the tasks
+  // in the order they should appear; timed tasks are sorted by time, so only
+  // untimed rows are meaningfully reordered.
+  function reorderTasks(dateStr: string, orderedIds: string[]) {
+    const orderById = new Map(orderedIds.map((id, i) => [id, i + 1]))
+    const changed = dayOf(dateStr).tasks.filter((t) => {
+      const next = orderById.get(t.id)
+      return next !== undefined && next !== t.order
+    })
+    if (!changed.length) return
+    setDay(dateStr, (d) => ({
+      ...d,
+      tasks: d.tasks.map((t) => {
+        const next = orderById.get(t.id)
+        return next === undefined || next === t.order ? t : { ...t, order: next }
+      }),
+    }))
+    const dirty = setOf(dirtyTasks, dateStr)
+    for (const t of changed) dirty.add(t.id)
+    scheduleTaskWrite(dateStr, true)
+  }
+
   // Copy unfinished tasks to another day (as new tasks).
   function carryOver(fromDate: string, toDate: string, ids: string[]) {
     const src = dayOf(fromDate).tasks.filter((t) => ids.includes(t.id))
@@ -300,6 +322,7 @@ function createLogsStore() {
     addTask,
     editTask,
     removeTask,
+    reorderTasks,
     carryOver,
     carryTaskOver,
     flushTasks,

@@ -226,6 +226,81 @@
     pomodoroStore.focusOn({ id: task.id, text: task.text.trim() || 'Task', dateStr })
   }
 
+  // ---- reordering ----------------------------------------------------------
+
+  let reorderMode = $state(false)
+  let dragId = $state<string | null>(null)
+  let dropAt = $state<{ id: string; after: boolean } | null>(null)
+  let dragPointer = $state<number | null>(null)
+
+  const untimed = (): Task[] => tasks.filter((t) => !t.time)
+
+  function toggleReorder() {
+    reorderMode = !reorderMode
+    dragId = null
+    dragPointer = null
+    dropAt = null
+  }
+
+  function startDrag(e: PointerEvent, task: Task) {
+    if (!reorderMode || task.time || e.button !== 0) return
+    e.preventDefault()
+    dragId = task.id
+    dragPointer = e.pointerId
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  // Put the drop marker on the untimed row nearest the pointer, before or
+  // after its midpoint.
+  function updateDropTarget(y: number) {
+    if (!listEl) return
+    const rows = Array.from(listEl.querySelectorAll<HTMLElement>('[data-task-id]'))
+      .filter((el) => el.dataset.taskId !== dragId && !tasks.find((t) => t.id === el.dataset.taskId)?.time)
+    let best: { id: string; after: boolean } | null = null
+    let bestDist = Infinity
+    for (const el of rows) {
+      const rect = el.getBoundingClientRect()
+      const dist = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
+      if (dist < bestDist) {
+        bestDist = dist
+        best = { id: el.dataset.taskId!, after: y > rect.top + rect.height / 2 }
+      }
+    }
+    dropAt = best
+  }
+
+  function onDragMove(e: PointerEvent) {
+    if (!dragId || e.pointerId !== dragPointer) return
+    updateDropTarget(e.clientY)
+  }
+
+  function endDrag(e?: PointerEvent) {
+    if (e && dragPointer !== null && e.pointerId !== dragPointer) return
+    const source = dragId
+    const target = dropAt
+    dragId = null
+    dragPointer = null
+    dropAt = null
+    if (!source || !target || target.id === source) return
+    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
+    const idx = ids.indexOf(target.id)
+    if (idx === -1) return
+    ids.splice(target.after ? idx + 1 : idx, 0, source)
+    logsStore.reorderTasks(dateStr, ids)
+  }
+
+  // Keyboard reordering: arrow keys on the handle move the row.
+  function onHandleKeydown(e: KeyboardEvent, task: Task) {
+    if (task.time || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+    e.preventDefault()
+    const ids = untimed().map((t) => t.id)
+    const i = ids.indexOf(task.id)
+    const j = i + (e.key === 'ArrowUp' ? -1 : 1)
+    if (i === -1 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    logsStore.reorderTasks(dateStr, ids)
+  }
+
   // ---- history / checkpoints -----------------------------------------------
 
   let showHistory = $state(false)
@@ -252,29 +327,44 @@
         {doneCount} of {tasks.length} done
       {/if}
     </span>
-    <div class="history-wrap">
+    <div class="tools">
       <button
-        class="icon-btn history-toggle"
-        title="Version history"
-        aria-label="Version history"
-        bind:this={historyAnchorEl}
-        onclick={() => (showHistory = !showHistory)}
+        class="icon-btn reorder-toggle"
+        class:active={reorderMode}
+        title={reorderMode ? 'Done reordering' : 'Reorder tasks'}
+        aria-label={reorderMode ? 'Done reordering' : 'Reorder tasks'}
+        aria-pressed={reorderMode}
+        onclick={toggleReorder}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-          <path d="M3 3v5h5" />
-          <path d="M12 7v5l3 2" />
+          <path d="M8 5v14M8 5 5 8M8 5l3 3" />
+          <path d="M16 19V5M16 19l-3-3M16 19l3-3" />
         </svg>
       </button>
-      {#if showHistory}
-        <HistoryPopover
-          kind="day-tasks"
-          entityId={dateStr}
-          anchor={historyAnchorEl}
-          prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
-          onClose={() => (showHistory = false)}
-        />
-      {/if}
+      <div class="history-wrap">
+        <button
+          class="icon-btn history-toggle"
+          title="Version history"
+          aria-label="Version history"
+          bind:this={historyAnchorEl}
+          onclick={() => (showHistory = !showHistory)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        {#if showHistory}
+          <HistoryPopover
+            kind="day-tasks"
+            entityId={dateStr}
+            anchor={historyAnchorEl}
+            prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
+            onClose={() => (showHistory = false)}
+          />
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -285,6 +375,10 @@
           class="task"
           class:done={task.done}
           class:has-comment={!!task.comment}
+          class:dragging={dragId === task.id}
+          class:drop-before={dropAt?.id === task.id && !dropAt?.after}
+          class:drop-after={dropAt?.id === task.id && !!dropAt?.after}
+          data-task-id={task.id}
           animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
@@ -292,6 +386,25 @@
             <div class="now-marker" aria-label="Now" transition:fade={{ duration: 150 }}><span>now</span></div>
           {/if}
           <div class="row">
+            {#if reorderMode}
+              <button
+                type="button"
+                class="handle"
+                class:disabled={!!task.time}
+                title={task.time ? 'Timed tasks stay in time order' : 'Drag to reorder'}
+                aria-label={task.time ? 'Timed tasks stay in time order' : 'Drag to reorder'}
+                aria-disabled={!!task.time}
+                onpointerdown={(e) => startDrag(e, task)}
+                onpointermove={onDragMove}
+                onpointerup={endDrag}
+                onpointercancel={endDrag}
+                onkeydown={(e) => onHandleKeydown(e, task)}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </button>
+            {/if}
             <button
               type="button"
               class="check"
@@ -502,6 +615,8 @@
     transition: color var(--dur-base) var(--ease-out);
   }
   .progress.all-done { color: var(--accent); opacity: 1; }
+  .tools { display: flex; align-items: center; gap: 0.35rem; }
+  .reorder-toggle.active { color: var(--accent); border-color: var(--accent); }
   .history-wrap { position: relative; }
 
   .list {
@@ -521,6 +636,9 @@
   }
   .task:hover,
   .task:focus-within { background: var(--glass-dark); }
+  .task.dragging { opacity: 0.4; }
+  .task.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+  .task.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .row {
     display: flex;
     align-items: center;
@@ -528,6 +646,27 @@
     min-height: var(--row-h);
     padding: 0 0.25rem 0 0.4rem;
   }
+
+  .handle {
+    flex-shrink: 0;
+    width: 1.1rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    opacity: 0.55;
+    cursor: grab;
+    touch-action: none;
+    transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .handle:hover { opacity: 1; color: var(--text); }
+  .handle:active { cursor: grabbing; }
+  .handle.disabled { opacity: 0.2; cursor: default; }
+  .handle svg { width: 13px; height: 13px; }
 
   .check {
     flex-shrink: 0;
