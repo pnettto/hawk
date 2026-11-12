@@ -57,11 +57,16 @@ jobs:
 
       # A merge made with GITHUB_TOKEN doesn't trigger the push event, so this
       # job deploys right after merging instead.
+      # That also means preview-cleanup.yml won't run, so the PR's Preview is
+      # deleted below.
       - name: Merge PR
+        id: merge
         if: github.event_name == 'issue_comment' && env.IS_PR == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr merge "$NUMBER" -R "$REPO" --squash --delete-branch
+        run: |
+          echo "branch=$(gh pr view "$NUMBER" -R "$REPO" --json headRefName -q .headRefName)" >> "$GITHUB_OUTPUT"
+          gh pr merge "$NUMBER" -R "$REPO" --squash --delete-branch
 
       - uses: actions/checkout@v5
         with:
@@ -106,6 +111,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bash .github/scripts/deploy.sh prod
+
+      - name: Delete PR preview
+        if: steps.merge.outputs.branch != ''
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        run: bash .github/scripts/deploy.sh delete-preview "$BRANCH"
 
       - name: Report
         if: always() && github.event_name == 'issue_comment'

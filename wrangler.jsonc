@@ -34,9 +34,22 @@
 
   // Secrets (set with `wrangler secret put [--env preview]`): API_KEY
 
-  // `wrangler deploy --env preview` → hawk-preview.<subdomain>.workers.dev.
-  // A separate Worker, so it gets its own Durable Object (its own data) and
-  // never touches prod. Used by the pi workflow for PR previews.
+  // `wrangler preview --name <branch>` → one Preview per PR under this Worker
+  // (.github/scripts/deploy.sh). Cloudflare gives each Preview its own Durable
+  // Object namespace, so each starts with empty data, deleted with the Preview.
+  // Previews don't inherit the settings above. The password (API_KEY) comes
+  // from `wrangler preview base-config secret put API_KEY`.
+  "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "HAWK", "class_name": "HawkDO" }]
+    },
+    // Shared by all Previews; file ids are random, so they don't clash.
+    "r2_buckets": [{ "binding": "FILES", "bucket_name": "hawk-files-preview" }]
+  },
+
+  // Legacy shared preview: `wrangler deploy --env preview` →
+  // hawk-preview.<subdomain>.workers.dev. Still used for branches made before
+  // the `previews` block existed. Remove once those are gone.
   "env": {
     "preview": {
       // workers.dev only; must not inherit the prod custom domain.

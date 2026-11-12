@@ -2,7 +2,8 @@
 #
 #   - Comment "/pi <request>" on an issue or PR, or open an issue whose body starts with "/pi".
 #   - pi works on branch pi/issue-<n> (or the PR's own branch), runs tests and type-check,
-#     pushes, opens a PR against main, deploys a preview, and comments the result.
+#     pushes, opens a PR against main, deploys the branch's own Cloudflare Preview (its own
+#     URL and data; deleted when the PR closes, see preview-cleanup.yml), and comments the result.
 #   - Follow-up "/pi …" comments continue the same pi session.
 #
 # Nothing here deploys to prod; see deploy.yml.
@@ -226,9 +227,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ steps.branch.outputs.name }}
         run: |
           (cd app && npm run build)
-          bash "$RUNNER_TEMP/ci/scripts/deploy.sh" preview
+          bash "$RUNNER_TEMP/ci/scripts/deploy.sh" preview "$BRANCH"
 
       - name: Report
         if: always()
