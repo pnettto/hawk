@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store'
 
-export type Page = 'app' | 'notes' | 'files' | 'admin'
+export type Page = 'app' | 'notes' | 'files' | 'admin' | 'logos'
 export type JournalTab = 'tasks' | 'notes' | 'overview'
 export type OverviewTab = 'notes' | 'tasks'
 
