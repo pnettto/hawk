@@ -134,6 +134,17 @@ export function remainingMs(state: PomodoroState, now: number): number {
   return Math.max(0, state.endsAt - now)
 }
 
+// Point an active focus block at a different task without restarting it: the
+// clock, phase and completed count stay exactly as they were.
+export function retargetSession(state: PomodoroState, target: FocusTarget): PomodoroState {
+  return {
+    ...state,
+    taskId: target.id,
+    taskText: target.text,
+    dateStr: target.dateStr,
+  }
+}
+
 export function startSession(
   state: PomodoroState,
   target: FocusTarget,
@@ -732,6 +743,13 @@ function createPomodoroStore() {
         return
       }
       askForNotifications()
+      // Switching tasks while a focus block is running keeps the clock going;
+      // only its label and task change. A paused, idle or break timer still
+      // starts a fresh focus.
+      if (state.running && state.mode === 'focus') {
+        commit(retargetSession(state, target), null, true)
+        return
+      }
       commit(startSession(state, target, now, configuredDurations()), null, true)
     },
     toggle() {
