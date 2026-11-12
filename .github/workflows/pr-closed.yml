@@ -2,8 +2,6 @@
 #   - deletes its Cloudflare Preview (and its Durable Object data);
 #   - if closed without merging, closes the issues it would have closed
 #     ("Closes #N") as not planned. Merging closes them already.
-# A merge made by "/deploy" uses GITHUB_TOKEN, which doesn't fire this event,
-# so deploy.yml deletes the Preview itself.
 #
 # Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 

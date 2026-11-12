@@ -1,9 +1,8 @@
 # Production deploy to Cloudflare Workers (Worker `hawk`).
 #
-#   - Every push to main (including merging a PR in the UI).
-#   - "/deploy" comment from the owner: on a PR it squash-merges the PR first,
-#     on an issue it deploys main as is.
-#   - Manually from the Actions tab.
+#   - Every push to main (including merging a PR in the UI; pr-closed.yml then
+#     deletes the PR's Preview).
+#   - Manually from the Actions tab ("Run workflow").
 #
 # Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 
@@ -18,14 +17,11 @@ on:
       - "plans/**"
       - ".github/pi/**"
       - ".github/workflows/pi.yml"
-  issue_comment:
-    types: [created]
+      - ".github/workflows/pr-closed.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 concurrency:
   group: deploy-prod
@@ -33,44 +29,14 @@ concurrency:
 
 jobs:
   deploy:
-    # Public repo: only the owner may trigger from comments or manually.
-    if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && github.actor == 'pnettto') ||
-      (github.event_name == 'issue_comment' && github.actor == 'pnettto' &&
-        startsWith(github.event.comment.body, '/deploy'))
+    # Public repo: only the owner may trigger manually.
+    if: github.event_name == 'push' || github.actor == 'pnettto'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      NUMBER: ${{ github.event.issue.number }}
-      IS_PR: ${{ github.event.issue.pull_request != null }}
-      REPO: ${{ github.repository }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
-      - name: Acknowledge
-        if: github.event_name == 'issue_comment'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          COMMENT_ID: ${{ github.event.comment.id }}
-        run: gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=rocket >/dev/null
-
-      # A merge made with GITHUB_TOKEN doesn't trigger the push event, so this
-      # job deploys right after merging instead.
-      # That also means pr-closed.yml won't run, so the PR's Preview is
-      # deleted below.
-      - name: Merge PR
-        id: merge
-        if: github.event_name == 'issue_comment' && env.IS_PR == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "branch=$(gh pr view "$NUMBER" -R "$REPO" --json headRefName -q .headRefName)" >> "$GITHUB_OUTPUT"
-          gh pr merge "$NUMBER" -R "$REPO" --squash --delete-branch
-
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
           persist-credentials: false
 
       - uses: actions/setup-node@v5
@@ -81,8 +47,8 @@ jobs:
             package-lock.json
             app/package-lock.json
 
-      # Also restored by pi.yml. Only saved from pushes to main, where the
-      # cache accepts writes. Key must match pi.yml.
+      # Also restored by pi.yml and pr-closed.yml. Only saved from here, where
+      # the cache accepts writes. Key must match theirs.
       - name: Cache node_modules
         id: deps
         uses: actions/cache@v4
@@ -106,32 +72,7 @@ jobs:
           (cd app && npm run build)
 
       - name: Deploy to prod
-        id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bash .github/scripts/deploy.sh prod
-
-      - name: Delete PR preview
-        if: steps.merge.outputs.branch != ''
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          BRANCH: ${{ steps.merge.outputs.branch }}
-        run: bash .github/scripts/deploy.sh delete-preview "$BRANCH"
-
-      - name: Report
-        if: always() && github.event_name == 'issue_comment'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          OUTCOME: ${{ steps.deploy.outcome }}
-          URL: ${{ steps.deploy.outputs.url }}
-        run: |
-          if [ "$OUTCOME" = success ]; then
-            msg="Deployed to prod: https://hawk.pnetto.store"
-          else
-            msg="Deploy failed."
-          fi
-          gh issue comment "$NUMBER" -R "$REPO" --body "$msg
-          Run: $RUN_URL"
