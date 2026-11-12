@@ -132,6 +132,34 @@ describe('advance', () => {
   })
 })
 
+describe('auto-start off', () => {
+  it('parks the break paused when focus runs out', () => {
+    const { state, finished } = advance(
+      startSession(IDLE, TARGET, NOW, DURATIONS),
+      NOW + FOCUS_MS,
+      false,
+    )
+    expect(finished).toBe('focus')
+    expect(state.mode).toBe('break')
+    expect(state.running).toBe(false)
+    expect(state.endsAt).toBeNull()
+    expect(state.remainingMs).toBe(BREAK_MS)
+    expect(state.completed).toBe(1)
+    expect(state.taskId).toBe('t1')
+  })
+
+  it('parks the next focus block after the break', () => {
+    const onBreak = advance(startSession(IDLE, TARGET, NOW, DURATIONS), NOW + FOCUS_MS, false).state
+    const resumed = resume(onBreak, NOW + FOCUS_MS + 60_000)
+    const { state, finished } = advance(resumed, resumed.endsAt!, false)
+    expect(finished).toBe('break')
+    expect(state.mode).toBe('focus')
+    expect(state.running).toBe(false)
+    expect(state.remainingMs).toBe(FOCUS_MS)
+    expect(state.completed).toBe(1)
+  })
+})
+
 describe('skip', () => {
   it('jumps from focus to break without counting the session', () => {
     const state = skip(startSession(IDLE, TARGET, NOW, DURATIONS), NOW + 5000)

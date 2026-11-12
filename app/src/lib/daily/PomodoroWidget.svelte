@@ -2,7 +2,13 @@
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
-  import { EXTENSION_ID, formatClock, phaseMs, pomodoroStore } from '../../stores/pomodoro'
+  import {
+    EXTENSION_ID,
+    ensureServiceWorker,
+    formatClock,
+    phaseMs,
+    pomodoroStore,
+  } from '../../stores/pomodoro'
   import { logsStore } from '../../stores/logs'
   import { preferencesStore } from '../../stores/preferences'
   import { extensionState } from '../extensions/registry'
@@ -26,9 +32,24 @@
 
   onMount(() => pomodoroStore.tick())
 
+  // Notifications live in the service worker, so keep it registered while the
+  // extension is on. The extension can arrive from the server after mount.
+  $effect(() => {
+    if (ext.enabled) void ensureServiceWorker()
+  })
+
   // Turning the extension off puts the timer away for good.
   $effect(() => {
     if (!ext.enabled && $pomodoroStore.taskId) pomodoroStore.stop()
+  })
+
+  // Background tabs throttle the one-second ticker, so also wake up exactly
+  // when the block ends: that's what makes the notification timely.
+  let endsAt = $derived(state.running ? state.endsAt : null)
+  $effect(() => {
+    if (endsAt === null) return
+    const id = setTimeout(() => pomodoroStore.tick(), Math.max(0, endsAt - Date.now()) + 100)
+    return () => clearTimeout(id)
   })
 
   // One ticker for the whole app: it runs whether or not the Journal is open.
@@ -62,9 +83,6 @@
     <div class="body">
       <span class="phase">
         {state.mode === 'focus' ? 'Focus' : 'Break'}
-        {#if state.completed > 0}
-          <span class="count" title={`${state.completed} focus ${state.completed === 1 ? 'session' : 'sessions'} finished`}>{state.completed}</span>
-        {/if}
       </span>
       <span class="task" title={label}>{label || 'Step away'}</span>
     </div>
@@ -179,14 +197,6 @@
     color: var(--accent);
   }
   .break .phase { color: var(--muted); opacity: 0.75; }
-  .count {
-    margin-left: 0.25rem;
-    padding: 0 0.25rem;
-    border-radius: var(--r-pill);
-    background: var(--glass-dark);
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
   .task {
     font-size: 0.85rem;
     color: var(--text);

@@ -78,9 +78,9 @@ export const EXTENSIONS: Extension[] = [
         key: 'focusMinutes',
         label: 'Focus block',
         help: 'How long one stretch of work lasts.',
-        min: 5,
+        min: 1,
         max: 90,
-        step: 5,
+        step: 1,
         unit: 'min',
       },
       {
@@ -118,8 +118,14 @@ export const EXTENSIONS: Extension[] = [
         unit: '%',
         hideWhen: { key: 'chime', equals: 'off' },
       },
+      {
+        kind: 'switch',
+        key: 'autoStart',
+        label: 'Start next block automatically',
+        help: 'Otherwise the timer waits for you after each block.',
+      },
     ],
-    defaults: { focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 },
+    defaults: { focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60, autoStart: true },
   },
 ]
 

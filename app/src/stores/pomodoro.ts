@@ -1,8 +1,14 @@
 import { get, writable } from 'svelte/store'
+import { appStore } from './app'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
 import { showToast } from './toast'
-import { extensionChoice, extensionNumber, extensionState } from '../lib/extensions/registry'
+import {
+  extensionChoice,
+  extensionNumber,
+  extensionState,
+  extensionSwitch,
+} from '../lib/extensions/registry'
 
 // A single focus timer that follows the tab around. Session state is local to
 // this browser: it's rebuilt from localStorage on reload, so leaving the page
@@ -67,6 +73,13 @@ function configuredDurations(): Durations {
     focusMs: Math.round(extensionNumber(ext, 'focusMinutes', FOCUS_MS / MINUTE) * MINUTE),
     breakMs: Math.round(extensionNumber(ext, 'breakMinutes', BREAK_MS / MINUTE) * MINUTE),
   }
+}
+
+// Whether each new block starts on its own, or waits to be resumed. Read from
+// the extension settings at the moment a block ends.
+export function autoStarts(): boolean {
+  const ext = extensionState(get(preferencesStore).extensions, EXTENSION_ID)
+  return extensionSwitch(ext, 'autoStart', true)
 }
 
 function chimeSettings(): { sound: string; volume: number } {
@@ -154,22 +167,28 @@ function breakSession(state: PomodoroState, now: number): PomodoroState {
   }
 }
 
+// With auto-start off the new phase is parked at full length, paused, so it
+// waits for the user instead of running on.
+function parked(state: PomodoroState): PomodoroState {
+  return { ...state, running: false, endsAt: null, remainingMs: phaseMs(state) }
+}
+
 // Move the clock on to `now`. Reports the phase that just ran out, if any.
 export function advance(
   state: PomodoroState,
   now: number,
+  autoStart = true,
 ): { state: PomodoroState; finished: PomodoroMode | null } {
   const left = remainingMs(state, now)
   if (!state.running || left > 0) return { state: { ...state, remainingMs: left }, finished: null }
   if (state.mode === 'focus') {
-    return {
-      state: { ...breakSession(state, now), completed: state.completed + 1 },
-      finished: 'focus',
-    }
+    const next = { ...breakSession(state, now), completed: state.completed + 1 }
+    return { state: autoStart ? next : parked(next), finished: 'focus' }
   }
   // Blocks alternate until the timer is stopped: the break hands straight
   // over to the next focus block on the same task.
-  return { state: nextFocusSession(state, now), finished: 'break' }
+  const next = nextFocusSession(state, now)
+  return { state: autoStart ? next : parked(next), finished: 'break' }
 }
 
 // End the current phase early. A skipped focus session isn't counted.
@@ -319,11 +338,161 @@ export function previewChime() {
   chime(settings.sound, settings.volume)
 }
 
+// ---- notifications -------------------------------------------------------
+
+export function notificationsSupported(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
+// The Pomodoro notifications go through a service worker (app/public/sw.js):
+// that's the only way to get action buttons, and the only way notifications
+// work at all on mobile browsers.
+let swRegistration: Promise<ServiceWorkerRegistration | null> | null = null
+
+export function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return Promise.resolve(null)
+  }
+  if (!swRegistration) {
+    swRegistration = navigator.serviceWorker
+      .register('/sw.js')
+      // `ready` waits until it is active; `showNotification` needs that.
+      .then(() => navigator.serviceWorker.ready)
+      .catch(() => null)
+  }
+  return swRegistration
+}
+
+// Ask the browser for permission. Only prompts the first time; a blocked
+// permission can't be re-requested from here, so say so.
+export async function requestNotificationPermission(): Promise<void> {
+  if (!notificationsSupported()) return
+  // Prompt first, while the click still counts as a user gesture.
+  let permission = Notification.permission
+  if (permission === 'default') {
+    try {
+      permission = await Notification.requestPermission()
+    } catch {
+      permission = Notification.permission
+    }
+  }
+  if (permission === 'denied') showToast('Notifications are blocked in your browser')
+  if (permission === 'granted') await ensureServiceWorker()
+}
+
+// TypeScript's DOM lib dropped `actions` and `renotify`, but browsers that can
+// show action buttons still read them.
+interface PhaseNotificationOptions extends NotificationOptions {
+  actions?: { action: string; title: string }[]
+  renotify?: boolean
+}
+
+// Copy for the notification that reports a finished block.
+function phaseCopy(state: PomodoroState, finished: PomodoroMode) {
+  const auto = autoStarts()
+  const task = state.taskText ? ` — ${state.taskText}` : ''
+  if (finished === 'focus') {
+    return {
+      title: auto ? 'Break started' : 'Break ready',
+      body: auto ? `Time to rest${task}` : `Start your break when you're ready${task}`,
+      action: 'Start break',
+    }
+  }
+  return {
+    title: auto ? 'Focus started' : 'Focus ready',
+    body: auto ? `Back to work${task}` : `Start focusing when you're ready${task}`,
+    action: 'Start focus',
+  }
+}
+
+// Show a system notification whenever a block ends, whether or not the app is
+// in focus.
+async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
+  if (!notificationsSupported() || Notification.permission !== 'granted') return
+  await showPhaseNotification(state, finished)
+}
+
+// Builds and shows the notification. Returns false if the browser refused.
+async function showPhaseNotification(state: PomodoroState, finished: PomodoroMode): Promise<boolean> {
+  const { title, body, action } = phaseCopy(state, finished)
+  const auto = autoStarts()
+  const options: PhaseNotificationOptions = {
+    body,
+    tag: 'hawk-pomodoro',
+    // PNG, not the SVG favicon: Chromium can't draw SVG notification icons.
+    icon: '/notification-icon.png',
+    // Same tag for every block, but still alert when it replaces the old one.
+    renotify: true,
+    // Let the OS play its notification sound. Browsers can't pick the sound.
+    silent: false,
+    // With auto-start off the block waits for you, so keep it on screen.
+    requireInteraction: !auto,
+    actions: auto
+      ? [{ action: 'dismiss', title: 'Dismiss' }]
+      : [
+          { action: 'resume', title: action },
+          { action: 'dismiss', title: 'Dismiss' },
+        ],
+  }
+  const registration = await ensureServiceWorker()
+  if (registration) {
+    try {
+      await registration.showNotification(title, options)
+      return true
+    } catch {
+      /* fall back to the page's own notification */
+    }
+  }
+  try {
+    const notification = new Notification(title, { body, tag: options.tag, icon: options.icon })
+    // Bring the tab forward and show the Journal where the timer lives.
+    notification.onclick = () => {
+      window.focus()
+      showTimer()
+      notification.close()
+    }
+    return true
+  } catch {
+    /* mobile browsers only have the service worker route */
+    return false
+  }
+}
+
+// Show the end-of-focus notification now, regardless of focus, so the
+// browser and OS settings can be checked without waiting for a block to end.
+export async function sendTestNotification(): Promise<void> {
+  if (!notificationsSupported()) {
+    showToast("This browser doesn't support notifications")
+    return
+  }
+  if (Notification.permission !== 'granted') await requestNotificationPermission()
+  if (Notification.permission !== 'granted') return
+  const state = get(pomodoroStore)
+  const shown = await showPhaseNotification(
+    { ...state, taskText: state.taskText || 'Test task' },
+    'focus',
+  )
+  showToast(
+    shown
+      ? "Notification sent. If it didn't appear, check your system's notification settings."
+      : "Couldn't show a notification.",
+  )
+}
+
+// Open the Journal where the timer lives, starting the block if it was waiting.
+function showTimer() {
+  appStore.setCurrentPage('app')
+  appStore.setJournalTab('tasks')
+  pomodoroStore.resume()
+}
+
 function announce(state: PomodoroState, finished: PomodoroMode) {
   const settings = chimeSettings()
   chime(settings.sound, settings.volume)
+  notifyPhaseChange(state, finished)
+  const auto = autoStarts()
   if (finished === 'break') {
-    showToast('Break over — back to focus')
+    showToast(auto ? 'Break over — back to focus' : 'Break over — focus ready')
     return
   }
   const id = state.taskId
@@ -331,15 +500,24 @@ function announce(state: PomodoroState, finished: PomodoroMode) {
   const task = id && dateStr
     ? get(logsStore).byDate[dateStr]?.tasks.find((t) => t.id === id)
     : undefined
+  const message = auto ? 'Focus done — break time' : 'Focus done — break ready'
   if (task && !task.done) {
-    showToast('Focus done — break time', {
+    showToast(message, {
       action: 'Mark done',
       duration: 8000,
       onAction: () => logsStore.editTask(dateStr!, id!, { done: true }, { immediate: true }),
     })
     return
   }
-  showToast('Focus done — break time')
+  showToast(message)
+}
+
+// Ask for notification permission the first time a block is started: the click
+// is the user gesture browsers want, and it covers anyone who switched the
+// extension on before notifications existed.
+function askForNotifications() {
+  if (!notificationsSupported() || Notification.permission !== 'default') return
+  void requestNotificationPermission()
 }
 
 function createPomodoroStore() {
@@ -358,14 +536,17 @@ function createPomodoroStore() {
       const state = get({ subscribe })
       const now = Date.now()
       if (state.taskId === target.id && state.mode === 'focus') {
+        if (!state.running) askForNotifications()
         commit(state.running ? pause(state, now) : resume(state, now))
         return
       }
+      askForNotifications()
       commit(startSession(state, target, now, configuredDurations()))
     },
     toggle() {
       const state = get({ subscribe })
       const now = Date.now()
+      if (!state.running) askForNotifications()
       commit(state.running ? pause(state, now) : resume(state, now))
     },
     skip() {
@@ -381,8 +562,15 @@ function createPomodoroStore() {
         completed: state.completed,
       })
     },
+    // Bring a parked phase (auto-start off) back to life, from the
+    // notification's action or its click.
+    resume() {
+      const state = get({ subscribe })
+      if (state.running || state.taskId === null) return
+      commit(resume(state, Date.now()))
+    },
     tick() {
-      const { state, finished } = advance(get({ subscribe }), Date.now())
+      const { state, finished } = advance(get({ subscribe }), Date.now(), autoStarts())
       if (finished) commit(state, finished)
       else set(state)
     },
@@ -390,3 +578,34 @@ function createPomodoroStore() {
 }
 
 export const pomodoroStore = createPomodoroStore()
+
+// A notification click lands here. The "start" action only starts the block
+// that was waiting, leaving the app where it is; clicking the body brings you
+// to the timer.
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
+    const data = event.data as { type?: string; action?: string } | null
+    if (data?.type !== 'hawk-pomodoro') return
+    if (data.action === 'resume') pomodoroStore.resume()
+    else showTimer()
+  })
+}
+
+// Same for a click that had to open the app: the worker puts this on the URL.
+if (typeof location !== 'undefined') {
+  try {
+    const params = new URLSearchParams(location.search)
+    if (params.get('pomodoro') === 'resume') {
+      params.delete('pomodoro')
+      const query = params.toString()
+      history.replaceState(
+        null,
+        '',
+        `${location.pathname}${query ? `?${query}` : ''}${location.hash}`,
+      )
+      pomodoroStore.resume()
+    }
+  } catch {
+    /* malformed URL */
+  }
+}
