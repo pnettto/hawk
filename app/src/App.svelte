@@ -167,24 +167,26 @@
       >
         <span class="nav-logo" aria-hidden="true"></span>
       </button>
-      <button
-        class:active={$appStore.currentPage === 'app'}
-        onclick={() => appStore.setCurrentPage('app')}>Journal</button
-      >
-      <button
-        class:active={$appStore.currentPage === 'notes'}
-        onclick={() => appStore.setCurrentPage('notes')}>Notepad</button
-      >
-      {#if !$authStore.isGuest}
+      <div class="nav-pages">
         <button
-          class:active={$appStore.currentPage === 'files'}
-          onclick={() => appStore.setCurrentPage('files')}>Files</button
+          class:active={$appStore.currentPage === 'app'}
+          onclick={() => appStore.setCurrentPage('app')}>Journal</button
         >
-      {/if}
-      <button
-        class:active={$appStore.currentPage === 'extensions'}
-        onclick={() => appStore.setCurrentPage('extensions')}>Extensions</button
-      >
+        <button
+          class:active={$appStore.currentPage === 'notes'}
+          onclick={() => appStore.setCurrentPage('notes')}>Notepad</button
+        >
+        {#if !$authStore.isGuest}
+          <button
+            class:active={$appStore.currentPage === 'files'}
+            onclick={() => appStore.setCurrentPage('files')}>Files</button
+          >
+        {/if}
+        <button
+          class:active={$appStore.currentPage === 'extensions'}
+          onclick={() => appStore.setCurrentPage('extensions')}>Extensions</button
+        >
+      </div>
       <span class="nav-spacer"></span>
       <SavingIndicator />
       <button
@@ -307,14 +309,11 @@
             mask: url(/logo.svg) center / contain no-repeat;
     transition: opacity var(--dur-fast) var(--ease-out);
   }
-  @media (max-width: 600px) {
-    nav {
-      gap: 0.25rem;
-      overflow-x: auto;
-      padding-bottom: 0.5rem;
-      scrollbar-width: none;
-    }
-    nav::-webkit-scrollbar { display: none; }
+  .nav-pages {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
   }
   nav button {
     background: none;
@@ -339,6 +338,19 @@
     background: var(--glass);
   }
   .nav-spacer { flex: 1; }
+  @media (max-width: 600px) {
+    /* Page tabs scroll on their own, so the action icons never slide out of
+       reach behind them. */
+    .nav-pages {
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .nav-pages::-webkit-scrollbar { display: none; }
+    .nav-pages button { flex-shrink: 0; }
+    .nav-spacer { display: none; }
+  }
   .nav-icon {
     display: inline-flex;
     align-items: center;
