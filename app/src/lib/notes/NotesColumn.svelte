@@ -172,7 +172,7 @@
           <div class="empty-headline">Trash is empty</div>
           <div class="empty-sub">Notes you delete will rest here.</div>
         {:else if $notesStore.filter.kind === 'day'}
-          <div class="empty-headline">No day notes yet</div>
+          <div class="empty-headline">No journal notes yet</div>
           <div class="empty-sub">Notes you write in Journal land here.</div>
         {:else}
           <div class="empty-headline">No notes here</div>

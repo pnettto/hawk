@@ -2,7 +2,7 @@
   import { tick } from 'svelte'
   import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: All notes, Notepad notes, Day Notes,
+  // The Notepad list's view picker: All notes, Notepad notes, Journal notes,
   // untagged notes, one #tag, or Trash, plus the sort order for views
   // that are listed by date.
 
@@ -33,7 +33,7 @@
     | { filter: NotesFilter; label: string; count: number; key: string }
     | { sort: NotesSort; label: string; key: string }
 
-  // Day Notes sort by day and Trash by deletion, so only the others offer a sort.
+  // Journal notes sort by day and Trash by deletion, so only the others offer a sort.
   let sortable = $derived(
     $notesStore.filter.kind === 'all' ||
       $notesStore.filter.kind === 'notepad' ||
@@ -45,7 +45,7 @@
     const fixed: Item[] = [
       { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'notepad' }, label: 'Notepad notes', count: counts.notepad, key: 'notepad' },
-      { filter: { kind: 'day' }, label: 'Day Notes', count: counts.day, key: 'day' },
+      { filter: { kind: 'day' }, label: 'Journal notes', count: counts.day, key: 'day' },
       { filter: { kind: 'untagged' }, label: 'Not tagged', count: counts.untagged, key: 'untagged' },
     ]
     const tags: Item[] = counts.tags.map(([tag, count]) => ({
@@ -74,7 +74,7 @@
     if (f.kind === 'tag') return { label: `#${f.tag}`, count: counts.tags.find(([t]) => t === f.tag)?.[1] ?? 0 }
     if (f.kind === 'notepad') return { label: 'Notepad notes', count: counts.notepad }
     if (f.kind === 'untagged') return { label: 'Not tagged', count: counts.untagged }
-    if (f.kind === 'day') return { label: 'Day Notes', count: counts.day }
+    if (f.kind === 'day') return { label: 'Journal notes', count: counts.day }
     if (f.kind === 'trash') return { label: 'Trash', count: counts.trash }
     return { label: 'All notes', count: counts.all }
   })
