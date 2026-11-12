@@ -19,13 +19,31 @@
   let tasks = $derived(sortTasks($logsStore.byDate[dateStr]?.tasks ?? []))
   let doneCount = $derived(tasks.filter((t) => t.done).length)
 
+  // Subtasks live in the same list, linked by parentId. Render parents with
+  // their children directly underneath.
+  type Row = { task: Task; depth: number }
+  let topLevel = $derived.by(() => {
+    const ids = new Set(tasks.map((t) => t.id))
+    return tasks.filter((t) => !t.parentId || !ids.has(t.parentId))
+  })
+  let rows = $derived.by(() => {
+    const out: Row[] = []
+    for (const parent of topLevel) {
+      out.push({ task: parent, depth: 0 })
+      for (const child of sortTasks(tasks.filter((t) => t.parentId === parent.id))) {
+        out.push({ task: child, depth: 1 })
+      }
+    }
+    return out
+  })
+
   let prevDateStr = $derived.by(() => {
     const d = new Date($appStore.selectedDate)
     d.setDate(d.getDate() - 1)
     return formatDate(d)
   })
   let carryable = $derived(
-    ($logsStore.byDate[prevDateStr]?.tasks ?? []).filter((t) => !t.done && t.text.trim()),
+    ($logsStore.byDate[prevDateStr]?.tasks ?? []).filter((t) => !t.parentId && !t.done && t.text.trim()),
   )
   let prevDayName = $derived(
     new Date(prevDateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }),
@@ -44,11 +62,15 @@
   // just above it. Hidden when there's no timed task on either side.
   let nowIndex = $derived.by(() => {
     if (!isToday) return -1
-    const timed = tasks.filter((t) => t.time)
-    if (!timed.length) return -1
-    const idx = tasks.findIndex((t) => t.time && toMinutes(t.time) > nowMinutes)
+    if (!rows.some((r) => r.task.time)) return -1
+    const idx = rows.findIndex((r) => r.task.time && toMinutes(r.task.time) > nowMinutes)
     if (idx === 0) return -1
-    return idx === -1 ? timed.length : idx
+    if (idx !== -1) return idx
+    // Every timed task is in the past: sit before the next untimed one.
+    let lastTimed = -1
+    for (let i = 0; i < rows.length; i++) if (rows[i].task.time) lastTimed = i
+    const next = rows.findIndex((r, i) => i > lastTimed && r.depth === 0 && !r.task.time)
+    return next === -1 ? rows.length : next
   })
 
   // ---- add -----------------------------------------------------------------
@@ -62,8 +84,10 @@
   let draftComment = $state('')
   let draftCommentOpen = $state(false)
   let addInput = $state<HTMLInputElement | null>(null)
-  // The task just created from the add row, until its row loses focus.
+  // The task just created from the add row or a subtask button, until its
+  // row loses focus. freshIsSubtask skips the quick-time parsing.
   let freshId = $state<string | null>(null)
+  let freshIsSubtask = $state(false)
 
   function resetDraft() {
     draft = ''
@@ -95,7 +119,9 @@
   // its text, or drop it if it was emptied.
   function finishFresh() {
     const id = freshId
+    const subtask = freshIsSubtask
     freshId = null
+    freshIsSubtask = false
     if (!id) return
     const task = $logsStore.byDate[dateStr]?.tasks.find((t) => t.id === id)
     if (!task) return
@@ -103,9 +129,32 @@
       logsStore.removeTask(dateStr, id, { quiet: true })
       return
     }
-    if (task.time) return
+    if (subtask || task.time) return
     const parsed = parseQuickTask(task.text)
     if (parsed.time && parsed.text) logsStore.editTask(dateStr, id, { text: parsed.text, time: parsed.time })
+  }
+
+  // Add an empty subtask and put the cursor in it. Blurring it while empty
+  // removes it again, so a mis-click costs nothing.
+  async function addSubtask(parent: Task) {
+    finishFresh()
+    const child = logsStore.addTask(dateStr, { text: '', parentId: parent.id })
+    freshId = child.id
+    freshIsSubtask = true
+    await tick()
+    focusTask(child.id)
+  }
+
+  // Enter at the end of a subtask continues the list with a new sibling.
+  async function addSibling(task: Task) {
+    if (!task.parentId) return
+    const parentId = task.parentId
+    finishFresh()
+    const sibling = logsStore.addTask(dateStr, { text: '', parentId })
+    freshId = sibling.id
+    freshIsSubtask = true
+    await tick()
+    focusTask(sibling.id)
   }
 
   function onAddInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -143,9 +192,9 @@
     } else if (e.key === 'Escape') {
       resetDraft()
       addInput?.blur()
-    } else if (e.key === 'ArrowUp' && tasks.length) {
+    } else if (e.key === 'ArrowUp' && rows.length) {
       e.preventDefault()
-      focusTask(tasks[tasks.length - 1].id)
+      focusTask(rows[rows.length - 1].task.id)
     }
   }
 
@@ -170,24 +219,32 @@
       logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      addInput?.focus()
+      if (task.parentId) void addSibling(task)
+      else addInput?.focus()
     } else if (e.key === 'ArrowUp' && index > 0) {
       e.preventDefault()
-      focusTask(tasks[index - 1].id)
+      focusTask(rows[index - 1].task.id)
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (index < tasks.length - 1) focusTask(tasks[index + 1].id)
+      if (index < rows.length - 1) focusTask(rows[index + 1].task.id)
       else addInput?.focus()
     } else if (e.key === 'Backspace' && input.value === '' && !task.comment) {
       e.preventDefault()
-      // Backing out of a task that was just started returns to the add row.
+      // Backing out of a task that was just started returns to where it came from.
       if (task.id === freshId) {
         freshId = null
+        freshIsSubtask = false
         logsStore.removeTask(dateStr, task.id, { quiet: true })
-        addInput?.focus()
+        if (task.parentId) {
+          const prev = rows[index - 1]
+          if (prev) tick().then(() => focusTask(prev.task.id))
+          else addInput?.focus()
+        } else {
+          addInput?.focus()
+        }
         return
       }
-      const prev = tasks[index - 1]
+      const prev = rows[index - 1]?.task
       logsStore.removeTask(dateStr, task.id)
       if (prev) tick().then(() => focusTask(prev.id))
       else addInput?.focus()
@@ -280,10 +337,12 @@
 
   {#key dateStr}
     <ul class="list" bind:this={listEl} class:loading={!loaded}>
-      {#each tasks as task, i (task.id)}
+      {#each rows as row, i (row.task.id)}
+        {@const task = row.task}
         <li
           class="task"
           class:done={task.done}
+          class:sub={row.depth > 0}
           class:has-comment={!!task.comment}
           animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
@@ -310,8 +369,8 @@
               data-task-input={task.id}
               rows="1"
               value={task.text}
-              placeholder="Task"
-              aria-label="Task"
+              placeholder={row.depth ? 'Subtask' : 'Task'}
+              aria-label={row.depth ? 'Subtask' : 'Task'}
               use:autosize
               oninput={(e) => logsStore.editTask(dateStr, task.id, { text: e.currentTarget.value })}
               onkeydown={(e) => onTextKeydown(e, task, i)}
@@ -319,6 +378,21 @@
                 if (task.id === freshId) finishFresh()
               }}
             ></textarea>
+
+            {#if row.depth === 0}
+              <button
+                type="button"
+                class="icon-btn ghost add-sub"
+                title="Add a subtask"
+                aria-label="Add a subtask"
+                onclick={() => void addSubtask(task)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 3v5a2 2 0 0 0 2 2h6" />
+                  <path d="M8.5 7.5 11 10 8.5 12.5" />
+                </svg>
+              </button>
+            {/if}
 
             <button
               type="button"
@@ -334,7 +408,7 @@
               </svg>
             </button>
 
-            {#if pomodoroOn}
+            {#if pomodoroOn && row.depth === 0}
               <button
                 type="button"
                 class="icon-btn ghost focus-btn"
@@ -357,23 +431,25 @@
               </button>
             {/if}
 
-            <TimePicker
-              class="time"
-              value={task.time}
-              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
-            />
-            <button
-              type="button"
-              class="icon-btn ghost carry-over"
-              title="Carry over to next day"
-              aria-label="Carry over to next day"
-              onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2.5 8h9" />
-                <path d="M9 4.5L12.5 8 9 11.5" />
-              </svg>
-            </button>
+            {#if row.depth === 0}
+              <TimePicker
+                class="time"
+                value={task.time}
+                onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+              />
+              <button
+                type="button"
+                class="icon-btn ghost carry-over"
+                title="Carry over to next day"
+                aria-label="Carry over to next day"
+                onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2.5 8h9" />
+                  <path d="M9 4.5L12.5 8 9 11.5" />
+                </svg>
+              </button>
+            {/if}
             <button
               type="button"
               class="icon-btn ghost danger remove"
@@ -408,7 +484,7 @@
           {/if}
         </li>
       {/each}
-      {#if nowIndex === tasks.length && tasks.length}
+      {#if nowIndex === rows.length && rows.length}
         <li class="now-marker" aria-label="Now"><span>now</span></li>
       {/if}
     </ul>
@@ -602,11 +678,14 @@
   .task :global(.time.open) { opacity: 1; }
 
   .comment-toggle,
+  .add-sub,
   .focus-btn,
   .carry-over,
   .remove { opacity: 0; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
+  .task:hover .add-sub,
+  .task:focus-within .add-sub,
   .task:hover .focus-btn,
   .task:focus-within .focus-btn,
   .task:hover .carry-over,
@@ -629,17 +708,37 @@
     letter-spacing: 0.01em;
   }
   .comment-toggle:hover,
+  .add-sub:hover,
   .focus-btn:hover,
   .carry-over:hover,
   .remove:hover { opacity: 1 !important; }
+  .add-sub:hover,
   .carry-over:hover { color: var(--accent); }
   @media (hover: none) {
     .task :global(.time:not(.set)),
     .comment-toggle,
+    .add-sub,
     .focus-btn,
     .carry-over,
     .remove { opacity: 0.45; }
   }
+
+  /* Subtasks sit indented under their parent, marked by a short guide line. */
+  .task.sub {
+    position: relative;
+    margin-left: 1.7rem;
+  }
+  .task.sub::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--line);
+  }
+  .task.sub .text { font-size: 0.95rem; }
+  .task.sub .comment { margin-left: 2.35rem; }
 
   .comment {
     display: block;

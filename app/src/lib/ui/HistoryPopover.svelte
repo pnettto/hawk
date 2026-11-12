@@ -104,13 +104,22 @@
         previewText = stripMarkdown(res?.content?.content ?? '')
       } else {
         const res = await logsApi.getDayVersion(entityId, v.savedAt)
-        const tasks = sortTasks(res?.content?.tasks ?? [])
+        const all = res?.content?.tasks ?? []
+        const ids = new Set(all.map((t) => t.id))
         const lines: string[] = []
-        for (const t of tasks) {
-          lines.push(`${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
+        const ordered: { task: (typeof all)[number]; depth: number }[] = []
+        for (const parent of sortTasks(all.filter((t) => !t.parentId || !ids.has(t.parentId)))) {
+          ordered.push({ task: parent, depth: 0 })
+          for (const child of sortTasks(all.filter((t) => t.parentId === parent.id))) {
+            ordered.push({ task: child, depth: 1 })
+          }
+        }
+        for (const { task: t, depth } of ordered) {
+          const indent = '  '.repeat(depth)
+          lines.push(`${indent}${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
           // Indent comments so they nest visually under their task.
           for (const cline of (t.comment ?? '').split('\n').filter(Boolean)) {
-            lines.push(`    ${cline}`)
+            lines.push(`${indent}    ${cline}`)
           }
         }
         previewText = lines.join('\n') || '(empty)'
