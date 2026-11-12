@@ -1,16 +1,26 @@
 import { get, writable } from 'svelte/store'
 import { logsStore } from './logs'
+import { preferencesStore } from './preferences'
 import { showToast } from './toast'
+import { extensionNumber, extensionState, extensionSwitch } from '../lib/extensions/registry'
 
-// A single focus timer that follows the tab around. Nothing here touches the
-// server: the running session is rebuilt from localStorage on reload, so
-// leaving the page or reloading doesn't lose the countdown.
+// A single focus timer that follows the tab around. Session state is local to
+// this browser: it's rebuilt from localStorage on reload, so leaving the page
+// or reloading doesn't lose the countdown. The block lengths come from the
+// Pomodoro extension's settings.
 
 export const FOCUS_MS = 25 * 60_000
 export const BREAK_MS = 5 * 60_000
+export const EXTENSION_ID = 'pomodoro'
+const MINUTE = 60_000
 const STORAGE_KEY = 'hawk_pomodoro'
 
 export type PomodoroMode = 'focus' | 'break'
+
+export interface Durations {
+  focusMs: number
+  breakMs: number
+}
 
 export interface PomodoroState {
   taskId: string | null
@@ -23,6 +33,10 @@ export interface PomodoroState {
   endsAt: number | null
   // Time left as of the last tick; authoritative while paused.
   remainingMs: number
+  // Block lengths for the current session, frozen at start so changing the
+  // settings doesn't move the goalposts mid-block.
+  focusMs: number
+  breakMs: number
   // Focus sessions finished in this tab.
   completed: number
 }
@@ -41,11 +55,37 @@ export const IDLE: PomodoroState = {
   running: false,
   endsAt: null,
   remainingMs: FOCUS_MS,
+  focusMs: FOCUS_MS,
+  breakMs: BREAK_MS,
   completed: 0,
 }
 
-export function phaseMs(mode: PomodoroMode): number {
-  return mode === 'focus' ? FOCUS_MS : BREAK_MS
+// Current block lengths from the extension settings.
+function configuredDurations(): Durations {
+  const ext = extensionState(get(preferencesStore).extensions, EXTENSION_ID)
+  return {
+    focusMs: Math.round(extensionNumber(ext, 'focusMinutes', FOCUS_MS / MINUTE) * MINUTE),
+    breakMs: Math.round(extensionNumber(ext, 'breakMinutes', BREAK_MS / MINUTE) * MINUTE),
+  }
+}
+
+function chimeEnabled(): boolean {
+  return extensionSwitch(extensionState(get(preferencesStore).extensions, EXTENSION_ID), 'chime', true)
+}
+
+// Back to a fresh focus phase, keeping the configured lengths and count.
+function idleFrom(state: PomodoroState): PomodoroState {
+  return {
+    ...IDLE,
+    focusMs: state.focusMs,
+    breakMs: state.breakMs,
+    remainingMs: state.focusMs,
+    completed: state.completed,
+  }
+}
+
+export function phaseMs(state: PomodoroState): number {
+  return state.mode === 'focus' ? state.focusMs : state.breakMs
 }
 
 // "24:59" — rounds up so the clock only reads 0:00 once the phase is over.
@@ -63,6 +103,7 @@ export function startSession(
   state: PomodoroState,
   target: FocusTarget,
   now: number,
+  durations: Durations,
 ): PomodoroState {
   return {
     ...state,
@@ -71,8 +112,10 @@ export function startSession(
     dateStr: target.dateStr,
     mode: 'focus',
     running: true,
-    endsAt: now + FOCUS_MS,
-    remainingMs: FOCUS_MS,
+    endsAt: now + durations.focusMs,
+    remainingMs: durations.focusMs,
+    focusMs: durations.focusMs,
+    breakMs: durations.breakMs,
   }
 }
 
@@ -83,12 +126,18 @@ export function pause(state: PomodoroState, now: number): PomodoroState {
 
 export function resume(state: PomodoroState, now: number): PomodoroState {
   if (state.running) return state
-  const ms = state.remainingMs > 0 ? state.remainingMs : phaseMs(state.mode)
+  const ms = state.remainingMs > 0 ? state.remainingMs : phaseMs(state)
   return { ...state, running: true, endsAt: now + ms, remainingMs: ms }
 }
 
 function breakSession(state: PomodoroState, now: number): PomodoroState {
-  return { ...state, mode: 'break', running: true, endsAt: now + BREAK_MS, remainingMs: BREAK_MS }
+  return {
+    ...state,
+    mode: 'break',
+    running: true,
+    endsAt: now + state.breakMs,
+    remainingMs: state.breakMs,
+  }
 }
 
 // Move the clock on to `now`. Reports the phase that just ran out, if any.
@@ -104,13 +153,13 @@ export function advance(
       finished: 'focus',
     }
   }
-  return { state: { ...IDLE, completed: state.completed }, finished: 'break' }
+  return { state: idleFrom(state), finished: 'break' }
 }
 
 // End the current phase early. A skipped focus session isn't counted.
 export function skip(state: PomodoroState, now: number): PomodoroState {
   if (state.mode === 'focus') return breakSession(state, now)
-  return { ...IDLE, completed: state.completed }
+  return idleFrom(state)
 }
 
 // ---- persistence ---------------------------------------------------------
@@ -138,6 +187,8 @@ function restore(now: number): PomodoroState {
       running: saved.running === true && typeof saved.endsAt === 'number',
       endsAt: typeof saved.endsAt === 'number' ? saved.endsAt : null,
       remainingMs: saved.remainingMs,
+      focusMs: typeof saved.focusMs === 'number' ? saved.focusMs : FOCUS_MS,
+      breakMs: typeof saved.breakMs === 'number' ? saved.breakMs : BREAK_MS,
       completed: typeof saved.completed === 'number' ? saved.completed : 0,
     }
     // The clock kept running while the tab was closed. A phase that ran out
@@ -145,7 +196,7 @@ function restore(now: number): PomodoroState {
     // break that started hours ago.
     if (state.running) {
       const { state: next, finished } = advance(state, now)
-      state = finished ? { ...IDLE, completed: next.completed } : next
+      state = finished ? idleFrom(next) : next
     }
     persist(state)
     return state
@@ -180,7 +231,7 @@ function chime() {
 }
 
 function announce(state: PomodoroState, finished: PomodoroMode) {
-  chime()
+  if (chimeEnabled()) chime()
   if (finished === 'break') {
     showToast('Break over')
     return
@@ -220,7 +271,7 @@ function createPomodoroStore() {
         commit(state.running ? pause(state, now) : resume(state, now))
         return
       }
-      commit(startSession(state, target, now))
+      commit(startSession(state, target, now, configuredDurations()))
     },
     toggle() {
       const state = get({ subscribe })
@@ -231,7 +282,14 @@ function createPomodoroStore() {
       commit(skip(get({ subscribe }), Date.now()))
     },
     stop() {
-      commit({ ...IDLE, completed: get({ subscribe }).completed })
+      const state = get({ subscribe })
+      const durations = configuredDurations()
+      commit({
+        ...IDLE,
+        ...durations,
+        remainingMs: durations.focusMs,
+        completed: state.completed,
+      })
     },
     tick() {
       const { state, finished } = advance(get({ subscribe }), Date.now())

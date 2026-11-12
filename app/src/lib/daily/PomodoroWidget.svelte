@@ -2,15 +2,18 @@
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
-  import { formatClock, phaseMs, pomodoroStore } from '../../stores/pomodoro'
+  import { EXTENSION_ID, formatClock, phaseMs, pomodoroStore } from '../../stores/pomodoro'
   import { logsStore } from '../../stores/logs'
+  import { preferencesStore } from '../../stores/preferences'
+  import { extensionState } from '../extensions/registry'
 
   let state = $derived($pomodoroStore)
+  let ext = $derived(extensionState($preferencesStore.extensions, EXTENSION_ID))
   // Break keeps the task around so the countdown still has a label.
-  let active = $derived(state.taskId !== null || state.mode === 'break')
+  let active = $derived(ext.enabled && (state.taskId !== null || state.mode === 'break'))
   let left = $derived(state.remainingMs)
   let progress = $derived.by(() => {
-    const total = phaseMs(state.mode)
+    const total = phaseMs(state)
     return total ? Math.min(1, Math.max(0, 1 - left / total)) : 0
   })
   // The row is the truth for the text, so renaming a task updates the widget.
@@ -22,6 +25,11 @@
   )
 
   onMount(() => pomodoroStore.tick())
+
+  // Turning the extension off puts the timer away for good.
+  $effect(() => {
+    if (!ext.enabled && $pomodoroStore.taskId) pomodoroStore.stop()
+  })
 
   // One ticker for the whole app: it runs whether or not the Journal is open.
   $effect(() => {

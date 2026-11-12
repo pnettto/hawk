@@ -27,6 +27,7 @@
     app: () => import('./routes/Journal.svelte'),
     notes: () => import('./routes/Notes.svelte'),
     files: () => import('./routes/Files.svelte'),
+    extensions: () => import('./routes/Extensions.svelte'),
     admin: () => import('./routes/Admin.svelte'),
   } as const
   type PageId = keyof typeof routeLoaders
@@ -167,6 +168,10 @@
           onclick={() => appStore.setCurrentPage('files')}>Files</button
         >
       {/if}
+      <button
+        class:active={$appStore.currentPage === 'extensions'}
+        onclick={() => appStore.setCurrentPage('extensions')}>Extensions</button
+      >
       <span class="nav-spacer"></span>
       <SavingIndicator />
       <button

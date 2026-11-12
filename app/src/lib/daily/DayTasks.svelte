@@ -9,7 +9,9 @@
   import { parseQuickTask } from './quickTask'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import TimePicker from '../ui/TimePicker.svelte'
-  import { formatClock, pomodoroStore } from '../../stores/pomodoro'
+  import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
+  import { preferencesStore } from '../../stores/preferences'
+  import { extensionState } from '../extensions/registry'
   import type { Task } from '../../types/models'
 
   let dateStr = $derived(formatDate($appStore.selectedDate))
@@ -217,6 +219,7 @@
   // ---- pomodoro ------------------------------------------------------------
 
   let timer = $derived($pomodoroStore)
+  let pomodoroOn = $derived(extensionState($preferencesStore.extensions, EXTENSION_ID).enabled)
   let focusedId = $derived(timer.mode === 'focus' ? timer.taskId : null)
 
   function toggleFocus(task: Task) {
@@ -329,26 +332,28 @@
               </svg>
             </button>
 
-            <button
-              type="button"
-              class="icon-btn ghost focus-btn"
-              class:active={focusedId === task.id}
-              class:paused={focusedId === task.id && !timer.running}
-              title={focusedId === task.id ? 'Pause or resume the timer' : 'Start a focus timer'}
-              aria-label={focusedId === task.id ? 'Pause or resume the focus timer' : 'Start a focus timer'}
-              aria-pressed={focusedId === task.id}
-              onclick={() => toggleFocus(task)}
-            >
-              {#if focusedId === task.id}
-                <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
-              {:else}
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="8" cy="8.5" r="5" />
-                  <path d="M8 6v2.8l1.8 1.2" />
-                  <path d="M6.4 1.8h3.2" />
-                </svg>
-              {/if}
-            </button>
+            {#if pomodoroOn}
+              <button
+                type="button"
+                class="icon-btn ghost focus-btn"
+                class:active={focusedId === task.id}
+                class:paused={focusedId === task.id && !timer.running}
+                title={focusedId === task.id ? 'Pause or resume the timer' : 'Start a focus timer'}
+                aria-label={focusedId === task.id ? 'Pause or resume the focus timer' : 'Start a focus timer'}
+                aria-pressed={focusedId === task.id}
+                onclick={() => toggleFocus(task)}
+              >
+                {#if focusedId === task.id}
+                  <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
+                {:else}
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="8" cy="8.5" r="5" />
+                    <path d="M8 6v2.8l1.8 1.2" />
+                    <path d="M6.4 1.8h3.2" />
+                  </svg>
+                {/if}
+              </button>
+            {/if}
 
             <TimePicker
               class="time"
