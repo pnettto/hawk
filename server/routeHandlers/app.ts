@@ -116,12 +116,16 @@ function sanitizeTask(t: Partial<Task>): Task | null {
     ? t.time
     : undefined;
   const comment = typeof t.comment === "string" && t.comment ? t.comment : undefined;
+  const parentId = typeof t.parentId === "string" && t.parentId && t.parentId !== t.id
+    ? t.parentId
+    : undefined;
   return {
     id: t.id,
     text: typeof t.text === "string" ? t.text : "",
     done: !!t.done,
     time,
     comment,
+    parentId,
     order: typeof t.order === "number" ? t.order : Date.now(),
     updatedAt: Date.now(),
   };

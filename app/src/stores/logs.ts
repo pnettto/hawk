@@ -221,19 +221,42 @@ function createLogsStore() {
     return task
   }
 
+  // Removing a task also removes its subtasks.
+  function withDescendants(tasks: Task[], id: string): Task[] {
+    const ids = new Set([id])
+    let grew = true
+    while (grew) {
+      grew = false
+      for (const t of tasks) {
+        if (t.parentId && ids.has(t.parentId) && !ids.has(t.id)) {
+          ids.add(t.id)
+          grew = true
+        }
+      }
+    }
+    return tasks.filter((t) => ids.has(t.id))
+  }
+
   // `quiet` skips the undo toast, for a task the user only just started.
   function removeTask(dateStr: string, id: string, opts: { quiet?: boolean } = {}) {
-    const task = dayOf(dateStr).tasks.find((t) => t.id === id)
+    const all = dayOf(dateStr).tasks
+    const task = all.find((t) => t.id === id)
     if (!task) return
-    setDay(dateStr, (d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }))
-    dirtyTasks.get(dateStr)?.delete(id)
-    setOf(removedTasks, dateStr).add(id)
+    const removed = withDescendants(all, id)
+    const removedIds = new Set(removed.map((t) => t.id))
+    setDay(dateStr, (d) => ({ ...d, tasks: d.tasks.filter((t) => !removedIds.has(t.id)) }))
+    for (const rid of removedIds) {
+      dirtyTasks.get(dateStr)?.delete(rid)
+      setOf(removedTasks, dateStr).add(rid)
+    }
     scheduleTaskWrite(dateStr, true)
     if (opts.quiet) return
     showToast(task.text ? `Deleted “${task.text.slice(0, 40)}”` : 'Task deleted', {
       action: 'Undo',
       duration: UNDO_MS,
-      onAction: () => upsertTask(dateStr, task, { immediate: true }),
+      onAction: () => {
+        for (const t of removed) upsertTask(dateStr, t, { immediate: true })
+      },
     })
   }
 
@@ -261,20 +284,33 @@ function createLogsStore() {
     else scheduleTaskWrite(dateStr, true)
   }
 
+  // Copy a task (and its subtasks) to another day as new tasks.
+  function copyTaskTree(all: Task[], task: Task, toDate: string) {
+    const parent = addTask(toDate, { text: task.text, time: task.time, comment: task.comment })
+    for (const child of all.filter((t) => t.parentId === task.id)) {
+      addTask(toDate, {
+        text: child.text,
+        done: child.done,
+        comment: child.comment,
+        parentId: parent.id,
+      })
+    }
+  }
+
   // Copy unfinished tasks to another day (as new tasks).
   function carryOver(fromDate: string, toDate: string, ids: string[]) {
-    const src = dayOf(fromDate).tasks.filter((t) => ids.includes(t.id))
-    for (const t of src) addTask(toDate, { text: t.text, time: t.time, comment: t.comment })
+    const all = dayOf(fromDate).tasks
+    for (const t of all.filter((t) => ids.includes(t.id))) copyTaskTree(all, t, toDate)
   }
 
   // Move a single task onto the next day.
   function carryTaskOver(dateStr: string, id: string) {
-    const task = dayOf(dateStr).tasks.find((t) => t.id === id)
+    const all = dayOf(dateStr).tasks
+    const task = all.find((t) => t.id === id)
     if (!task) return
     const next = new Date(dateStr + 'T12:00:00')
     next.setDate(next.getDate() + 1)
-    const nextDate = formatDate(next)
-    addTask(nextDate, { text: task.text, time: task.time, comment: task.comment })
+    copyTaskTree(all, task, formatDate(next))
     removeTask(dateStr, id, { quiet: true })
   }
 

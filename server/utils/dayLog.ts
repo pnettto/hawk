@@ -16,6 +16,8 @@ export interface Task {
   // "HH:MM" (24h) or absent for untimed tasks.
   time?: string;
   comment?: string;
+  // Set on a subtask: the id of the task it belongs to.
+  parentId?: string;
   // Manual sort key among untimed tasks (defaults to creation time).
   order: number;
   updatedAt?: number;

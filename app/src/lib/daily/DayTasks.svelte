@@ -17,16 +17,52 @@
   let dateStr = $derived(formatDate($appStore.selectedDate))
   let loaded = $derived(dateStr in $logsStore.byDate)
   let tasks = $derived(sortTasks($logsStore.byDate[dateStr]?.tasks ?? []))
-  let doneCount = $derived(tasks.filter((t) => t.done).length)
+
+  // A task with subtasks becomes a group header: it no longer counts as a
+  // completable task, its children do.
+  let parentIds = $derived(new Set(tasks.filter((t) => t.parentId).map((t) => t.parentId!)))
+  let leafTasks = $derived(tasks.filter((t) => !parentIds.has(t.id)))
+  let doneCount = $derived(leafTasks.filter((t) => t.done).length)
+
+  // Subtasks live in the same list, linked by parentId. Render parents with
+  // their children directly underneath, then a group add row.
+  type Row = { task: Task; depth: number; header: boolean; addRow?: boolean; now?: boolean; index: number }
+  // Placeholder for the "now" divider, which needs a row but isn't a task.
+  const NOW_TASK: Task = { id: '__now__', text: '', done: false, order: 0 }
+  let topLevel = $derived.by(() => {
+    const ids = new Set(tasks.map((t) => t.id))
+    return tasks.filter((t) => !t.parentId || !ids.has(t.parentId))
+  })
+  let baseRows = $derived.by(() => {
+    const out: Row[] = []
+    let index = 0
+    for (const parent of topLevel) {
+      const children = sortTasks(tasks.filter((t) => t.parentId === parent.id))
+      const header = children.length > 0
+      out.push({ task: parent, depth: 0, header, index: index++ })
+      for (const child of children) {
+        out.push({ task: child, depth: 1, header: false, index: index++ })
+      }
+      if (header) out.push({ task: parent, depth: 1, header: false, addRow: true, index: -1 })
+    }
+    return out
+  })
+  let taskRows = $derived(baseRows.filter((r) => !r.addRow))
 
   let prevDateStr = $derived.by(() => {
     const d = new Date($appStore.selectedDate)
     d.setDate(d.getDate() - 1)
     return formatDate(d)
   })
-  let carryable = $derived(
-    ($logsStore.byDate[prevDateStr]?.tasks ?? []).filter((t) => !t.done && t.text.trim()),
-  )
+  let carryable = $derived.by(() => {
+    const prev = $logsStore.byDate[prevDateStr]?.tasks ?? []
+    const parents = new Set(prev.filter((t) => t.parentId).map((t) => t.parentId!))
+    return prev.filter((t) => !t.parentId).filter((t) => {
+      // A group comes along while any of its children is unfinished.
+      if (parents.has(t.id)) return prev.some((c) => c.parentId === t.id && !c.done)
+      return !t.done && !!t.text.trim()
+    })
+  })
   let prevDayName = $derived(
     new Date(prevDateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }),
   )
@@ -44,11 +80,32 @@
   // just above it. Hidden when there's no timed task on either side.
   let nowIndex = $derived.by(() => {
     if (!isToday) return -1
-    const timed = tasks.filter((t) => t.time)
-    if (!timed.length) return -1
-    const idx = tasks.findIndex((t) => t.time && toMinutes(t.time) > nowMinutes)
+    if (!taskRows.some((r) => r.task.time)) return -1
+    const idx = taskRows.findIndex((r) => r.task.time && toMinutes(r.task.time) > nowMinutes)
     if (idx === 0) return -1
-    return idx === -1 ? timed.length : idx
+    if (idx !== -1) return idx
+    // Every timed task is in the past: sit before the next untimed one.
+    let lastTimed = -1
+    for (let i = 0; i < taskRows.length; i++) if (taskRows[i].task.time) lastTimed = i
+    const next = taskRows.findIndex((r, i) => i > lastTimed && r.depth === 0 && !r.task.time)
+    return next === -1 ? taskRows.length : next
+  })
+
+  // The "now" divider is its own row, so dragging a task never carries it along.
+  let rows = $derived.by(() => {
+    if (nowIndex === -1) return baseRows
+    const marker: Row = { task: NOW_TASK, depth: 0, header: false, now: true, index: -1 }
+    const out: Row[] = []
+    let inserted = false
+    for (const row of baseRows) {
+      if (!row.addRow && row.index === nowIndex) {
+        out.push(marker)
+        inserted = true
+      }
+      out.push(row)
+    }
+    if (!inserted) out.push(marker)
+    return out
   })
 
   // ---- add -----------------------------------------------------------------
@@ -62,8 +119,10 @@
   let draftComment = $state('')
   let draftCommentOpen = $state(false)
   let addInput = $state<HTMLInputElement | null>(null)
-  // The task just created from the add row, until its row loses focus.
+  // The task just created from the add row or a subtask button, until its
+  // row loses focus. freshIsSubtask skips the quick-time parsing.
   let freshId = $state<string | null>(null)
+  let freshIsSubtask = $state(false)
 
   function resetDraft() {
     draft = ''
@@ -95,7 +154,9 @@
   // its text, or drop it if it was emptied.
   function finishFresh() {
     const id = freshId
+    const subtask = freshIsSubtask
     freshId = null
+    freshIsSubtask = false
     if (!id) return
     const task = $logsStore.byDate[dateStr]?.tasks.find((t) => t.id === id)
     if (!task) return
@@ -103,9 +164,82 @@
       logsStore.removeTask(dateStr, id, { quiet: true })
       return
     }
-    if (task.time) return
+    if (subtask || task.time) return
     const parsed = parseQuickTask(task.text)
     if (parsed.time && parsed.text) logsStore.editTask(dateStr, id, { text: parsed.text, time: parsed.time })
+  }
+
+  // Add an empty subtask and put the cursor in it. Blurring it while empty
+  // removes it again, so a mis-click costs nothing.
+  async function addSubtask(parent: Task) {
+    finishFresh()
+    const child = logsStore.addTask(dateStr, { text: '', parentId: parent.id })
+    freshId = child.id
+    freshIsSubtask = true
+    await tick()
+    focusTask(child.id)
+  }
+
+  // Enter at the end of a subtask continues the list with a new sibling.
+  async function addSibling(task: Task) {
+    if (!task.parentId) return
+    const parentId = task.parentId
+    finishFresh()
+    const sibling = logsStore.addTask(dateStr, { text: '', parentId })
+    freshId = sibling.id
+    freshIsSubtask = true
+    await tick()
+    focusTask(sibling.id)
+  }
+
+  // ---- group add rows ------------------------------------------------------
+
+  // Each group gets its own add row, same idea and style as the global one:
+  // the first typed character becomes the new subtask and the cursor follows.
+  let groupDrafts = $state<Record<string, string>>({})
+
+  function focusGroupAdd(id: string) {
+    listEl?.querySelector<HTMLInputElement>(`[data-group-add="${id}"]`)?.focus()
+  }
+
+  function clearGroupDraft(id: string) {
+    const next = { ...groupDrafts }
+    delete next[id]
+    groupDrafts = next
+    // The draft is set and cleared in the same tick, so Svelte can think the
+    // value never changed and leave the typed character in the DOM input.
+    const input = listEl?.querySelector<HTMLInputElement>(`[data-group-add="${id}"]`)
+    if (input) input.value = ''
+  }
+
+  async function createGroupTaskFromDraft(parent: Task) {
+    const text = (groupDrafts[parent.id] ?? '').trimStart()
+    if (!text) return
+    const ds = dateStr
+    finishFresh()
+    const child = logsStore.addTask(ds, { text, parentId: parent.id })
+    freshId = child.id
+    freshIsSubtask = true
+    clearGroupDraft(parent.id)
+    await tick()
+    if (dateStr === ds) focusTask(child.id)
+  }
+
+  function onGroupAddInput(parent: Task, e: Event & { currentTarget: HTMLInputElement }) {
+    groupDrafts = { ...groupDrafts, [parent.id]: e.currentTarget.value }
+    if ((e as Event as InputEvent).isComposing) return
+    void createGroupTaskFromDraft(parent)
+  }
+
+  function onGroupAddKeydown(e: KeyboardEvent, parent: Task) {
+    if (e.isComposing) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void createGroupTaskFromDraft(parent)
+    } else if (e.key === 'Escape') {
+      clearGroupDraft(parent.id)
+      ;(e.currentTarget as HTMLInputElement | null)?.blur()
+    }
   }
 
   function onAddInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -143,9 +277,9 @@
     } else if (e.key === 'Escape') {
       resetDraft()
       addInput?.blur()
-    } else if (e.key === 'ArrowUp' && tasks.length) {
+    } else if (e.key === 'ArrowUp' && taskRows.length) {
       e.preventDefault()
-      focusTask(tasks[tasks.length - 1].id)
+      focusTask(taskRows[taskRows.length - 1].task.id)
     }
   }
 
@@ -162,32 +296,41 @@
     el.setSelectionRange(pos, pos)
   }
 
-  function onTextKeydown(e: KeyboardEvent, task: Task, index: number) {
+  function onTextKeydown(e: KeyboardEvent, task: Task, index: number, header: boolean) {
     if (e.isComposing) return
     const input = e.currentTarget as HTMLTextAreaElement
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !header) {
       e.preventDefault()
       logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      addInput?.focus()
+      if (header) focusGroupAdd(task.id)
+      else if (task.parentId) void addSibling(task)
+      else addInput?.focus()
     } else if (e.key === 'ArrowUp' && index > 0) {
       e.preventDefault()
-      focusTask(tasks[index - 1].id)
+      focusTask(taskRows[index - 1].task.id)
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (index < tasks.length - 1) focusTask(tasks[index + 1].id)
+      if (index < taskRows.length - 1) focusTask(taskRows[index + 1].task.id)
       else addInput?.focus()
-    } else if (e.key === 'Backspace' && input.value === '' && !task.comment) {
+    } else if (e.key === 'Backspace' && input.value === '' && !task.comment && !header) {
       e.preventDefault()
-      // Backing out of a task that was just started returns to the add row.
+      // Backing out of a task that was just started returns to where it came from.
       if (task.id === freshId) {
         freshId = null
+        freshIsSubtask = false
         logsStore.removeTask(dateStr, task.id, { quiet: true })
-        addInput?.focus()
+        if (task.parentId) {
+          const prev = taskRows[index - 1]
+          if (prev) tick().then(() => focusTask(prev.task.id))
+          else addInput?.focus()
+        } else {
+          addInput?.focus()
+        }
         return
       }
-      const prev = tasks[index - 1]
+      const prev = taskRows[index - 1]?.task
       logsStore.removeTask(dateStr, task.id)
       if (prev) tick().then(() => focusTask(prev.id))
       else addInput?.focus()
@@ -230,7 +373,10 @@
 
   interface DragRow {
     id: string
-    // Position among untimed rows and its top/height relative to the list.
+    // Every row in the block that moves together — a group header takes its
+    // subtasks along.
+    ids: string[]
+    // Position among the draggable siblings and its top/height in the list.
     index: number
     top: number
     height: number
@@ -238,7 +384,7 @@
 
   let reorderMode = $state(false)
   let dragId = $state<string | null>(null)
-  // How far the dragged row follows the pointer, and where the gap opens.
+  // How far the dragged block follows the pointer, and where the gap opens.
   let dragOffset = $state(0)
   let dropIndex = $state<number | null>(null)
 
@@ -251,7 +397,28 @@
   let dragMoved = false
   let autoScrollFrame = 0
 
-  const untimed = (): Task[] => tasks.filter((t) => !t.time)
+  // Siblings share a parent (top-level tasks have none). Reordering keeps
+  // groups intact: a header moves with its subtasks, and subtasks move only
+  // within their own group.
+  const siblingsOf = (task: Task): Task[] => {
+    const parentId = task.parentId ?? null
+    return tasks.filter((t) => (t.parentId ?? null) === parentId)
+  }
+  const untimedSiblings = (task: Task): Task[] => siblingsOf(task).filter((t) => !t.time)
+  const blockIds = (task: Task): string[] =>
+    task.parentId
+      ? [task.id]
+      : [task.id, ...tasks.filter((t) => t.parentId === task.id).map((t) => t.id)]
+
+  function blockRect(task: Task, listRect: DOMRect) {
+    const rects = blockIds(task)
+      .map((id) => listEl?.querySelector<HTMLElement>(`[data-task-id="${id}"]`)?.getBoundingClientRect())
+      .filter((r): r is DOMRect => !!r)
+    if (!rects.length) return { top: 0, height: 0 }
+    const top = Math.min(...rects.map((r) => r.top))
+    const bottom = Math.max(...rects.map((r) => r.bottom))
+    return { top: top - listRect.top, height: bottom - top }
+  }
 
   function toggleReorder() {
     if (dragId) endDrag()
@@ -262,15 +429,9 @@
     if (!reorderMode || task.time || e.button !== 0 || !listEl) return
     e.preventDefault()
     const listRect = listEl.getBoundingClientRect()
-    dragRows = untimed().map((t, index) => {
-      const el = listEl!.querySelector<HTMLElement>(`[data-task-id="${t.id}"]`)
-      const rect = el?.getBoundingClientRect()
-      return {
-        id: t.id,
-        index,
-        top: (rect?.top ?? 0) - listRect.top,
-        height: rect?.height ?? 0,
-      }
+    dragRows = untimedSiblings(task).map((t, index) => {
+      const rect = blockRect(t, listRect)
+      return { id: t.id, ids: blockIds(t), index, top: rect.top, height: rect.height }
     })
     const source = dragRows.find((r) => r.id === task.id)
     if (!source) return
@@ -309,11 +470,18 @@
     updateDrag(e.clientY)
   }
 
-  // How far a non-dragged row slides to open the gap, in list coordinates.
+  // Rows moving with the dragged block shouldn't animate behind the pointer.
+  function isDraggedBlockRow(id: string): boolean {
+    if (!dragId) return false
+    return !!dragRows.find((r) => r.id === dragId)?.ids.includes(id)
+  }
+
+  // How far a row moves to open the gap, in list coordinates.
   function shiftFor(id: string): number {
     if (!dragId || dropIndex === null) return 0
-    const row = dragRows.find((r) => r.id === id)
-    if (!row || row.id === dragId) return 0
+    const row = dragRows.find((r) => r.ids.includes(id))
+    if (!row) return 0
+    if (row.id === dragId) return dragOffset
     if (dropIndex > dragFrom && row.index > dragFrom && row.index <= dropIndex) return -dragHeight
     if (dropIndex < dragFrom && row.index >= dropIndex && row.index < dragFrom) return dragHeight
     return 0
@@ -365,14 +533,15 @@
 
   function endDrag(e?: PointerEvent) {
     if (e && dragPointer !== null && e.pointerId !== dragPointer) return
-    const source = dragId
+    const sourceId = dragId
     const to = dropIndex
     const from = dragFrom
+    const source = sourceId ? tasks.find((t) => t.id === sourceId) : undefined
     resetDrag()
-    if (!source || to === null || to === from) return
-    const ids = untimed().filter((t) => t.id !== source).map((t) => t.id)
-    if (!tasks.some((t) => t.id === source)) return
-    ids.splice(Math.min(to, ids.length), 0, source)
+    if (!source || !sourceId || to === null || to === from) return
+    if (!tasks.some((t) => t.id === sourceId)) return
+    const ids = untimedSiblings(source).filter((t) => t.id !== sourceId).map((t) => t.id)
+    ids.splice(Math.min(to, ids.length), 0, sourceId)
     logsStore.reorderTasks(dateStr, ids, { defer: true })
     void logsStore.flushTasks(dateStr)
   }
@@ -387,7 +556,7 @@
   function onHandleKeydown(e: KeyboardEvent, task: Task) {
     if (task.time || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
     e.preventDefault()
-    const ids = untimed().map((t) => t.id)
+    const ids = untimedSiblings(task).map((t) => t.id)
     const i = ids.indexOf(task.id)
     const j = i + (e.key === 'ArrowUp' ? -1 : 1)
     if (i === -1 || j < 0 || j >= ids.length) return
@@ -419,9 +588,9 @@
 
 <section class="tasks" bind:this={rootEl} aria-label="Tasks">
   <div class="toolbar">
-    <span class="progress" class:all-done={tasks.length > 0 && doneCount === tasks.length}>
-      {#if tasks.length}
-        {doneCount} of {tasks.length} done
+    <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
+      {#if leafTasks.length}
+        {doneCount} of {leafTasks.length} done
       {/if}
     </span>
     <div class="tools">
@@ -466,22 +635,59 @@
   </div>
 
   {#key dateStr}
-    <ul class="list" bind:this={listEl} class:loading={!loaded} class:reordering={!!dragId}>
-      {#each tasks as task, i (task.id)}
-        {@const shift = dragId === task.id ? dragOffset : shiftFor(task.id)}
+    <ul
+      class="list"
+      bind:this={listEl}
+      class:loading={!loaded}
+      class:reordering={!!dragId}
+      class:reorder-mode={reorderMode}
+    >
+      {#each rows as row (row.now ? `n:${dateStr}` : row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
+        {@const task = row.task}
+        {@const shift = row.now || row.addRow ? 0 : shiftFor(task.id)}
         <li
-          class="task"
-          class:done={task.done}
-          class:has-comment={!!task.comment}
-          class:dragging={dragId === task.id}
-          data-task-id={task.id}
-          style:transform={shift ? `translateY(${shift}px)` : undefined}
+          class:task={!row.addRow && !row.now}
+          class:group-add-row={row.addRow}
+          class:now-row={row.now}
+          class:done={!row.now && !row.addRow && task.done && !row.header}
+          class:header={!row.now && !row.addRow && row.header}
+          class:sub={!row.now && !row.addRow && row.depth > 0}
+          class:has-comment={!row.now && !row.addRow && !!task.comment}
+          class:dragging={!row.now && !row.addRow && dragId === task.id}
+          class:following={!row.now && !row.addRow && isDraggedBlockRow(task.id)}
+          data-task-id={row.now || row.addRow ? undefined : task.id}
+          style:transform={!row.now && !row.addRow && shift ? `translateY(${shift}px)` : undefined}
           animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
-          {#if i === nowIndex}
-            <div class="now-marker" aria-label="Now" transition:fade={{ duration: 150 }}><span>now</span></div>
-          {/if}
+        {#if row.now}
+          <div class="now-marker" aria-label="Now"><span>now</span></div>
+        {:else if row.addRow}
+          <div class="add group-add" class:has-draft={!!groupDrafts[task.id]?.trim()}>
+            <div class="row">
+              <button
+                type="button"
+                class="add-icon"
+                title="Add a task"
+                aria-label="Add a task to this group"
+                onclick={() => focusGroupAdd(task.id)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+              </button>
+              <input
+                class="add-input"
+                data-group-add={task.id}
+                value={groupDrafts[task.id] ?? ''}
+                placeholder="Add a task"
+                aria-label="Add a task to this group"
+                enterkeyhint="done"
+                oninput={(e) => onGroupAddInput(task, e)}
+                oncompositionend={() => void createGroupTaskFromDraft(task)}
+                onkeydown={(e) => onGroupAddKeydown(e, task)}
+              />
+            </div>
+          </div>
+        {:else}
           <div class="row">
             {#if reorderMode}
               <button
@@ -503,33 +709,56 @@
                 </svg>
               </button>
             {/if}
-            <button
-              type="button"
-              class="check"
-              role="checkbox"
-              aria-checked={task.done}
-              aria-label={task.done ? 'Mark not done' : 'Mark done'}
-              onclick={() => logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })}
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
+            {#if row.header}
+              <span class="group-mark" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                  <path d="M3 4.5h10M3 8h10M3 11.5h6" />
+                </svg>
+              </span>
+            {:else}
+              <button
+                type="button"
+                class="check"
+                role="checkbox"
+                aria-checked={task.done}
+                aria-label={task.done ? 'Mark not done' : 'Mark done'}
+                onclick={() => logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            {/if}
 
             <textarea
               class="text"
               data-task-input={task.id}
               rows="1"
               value={task.text}
-              placeholder="Task"
-              aria-label="Task"
+              placeholder={row.header ? 'Group' : row.depth ? 'Subtask' : 'Task'}
+              aria-label={row.header ? 'Group name' : row.depth ? 'Subtask' : 'Task'}
               use:autosize
               oninput={(e) => logsStore.editTask(dateStr, task.id, { text: e.currentTarget.value })}
-              onkeydown={(e) => onTextKeydown(e, task, i)}
+              onkeydown={(e) => onTextKeydown(e, task, row.index, row.header)}
               onblur={() => {
                 if (task.id === freshId) finishFresh()
               }}
             ></textarea>
+
+            {#if row.depth === 0 && !row.header}
+              <button
+                type="button"
+                class="icon-btn ghost add-sub"
+                title="Add a subtask"
+                aria-label="Add a subtask"
+                onclick={() => void addSubtask(task)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 3v5a2 2 0 0 0 2 2h6" />
+                  <path d="M8.5 7.5 11 10 8.5 12.5" />
+                </svg>
+              </button>
+            {/if}
 
             <button
               type="button"
@@ -545,7 +774,7 @@
               </svg>
             </button>
 
-            {#if pomodoroOn}
+            {#if pomodoroOn && row.depth === 0 && !row.header}
               <button
                 type="button"
                 class="icon-btn ghost focus-btn"
@@ -568,23 +797,25 @@
               </button>
             {/if}
 
-            <TimePicker
-              class="time"
-              value={task.time}
-              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
-            />
-            <button
-              type="button"
-              class="icon-btn ghost carry-over"
-              title="Carry over to next day"
-              aria-label="Carry over to next day"
-              onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2.5 8h9" />
-                <path d="M9 4.5L12.5 8 9 11.5" />
-              </svg>
-            </button>
+            {#if row.depth === 0}
+              <TimePicker
+                class="time"
+                value={task.time}
+                onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+              />
+              <button
+                type="button"
+                class="icon-btn ghost carry-over"
+                title="Carry over to next day"
+                aria-label="Carry over to next day"
+                onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2.5 8h9" />
+                  <path d="M9 4.5L12.5 8 9 11.5" />
+                </svg>
+              </button>
+            {/if}
             <button
               type="button"
               class="icon-btn ghost danger remove"
@@ -617,11 +848,9 @@
               transition:slide={{ duration: 140 }}
             ></textarea>
           {/if}
+        {/if}
         </li>
       {/each}
-      {#if nowIndex === tasks.length && tasks.length}
-        <li class="now-marker" aria-label="Now"><span>now</span></li>
-      {/if}
     </ul>
   {/key}
 
@@ -727,15 +956,10 @@
     transition: opacity var(--dur-base) var(--ease-out);
   }
   .list.loading { opacity: 0.4; }
-
-  .task {
-    border-radius: 8px;
-    transition: background-color var(--dur-fast) var(--ease-out);
-  }
-  .task:hover,
-  .task:focus-within { background: var(--glass-dark); }
   .list.reordering { cursor: grabbing; user-select: none; }
-  .list.reordering .task:not(.dragging) { transition: transform 170ms var(--ease-out); }
+  .list.reordering .task:not(.dragging):not(.following) { transition: transform 170ms var(--ease-out); }
+  /* Add rows would otherwise show up in the gap while groups move. */
+  .list.reorder-mode .group-add-row { display: none; }
   .task.dragging {
     position: relative;
     z-index: 3;
@@ -743,6 +967,29 @@
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
     cursor: grabbing;
   }
+  .list.reordering .task.following {
+    position: relative;
+    z-index: 2;
+  }
+
+  .task {
+    border-radius: 8px;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  .task:hover,
+  .task:focus-within { background: var(--glass-dark); }
+  .task.header .text { font-weight: 500; }
+  .group-mark {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    opacity: 0.55;
+  }
+  .group-mark svg { width: 0.85rem; height: 0.85rem; }
   .row {
     display: flex;
     align-items: center;
@@ -852,11 +1099,14 @@
   .task :global(.time.open) { opacity: 1; }
 
   .comment-toggle,
+  .add-sub,
   .focus-btn,
   .carry-over,
   .remove { opacity: 0; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
+  .task:hover .add-sub,
+  .task:focus-within .add-sub,
   .task:hover .focus-btn,
   .task:focus-within .focus-btn,
   .task:hover .carry-over,
@@ -879,17 +1129,44 @@
     letter-spacing: 0.01em;
   }
   .comment-toggle:hover,
+  .add-sub:hover,
   .focus-btn:hover,
   .carry-over:hover,
   .remove:hover { opacity: 1 !important; }
+  .add-sub:hover,
   .carry-over:hover { color: var(--accent); }
   @media (hover: none) {
     .task :global(.time:not(.set)),
     .comment-toggle,
+    .add-sub,
     .focus-btn,
     .carry-over,
     .remove { opacity: 0.45; }
   }
+
+  /* Subtasks sit indented under their parent, marked by a short guide line. */
+  .task.sub {
+    position: relative;
+    margin-left: 1.7rem;
+  }
+  .task.sub::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--line);
+  }
+  .task.sub .text { font-size: 0.95rem; }
+  .task.sub .comment { margin-left: 2.35rem; }
+
+  .group-add-row { list-style: none; }
+  .add.group-add {
+    margin-top: 0;
+    margin-left: 1.7rem;
+  }
+  .group-add .add-input { font-size: 0.95rem; }
 
   .comment {
     display: block;

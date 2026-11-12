@@ -38,11 +38,21 @@
   // Markdown for one day's section body (also what Copy puts on the clipboard).
   function dayMarkdown(day: DayLog | undefined, date: string): string {
     if (tab === 'tasks') {
-      return sortTasks(day?.tasks ?? [])
-        .filter((t) => t.text.trim() || t.comment?.trim())
-        .map((t) => {
-          let line = `- [${t.done ? 'x' : ' '}] ${t.time ? `**${t.time}** ` : ''}${t.text}`
-          if (t.comment) line += '\n' + t.comment.split('\n').map((l) => `  > ${l}`).join('\n')
+      const all = day?.tasks ?? []
+      const ids = new Set(all.map((t) => t.id))
+      const ordered: { task: (typeof all)[number]; depth: number; header: boolean }[] = []
+      for (const parent of sortTasks(all.filter((t) => !t.parentId || !ids.has(t.parentId)))) {
+        const children = sortTasks(all.filter((t) => t.parentId === parent.id))
+        ordered.push({ task: parent, depth: 0, header: children.length > 0 })
+        for (const child of children) ordered.push({ task: child, depth: 1, header: false })
+      }
+      return ordered
+        .filter(({ task: t }) => t.text.trim() || t.comment?.trim())
+        .map(({ task: t, depth, header }) => {
+          const indent = '  '.repeat(depth)
+          if (header) return `${indent}- **${t.time ? `${t.time} ` : ''}${t.text}**`
+          let line = `${indent}- [${t.done ? 'x' : ' '}] ${t.time ? `**${t.time}** ` : ''}${t.text}`
+          if (t.comment) line += '\n' + t.comment.split('\n').map((l) => `${indent}  > ${l}`).join('\n')
           return line
         })
         .join('\n')
