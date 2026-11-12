@@ -15,6 +15,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
     "@tsconfig/svelte": "^5.0.8",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^24.12.2",
     "concurrently": "^9.2.1",
     "jsdom": "^29.1.1",
@@ -35,6 +36,7 @@
     "@tiptap/pm": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
     "fflate": "^0.8.2",
+    "leaflet": "^1.9.4",
     "markdown-it": "^14.1.1",
     "node-diff3": "^3.1.2",
     "tiptap-markdown": "^0.9.0"

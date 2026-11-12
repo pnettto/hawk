@@ -196,7 +196,10 @@ export function normalizePastedHtml(html: string): string {
 
   for (const el of Array.from(body.querySelectorAll('[style], [class]'))) {
     el.removeAttribute('style')
-    el.removeAttribute('class')
+    // Keep a code fence's language: it's what makes a ```map block a map.
+    const language = el.tagName === 'CODE' ? Array.from(el.classList).find((c) => /^language-\S+$/.test(c)) : undefined
+    if (language) el.className = language
+    else el.removeAttribute('class')
   }
   return body.innerHTML
 }
