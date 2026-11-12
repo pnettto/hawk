@@ -35,7 +35,14 @@
         .filter((n) => n.day)
         .sort((a, b) => dayTime(b) - dayTime(a) || (a.dayOrder ?? 0) - (b.dayOrder ?? 0))
     }
-    const shown = filter.kind === 'tag' ? live.filter((n) => n.tags?.includes(filter.tag)) : live
+    const shown =
+      filter.kind === 'tag'
+        ? live.filter((n) => n.tags?.includes(filter.tag))
+        : filter.kind === 'untagged'
+          ? live.filter((n) => !n.tags?.length)
+          : filter.kind === 'notepad'
+            ? live.filter((n) => !n.day)
+            : live
     return shown.sort((a, b) => listTime(b) - listTime(a))
   })
 
@@ -165,7 +172,7 @@
           <div class="empty-headline">Trash is empty</div>
           <div class="empty-sub">Notes you delete will rest here.</div>
         {:else if $notesStore.filter.kind === 'day'}
-          <div class="empty-headline">No day notes yet</div>
+          <div class="empty-headline">No journal notes yet</div>
           <div class="empty-sub">Notes you write in Journal land here.</div>
         {:else}
           <div class="empty-headline">No notes here</div>

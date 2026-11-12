@@ -8,11 +8,14 @@ import { parseTags, TAG_LINE_RE } from '../lib/notes/tags'
 import type { Note, NoteMetadata } from '../types/models'
 import type { SyncEvent } from './sync'
 
-// What the Notepad list shows. "day" is the fixed Day Notes view.
+// What the Notepad list shows. "day" is the fixed Day Notes view and
+// "notepad" is everything else (all notes except day notes).
 export type NotesFilter =
   | { kind: 'all' }
+  | { kind: 'notepad' }
   | { kind: 'day' }
   | { kind: 'tag'; tag: string }
+  | { kind: 'untagged' }
   | { kind: 'trash' }
 
 interface NotesState {
@@ -33,7 +36,7 @@ const FILTER_KEY = 'hawk_notes_filter'
 function readFilter(): NotesFilter {
   try {
     const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null') as NotesFilter | null
-    if (f && (f.kind === 'all' || f.kind === 'day' || f.kind === 'trash')) return { kind: f.kind }
+    if (f && (f.kind === 'all' || f.kind === 'notepad' || f.kind === 'day' || f.kind === 'untagged' || f.kind === 'trash')) return { kind: f.kind }
     if (f?.kind === 'tag' && typeof f.tag === 'string') return f
   } catch {
     // Storage unavailable — fall back to the default view.
