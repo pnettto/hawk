@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MapDataError, mapPopupContent, parseMapSource, safeHttpUrl } from './map'
+import { MAP_EXAMPLE, MapDataError, mapPopupContent, parseMapSource, safeHttpUrl } from './map'
 
 const feature = (properties: Record<string, unknown> = {}, coordinates: unknown = [18.0498802, 59.3410997]) => ({
   type: 'Feature',
@@ -50,6 +50,15 @@ describe('parseMapSource', () => {
     expect(() => parseMapSource('{ nope')).toThrow(MapDataError)
     expect(() => parseMapSource('{ nope')).toThrow('valid JSON')
     expect(() => parseMapSource('{"type":"Feature"}')).toThrow('FeatureCollection')
+  })
+
+  it('asks for data when the field is empty', () => {
+    expect(() => parseMapSource('')).toThrow('Paste some GeoJSON first.')
+    expect(() => parseMapSource('  \n ')).toThrow('Paste some GeoJSON first.')
+  })
+
+  it('shows a placeholder example that is valid map data', () => {
+    expect(() => parseMapSource(MAP_EXAMPLE)).not.toThrow()
   })
 
   it('rejects features without a name or with bad coordinates', () => {

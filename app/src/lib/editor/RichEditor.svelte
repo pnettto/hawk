@@ -22,7 +22,6 @@
   import MediaPrompt from './MediaPrompt.svelte'
   import MapPrompt from './MapPrompt.svelte'
   import FormatBar from './FormatBar.svelte'
-  import { MAP_TEMPLATE } from './map'
   import { openMapPrompt } from './mapPrompt'
 
   interface Props {
@@ -595,7 +594,7 @@
         openMapPrompt({
           title: 'Add a map',
           submitLabel: 'Insert map',
-          source: MAP_TEMPLATE,
+          source: '',
           onSave: (source) => {
             if (!editor) return
             const at = mapPos ?? pos
@@ -1159,10 +1158,19 @@
     margin: 1.5rem 0;
     font-family: var(--font-ui);
   }
-  :global(.rich-editor .tiptap .note-map-title) {
-    min-height: 1.6rem;
+  :global(.rich-editor .tiptap .note-map-head) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 28px;
     margin-bottom: 0.45rem;
-    padding-right: 5.5rem;
+  }
+  :global(.rich-editor .tiptap .note-map-title) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.6;
@@ -1179,24 +1187,85 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  :global(.rich-editor .tiptap .note-map-edit) {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    z-index: 1001;
-    height: 26px;
-    padding: 0 9px;
+  :global(.rich-editor .tiptap .note-map-actions) {
+    display: flex;
+    flex: none;
+    gap: 4px;
+    margin-left: auto;
+  }
+  :global(.rich-editor .tiptap .note-map-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
     background: var(--panel);
-    color: var(--text);
-    font-family: var(--font-ui);
-    font-size: 0.75rem;
+    color: var(--muted);
     cursor: pointer;
     box-shadow: var(--shadow-pop);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
   }
-  :global(.rich-editor .tiptap .note-map-edit:hover),
-  :global(.rich-editor .tiptap .note-map-edit:focus-visible) { border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-icon svg) { display: block; width: 14px; height: 14px; }
+  :global(.rich-editor .tiptap .note-map-icon:hover),
+  :global(.rich-editor .tiptap .note-map-icon:focus-visible) { color: var(--text); border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-icon[aria-pressed='true']) { color: var(--accent); border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--glass-dark);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  :global(.rich-editor .tiptap .note-map-button:hover),
+  :global(.rich-editor .tiptap .note-map-button:focus-visible) { border-color: var(--accent); background: var(--glass); }
+  :global(.rich-editor .tiptap .note-map-empty) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 140px;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    background: var(--glass);
+  }
+  :global(.rich-editor .tiptap .note-map-empty p) { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  /* Full screen: the map fills the viewport, Escape or the button leaves. */
+  :global(.rich-editor .tiptap .note-map.is-fullscreen) {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0.75rem;
+    background: var(--bg);
+  }
+  :global(.rich-editor .tiptap .note-map.is-fullscreen .note-map-canvas) {
+    flex: 1;
+    height: auto;
+  }
+  :global(body.note-map-fullscreen) { overflow: hidden; }
   :global(.rich-editor .tiptap .note-map-error) {
     padding: 10px 12px;
     border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));

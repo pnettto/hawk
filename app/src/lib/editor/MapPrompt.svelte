@@ -1,7 +1,7 @@
 <script lang="ts">
   import { portal } from '../utils/portal'
   import { closeMapPrompt, mapPromptStore } from './mapPrompt'
-  import { MapDataError, parseMapSource } from './map'
+  import { MAP_EXAMPLE, MapDataError, parseMapSource } from './map'
 
   let request = $derived($mapPromptStore)
   let value = $state('')
@@ -80,6 +80,7 @@
         bind:this={textarea}
         bind:value
         aria-label="Map GeoJSON"
+        placeholder={MAP_EXAMPLE}
         rows="14"
         spellcheck="false"
         oninput={() => (error = '')}
