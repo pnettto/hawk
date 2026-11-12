@@ -6,6 +6,18 @@ import { setBroadcaster } from "./utils/syncEvents.ts";
 import { ensurePomodoroDuty, relayPomodoroDuty } from "./utils/pomodoro.ts";
 import { isValidToken } from "./middleware/auth.ts";
 
+// The browser WebSocket handshake can't set an Authorization header for a
+// cookie-only session, so read the same httpOnly token the HTTP routes use.
+function cookieToken(request: Request): string | undefined {
+  const header = request.headers.get("Cookie");
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === "hawk_token") return rest.join("=") || undefined;
+  }
+  return undefined;
+}
+
 // The whole backend: one Durable Object instance ("hawk") that owns the data
 // (SQLite, through the Deno.Kv-style layer in utils/sqliteKv.ts), runs the Hono
 // API and holds the sync WebSockets.
@@ -49,7 +61,8 @@ export class HawkDO extends DurableObject<Env> {
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
-    if (!(await isValidToken(url.searchParams.get("token")))) {
+    const token = url.searchParams.get("token") || cookieToken(request);
+    if (!(await isValidToken(token))) {
       return new Response("Unauthorized", { status: 401 });
     }
     const clientId = (url.searchParams.get("clientId") || "").slice(0, 200);

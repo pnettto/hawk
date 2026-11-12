@@ -226,14 +226,13 @@ function persist(state: PomodoroState) {
   }
 }
 
-function restore(now: number): PomodoroState {
+function parseStored(raw: string | null): PomodoroState | null {
+  if (!raw) return null
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return IDLE
     const saved = JSON.parse(raw) as Partial<PomodoroState>
-    if (saved.mode !== 'focus' && saved.mode !== 'break') return IDLE
-    if (typeof saved.remainingMs !== 'number') return IDLE
-    let state: PomodoroState = {
+    if (saved.mode !== 'focus' && saved.mode !== 'break') return null
+    if (typeof saved.remainingMs !== 'number') return null
+    return {
       taskId: typeof saved.taskId === 'string' ? saved.taskId : null,
       taskText: typeof saved.taskText === 'string' ? saved.taskText : '',
       dateStr: typeof saved.dateStr === 'string' ? saved.dateStr : null,
@@ -245,6 +244,15 @@ function restore(now: number): PomodoroState {
       breakMs: typeof saved.breakMs === 'number' ? saved.breakMs : BREAK_MS,
       completed: typeof saved.completed === 'number' ? saved.completed : 0,
     }
+  } catch {
+    return null
+  }
+}
+
+function restore(now: number): PomodoroState {
+  try {
+    let state = parseStored(localStorage.getItem(STORAGE_KEY))
+    if (!state) return IDLE
     // The clock kept running while the tab was closed. A phase that ran out
     // in the meantime is just over — reopening shouldn't dump you into a
     // break that started hours ago.
@@ -741,6 +749,17 @@ function createPomodoroStore() {
       const payload = (event.data as { payload?: unknown } | null)?.payload
       if (isPomodoroRecord(payload)) applySyncEvent({ payload })
     }
+  }
+
+  // The demo has no server or sync socket, so tabs share the localStorage copy
+  // directly. Storage events fire in the other tabs, not the writer.
+  if (typeof window !== 'undefined' && isGuestMode()) {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== STORAGE_KEY || event.newValue === null) return
+      const next = parseStored(event.newValue)
+      if (!next) return
+      set(next)
+    })
   }
 
   return {

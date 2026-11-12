@@ -114,6 +114,7 @@
       // Safe while typing: sessions ignore anything not newer than theirs.
       const dateStr = formatDate(get(appStore).selectedDate)
       logsStore.loadForDate(dateStr, true)
+      void pomodoroStore.loadFromServer()
     }
     // A hidden/suspended tab may have missed live events; catch up on the
     // shared timer as soon as it is looked at again.

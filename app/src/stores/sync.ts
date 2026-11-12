@@ -37,11 +37,13 @@ interface SyncState {
 const PING_MS = 30_000
 const DEAD_AFTER_MS = 75_000
 
-function syncUrl(token: string): string {
+function syncUrl(token: string | null): string {
   const base = apiBase() || location.origin
   const url = new URL('/api/sync/ws', base)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  url.searchParams.set('token', token)
+  // No stored token is fine for same-origin sessions authenticated by the
+  // httpOnly cookie; the Durable Object accepts either.
+  if (token) url.searchParams.set('token', token)
   url.searchParams.set('clientId', getClientId())
   url.searchParams.set('browserId', getBrowserId())
   return url.toString()
@@ -132,7 +134,6 @@ function createSyncStore() {
   function open() {
     teardown()
     const token = getToken()
-    if (!token) return // not authenticated yet
 
     let socket: WebSocket
     try {
