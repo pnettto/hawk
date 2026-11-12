@@ -7,6 +7,7 @@ import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Attachment, Lead, Video } from './nodes'
+import { MapBlock } from './map'
 
 interface PMNode {
   type: { name: string }
@@ -120,5 +121,6 @@ export function contentExtensions() {
     Lead,
     Video,
     Attachment,
+    MapBlock,
   ]
 }

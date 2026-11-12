@@ -20,7 +20,10 @@
   import { filterBlocks, isYoutubeUrl, normalizeUrl, slashQuery, type BlockId, type BlockItem } from './blocks'
   import InsertMenu from './InsertMenu.svelte'
   import MediaPrompt from './MediaPrompt.svelte'
+  import MapPrompt from './MapPrompt.svelte'
   import FormatBar from './FormatBar.svelte'
+  import { MAP_TEMPLATE } from './map'
+  import { openMapPrompt } from './mapPrompt'
 
   interface Props {
     session: DocSession
@@ -462,6 +465,7 @@
     if (transaction.docChanged) {
       if (media) media.pos = transaction.mapping.map(media.pos)
       if (attachPos !== null) attachPos = transaction.mapping.map(attachPos)
+      if (mapPos !== null) mapPos = transaction.mapping.map(mapPos)
       if (menu?.mode === 'gutter') menu.pos = transaction.mapping.map(menu.pos)
     }
     // Focus changes can fire while Svelte is mid-render (an editor that had
@@ -586,12 +590,34 @@
         if (dom) media = { kind: id, pos, anchor: rectOf(dom) }
         break
       }
+      case 'map':
+        mapPos = pos
+        openMapPrompt({
+          title: 'Add a map',
+          submitLabel: 'Insert map',
+          source: MAP_TEMPLATE,
+          onSave: (source) => {
+            if (!editor) return
+            const at = mapPos ?? pos
+            mapPos = null
+            editor.commands.focus()
+            placeBlock(editor.view, editor.state.schema.nodes.mapBlock.create({ source }), at + 1, {
+              caretAfter: true,
+            })
+          },
+          onCancel: () => (mapPos = null),
+        })
+        break
       case 'file':
         attachPos = pos
         attachInput?.click()
         break
     }
   }
+
+  // Position of the line the map prompt was opened from; mapped through edits
+  // made while it's open.
+  let mapPos: number | null = null
 
   // ---- attach file -------------------------------------------------------
 
@@ -1046,6 +1072,8 @@
   <MediaPrompt kind={media.kind} anchor={media.anchor} onUrl={onMediaUrl} onFiles={onMediaFiles} onCancel={onMediaCancel} />
 {/if}
 
+<MapPrompt />
+
 {#if fmt}
   <FormatBar
     anchor={fmt.anchor}
@@ -1124,6 +1152,73 @@
     background: #000;
   }
   :global(.rich-editor .tiptap iframe) { aspect-ratio: 16 / 9; }
+
+  /* Maps: Leaflet inside a fenced ```map block. */
+  :global(.rich-editor .tiptap .note-map) {
+    position: relative;
+    margin: 1.5rem 0;
+    font-family: var(--font-ui);
+  }
+  :global(.rich-editor .tiptap .note-map-title) {
+    min-height: 1.6rem;
+    margin-bottom: 0.45rem;
+    padding-right: 5.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.6;
+  }
+  :global(.rich-editor .tiptap .note-map-canvas) {
+    height: clamp(240px, 45vh, 420px);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--glass);
+    isolation: isolate;
+  }
+  :global(.rich-editor .tiptap .note-map.ProseMirror-selectednode .note-map-canvas) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :global(.rich-editor .tiptap .note-map-edit) {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 1001;
+    height: 26px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-pop);
+  }
+  :global(.rich-editor .tiptap .note-map-edit:hover),
+  :global(.rich-editor .tiptap .note-map-edit:focus-visible) { border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-error) {
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+    border-radius: var(--r-sm);
+    background: var(--danger-bg);
+    color: var(--danger);
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  :global(.rich-editor .tiptap .note-map-marker) { color: var(--accent); filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35)); }
+  :global(.rich-editor .tiptap .note-map-marker-dot) { fill: var(--panel); }
+  :global(.note-map .leaflet-popup-content-wrapper),
+  :global(.note-map .leaflet-popup-tip) {
+    background: var(--panel);
+    color: var(--text);
+  }
+  :global(.note-map .leaflet-popup-content) { margin: 10px 12px; font-family: var(--font-ui); font-size: 0.82rem; line-height: 1.4; }
+  :global(.note-map-popup-name) { display: block; margin-bottom: 3px; font-size: 0.9rem; }
+  :global(.note-map-popup-address) { margin: 0 0 4px; color: var(--muted); }
+  :global(.note-map-popup-link) { display: block; margin-top: 4px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  :global(.note-map .leaflet-control-attribution) { font-family: var(--font-ui); font-size: 10px; }
   :global(.rich-editor .tiptap .attachment) { display: flex; align-items: center; gap: 4px; margin: 0.75rem 0; }
   :global(.rich-editor .tiptap .attachment-remove) {
     flex: none;

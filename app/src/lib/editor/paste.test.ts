@@ -54,6 +54,12 @@ describe('normalizePastedHtml', () => {
     expect(norm('<p>x</p><p><b>End</b></p>')).toContain('<b>End</b>')
   })
 
+  it('keeps a code fence language so map blocks survive the markdown paste path', () => {
+    expect(norm('<pre><code class="language-map">{"type":"FeatureCollection"}</code></pre>')).toBe(
+      '<pre><code class="language-map">{"type":"FeatureCollection"}</code></pre>',
+    )
+  })
+
   it('builds lists from bullet and number markers', () => {
     expect(norm('<p>• one</p><p>• two</p><p>after</p>')).toBe('<ul><li><p>one</p></li><li><p>two</p></li></ul><p>after</p>')
     expect(norm('<p>1. one</p><p>2) two</p>')).toBe('<ol><li><p>one</p></li><li><p>two</p></li></ol>')

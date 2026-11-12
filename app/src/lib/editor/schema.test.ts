@@ -85,6 +85,22 @@ describe('body markdown round-trip', () => {
     expect(editor.getJSON().content?.[2].attrs?.src).toBe('y%20(1).png')
   })
 
+  it('keeps map blocks as ```map fenced code', () => {
+    const input = '```map\n{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[18.0498802,59.3410997]},"properties":{"name":"Old Touch"}}]}\n```'
+    const { first, second, editor } = roundTrip(input)
+    expect(first.trim()).toBe(input)
+    expect(second).toBe(first)
+    expect(editor.getJSON().content?.map((n) => n.type)).toEqual(['mapBlock', 'paragraph'])
+  })
+
+  it('keeps more than one map in a note', () => {
+    const map = '```map\n{"type":"FeatureCollection","properties":{"center":[18,59]},"features":[]}\n```'
+    const { first, second, editor } = roundTrip(`${map}\n\nBetween\n\n${map}`)
+    expect(first.match(/```map/g)).toHaveLength(2)
+    expect(second).toBe(first)
+    expect(editor.getJSON().content?.map((n) => n.type)).toEqual(['mapBlock', 'paragraph', 'mapBlock', 'paragraph'])
+  })
+
   it('keeps empty lines between paragraphs', () => {
     editor = new Editor({
       extensions: contentExtensions(),
