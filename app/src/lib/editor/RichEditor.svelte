@@ -1161,7 +1161,7 @@
   :global(.rich-editor .tiptap .note-map-title) {
     min-height: 1.6rem;
     margin-bottom: 0.45rem;
-    padding-right: 11rem;
+    padding-right: 4.5rem;
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.6;
@@ -1180,26 +1180,56 @@
   }
   :global(.rich-editor .tiptap .note-map-actions) {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 8px;
+    right: 8px;
     z-index: 1001;
     display: flex;
-    gap: 6px;
+    gap: 4px;
   }
-  :global(.rich-editor .tiptap .note-map-button) {
-    height: 26px;
-    padding: 0 9px;
+  :global(.rich-editor .tiptap .note-map-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
     background: var(--panel);
-    color: var(--text);
-    font-family: var(--font-ui);
-    font-size: 0.75rem;
+    color: var(--muted);
     cursor: pointer;
     box-shadow: var(--shadow-pop);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  :global(.rich-editor .tiptap .note-map-icon svg) { display: block; width: 14px; height: 14px; }
+  :global(.rich-editor .tiptap .note-map-icon:hover),
+  :global(.rich-editor .tiptap .note-map-icon:focus-visible) { color: var(--text); border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-icon[aria-pressed='true']) { color: var(--accent); border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--glass-dark);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
   }
   :global(.rich-editor .tiptap .note-map-button:hover),
-  :global(.rich-editor .tiptap .note-map-button:focus-visible) { border-color: var(--accent); }
+  :global(.rich-editor .tiptap .note-map-button:focus-visible) { border-color: var(--accent); background: var(--glass); }
   :global(.rich-editor .tiptap .note-map-empty) {
     display: flex;
     flex-direction: column;
@@ -1213,7 +1243,6 @@
     background: var(--glass);
   }
   :global(.rich-editor .tiptap .note-map-empty p) { margin: 0; color: var(--muted); font-size: 0.85rem; }
-  :global(.rich-editor .tiptap .note-map-empty .note-map-button) { box-shadow: none; }
   /* Full screen: the map fills the viewport, Escape or the button leaves. */
   :global(.rich-editor .tiptap .note-map.is-fullscreen) {
     position: fixed;

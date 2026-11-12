@@ -209,6 +209,15 @@ const MARKER_ICON = L.divIcon({
   popupAnchor: [0, -30],
 })
 
+// Toolbar icons, drawn in the app's 16px stroke style.
+const ICONS = {
+  edit: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.9 2.6a1.6 1.6 0 0 1 2.3 2.3L5.7 12.4l-2.9.8.8-2.9z" /><path d="M9.6 3.9l2.3 2.3" /></svg>',
+  fullscreen:
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>',
+  exitFullscreen:
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5V6H2.5M10 2.5V6h3.5M6 13.5V10H2.5M10 13.5V10h3.5" /></svg>',
+}
+
 function mountMap(canvas: HTMLElement, parsed: ParsedMap): L.Map {
   const map = L.map(canvas, { scrollWheelZoom: false })
   L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION }).addTo(map)
@@ -271,12 +280,8 @@ function mapNodeView() {
       })
     }
 
-    const button = (label: string, ariaLabel: string, onClick: () => void) => {
-      const el = document.createElement('button')
+    const clickable = (el: HTMLButtonElement, onClick: () => void) => {
       el.type = 'button'
-      el.className = 'note-map-button'
-      el.textContent = label
-      el.setAttribute('aria-label', ariaLabel)
       el.addEventListener('mousedown', (e) => e.preventDefault())
       el.addEventListener('click', (e) => {
         e.preventDefault()
@@ -286,18 +291,35 @@ function mapNodeView() {
       return el
     }
 
+    const textButton = (label: string, ariaLabel: string, onClick: () => void) => {
+      const el = document.createElement('button')
+      el.className = 'note-map-button'
+      el.textContent = label
+      el.setAttribute('aria-label', ariaLabel)
+      return clickable(el, onClick)
+    }
+
+    const iconButton = (svg: string, label: string, onClick: () => void) => {
+      const el = document.createElement('button')
+      el.className = 'note-map-icon'
+      el.innerHTML = svg
+      el.title = label
+      el.setAttribute('aria-label', label)
+      return clickable(el, onClick)
+    }
+
     const addActions = (withFullscreen: boolean) => {
       if (!editor.isEditable) return
       const actions = document.createElement('div')
       actions.className = 'note-map-actions'
       if (withFullscreen) {
-        fullscreenButton = button(fullscreen ? 'Exit full screen' : 'Full screen', fullscreen ? 'Exit full screen' : 'Full screen map', () =>
+        fullscreenButton = iconButton(fullscreen ? ICONS.exitFullscreen : ICONS.fullscreen, fullscreen ? 'Exit full screen' : 'Full screen', () =>
           setFullscreen(!fullscreen),
         )
         fullscreenButton.setAttribute('aria-pressed', String(fullscreen))
         actions.append(fullscreenButton)
       }
-      actions.append(button('Edit data', 'Edit map data', edit))
+      actions.append(iconButton(ICONS.edit, 'Edit map data', edit))
       dom.append(actions)
     }
 
@@ -343,8 +365,9 @@ function mapNodeView() {
       if (on) document.addEventListener('keydown', onKeydown, true)
       else document.removeEventListener('keydown', onKeydown, true)
       if (fullscreenButton) {
-        fullscreenButton.textContent = on ? 'Exit full screen' : 'Full screen'
-        fullscreenButton.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen map')
+        fullscreenButton.innerHTML = on ? ICONS.exitFullscreen : ICONS.fullscreen
+        fullscreenButton.title = on ? 'Exit full screen' : 'Full screen'
+        fullscreenButton.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen')
         fullscreenButton.setAttribute('aria-pressed', String(on))
       }
       sizeToNote()
@@ -366,7 +389,7 @@ function mapNodeView() {
       const text = document.createElement('p')
       text.textContent = 'No map data yet.'
       empty.append(text)
-      if (editor.isEditable) empty.append(button('Add data', 'Add map data', edit))
+      if (editor.isEditable) empty.append(textButton('Add data', 'Add map data', edit))
       dom.append(empty)
     }
 
