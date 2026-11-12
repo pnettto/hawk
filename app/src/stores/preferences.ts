@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store'
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../lib/themes/themes'
 import type { ExtensionSettingValue, SavedExtensions } from '../lib/extensions/registry'
-import { getPreferences, patchPreferences } from '../api/preferences'
+import { getPreferences, patchPreferences, type Preferences } from '../api/preferences'
 
 const STORAGE_KEY = 'hawk_theme'
 const SERVER_DEBOUNCE_MS = 400
@@ -113,8 +113,62 @@ function createPreferencesStore() {
     scheduleServerWrite({ extensions: next })
   }
 
+  // Coalesce remote snapshots so an older GET can't overwrite a newer event.
+  let loadSeq = 0
+
+  function applyRemote(remote: Preferences) {
+    if (isThemeId(remote.theme)) {
+      const next = remote.theme as ThemeId
+      writeLocalTheme(next)
+      applyTheme(next)
+      update((s) => ({ ...s, theme: next }))
+    }
+    if (isView(remote.dayNotesView)) {
+      const view = remote.dayNotesView
+      try {
+        localStorage.setItem(VIEW_KEY, view)
+      } catch {
+        /* ignore */
+      }
+      update((s) => ({ ...s, dayNotesView: view }))
+    }
+    const remoteExtensions = remote.extensions
+    if (remoteExtensions && typeof remoteExtensions === 'object' && !Array.isArray(remoteExtensions)) {
+      const extensions = remoteExtensions as SavedExtensions
+      writeLocalExtensions(extensions)
+      update((s) => ({ ...s, extensions }))
+    }
+  }
+
+  async function loadFromServer() {
+    const seq = ++loadSeq
+    try {
+      const remote = await getPreferences()
+      // Ignore an older fetch that finished after a newer one.
+      if (seq !== loadSeq) return
+      applyRemote(remote)
+    } catch {
+      // Offline / unauthenticated — keep whatever local has.
+    }
+  }
+
+  // Preference changes travel with the sync event, so the other device
+  // updates without a round trip (and without racing a stale fetch).
+  function applySyncEvent(evt: { payload?: unknown }) {
+    const payload = evt.payload
+    // An in-flight GET may predate this event, so ignore its result.
+    loadSeq += 1
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      applyRemote(payload as Preferences)
+      return
+    }
+    void loadFromServer()
+  }
+
   return {
     subscribe,
+    loadFromServer,
+    applySyncEvent,
     setTheme(id: ThemeId) {
       writeLocalTheme(id)
       applyTheme(id)
@@ -141,34 +195,6 @@ function createPreferencesStore() {
           [id]: { ...current, settings: { ...current.settings, [key]: value } },
         }
       })
-    },
-    async loadFromServer() {
-      try {
-        const remote = await getPreferences()
-        if (isThemeId(remote.theme)) {
-          const next = remote.theme as ThemeId
-          writeLocalTheme(next)
-          applyTheme(next)
-          update((s) => ({ ...s, theme: next }))
-        }
-        if (isView(remote.dayNotesView)) {
-          const view = remote.dayNotesView
-          try {
-            localStorage.setItem(VIEW_KEY, view)
-          } catch {
-            /* ignore */
-          }
-          update((s) => ({ ...s, dayNotesView: view }))
-        }
-        const remoteExtensions = remote.extensions
-        if (remoteExtensions && typeof remoteExtensions === 'object' && !Array.isArray(remoteExtensions)) {
-          const extensions = remoteExtensions as SavedExtensions
-          writeLocalExtensions(extensions)
-          update((s) => ({ ...s, extensions }))
-        }
-      } catch {
-        // Offline / unauthenticated — keep whatever local has.
-      }
     },
   }
 }

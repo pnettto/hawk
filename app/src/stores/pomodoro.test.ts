@@ -8,6 +8,7 @@ import {
   pause,
   remainingMs,
   resume,
+  retargetSession,
   skip,
   startSession,
 } from './pomodoro'
@@ -175,5 +176,37 @@ describe('skip', () => {
     expect(state.running).toBe(true)
     expect(state.taskId).toBe('t1')
     expect(state.remainingMs).toBe(FOCUS_MS)
+  })
+})
+
+describe('retargetSession', () => {
+  it('keeps the running clock and phase when switching tasks', () => {
+    const started = startSession(IDLE, TARGET, NOW, DURATIONS)
+    const moved = retargetSession(started, {
+      id: 't2',
+      text: 'Write the slides',
+      dateStr: '2024-05-02',
+    })
+
+    expect(moved).toMatchObject({
+      taskId: 't2',
+      taskText: 'Write the slides',
+      dateStr: '2024-05-02',
+      mode: 'focus',
+      running: true,
+      endsAt: started.endsAt,
+      remainingMs: started.remainingMs,
+      focusMs: started.focusMs,
+      breakMs: started.breakMs,
+      completed: started.completed,
+    })
+  })
+
+  it('keeps a paused focus paused', () => {
+    const paused = pause(startSession(IDLE, TARGET, NOW, DURATIONS), NOW + 60_000)
+    const moved = retargetSession(paused, { id: 't2', text: 'Next', dateStr: '2024-05-02' })
+    expect(moved.running).toBe(false)
+    expect(moved.remainingMs).toBe(paused.remainingMs)
+    expect(moved.taskId).toBe('t2')
   })
 })

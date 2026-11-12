@@ -4,9 +4,9 @@
 
 const TOKEN_KEY = 'hawk_token'
 const API_BASE_KEY = 'hawk_api_base'
-// Per-tab so each open tab is its own sync subscriber and gets each other's
-// edits live. localStorage would coalesce all tabs into one origin.
-const CLIENT_ID_KEY = 'hawk_client_id'
+// Stable per browser, so a closing Pomodoro tab can hand its notifications to
+// a sibling tab before falling back to another device.
+const BROWSER_ID_KEY = 'hawk_browser_id'
 
 // In a Chrome extension, location.origin is `chrome-extension://<id>` so relative
 // `/api/...` requests would go nowhere. Fall back to the deployed backend.
@@ -62,20 +62,30 @@ export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY)
 export const saveToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token)
 export const removeToken = (): void => localStorage.removeItem(TOKEN_KEY)
 
+// Unique per page/tab, kept in memory. sessionStorage can't be used here:
+// duplicating a tab copies its sessionStorage, which made both tabs share one
+// sync origin and swallow each other's live events.
+const pageClientId = crypto.randomUUID()
+
 export function getClientId(): string {
+  return pageClientId
+}
+
+const fallbackBrowserId = crypto.randomUUID()
+
+export function getBrowserId(): string {
   try {
-    let id = sessionStorage.getItem(CLIENT_ID_KEY)
+    let id = localStorage.getItem(BROWSER_ID_KEY)
     if (!id) {
       id = crypto.randomUUID()
-      sessionStorage.setItem(CLIENT_ID_KEY, id)
+      localStorage.setItem(BROWSER_ID_KEY, id)
     }
     return id
   } catch {
-    // sessionStorage unavailable (rare); fall back to a process-lifetime id.
-    return fallbackClientId
+    // localStorage unavailable (rare); fall back to a process-lifetime id.
+    return fallbackBrowserId
   }
 }
-const fallbackClientId = crypto.randomUUID()
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -106,6 +116,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Client-Id': getClientId(),
+    'X-Browser-Id': getBrowserId(),
   }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`

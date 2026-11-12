@@ -38,9 +38,18 @@
     if (ext.enabled) void ensureServiceWorker()
   })
 
-  // Turning the extension off puts the timer away for good.
+  // Turning the extension off on this device stops the timer. Only react to
+  // an actual on→off change: before preferences load (or on a device that
+  // never enabled it) `ext.enabled` is already false and shouldn't cancel a
+  // timer that's running elsewhere.
+  let wasEnabled = false
   $effect(() => {
-    if (!ext.enabled && $pomodoroStore.taskId) pomodoroStore.stop()
+    if (ext.enabled) {
+      wasEnabled = true
+      return
+    }
+    if (wasEnabled && $pomodoroStore.taskId) pomodoroStore.stop()
+    wasEnabled = false
   })
 
   // Background tabs throttle the one-second ticker, so also wake up exactly
@@ -58,7 +67,10 @@
     const id = setInterval(() => pomodoroStore.tick(), 1000)
     // Catch up immediately after the tab was asleep.
     const onVisible = () => {
-      if (document.visibilityState === 'visible') pomodoroStore.tick()
+      if (document.visibilityState !== 'visible') return
+      pomodoroStore.tick()
+      // Catch up on a removal/pause that landed while this tab was hidden.
+      void pomodoroStore.loadFromServer()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {

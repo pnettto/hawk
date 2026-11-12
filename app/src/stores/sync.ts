@@ -1,10 +1,11 @@
 import { writable } from 'svelte/store'
-import { apiBase, getClientId, getToken } from '../api/client'
+import { apiBase, getBrowserId, getClientId, getToken } from '../api/client'
 import { authStore } from './auth'
 import { notesStore } from './notes'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
 import { filesStore } from './files'
+import { pomodoroStore } from './pomodoro'
 
 export type SyncEventType =
   | 'note.saved'
@@ -14,6 +15,7 @@ export type SyncEventType =
   | 'trash.emptied'
   | 'log.saved'
   | 'preferences.saved'
+  | 'pomodoro.saved'
   | 'files.changed'
 
 export interface SyncEvent {
@@ -22,6 +24,7 @@ export interface SyncEvent {
   ref: string
   originClientId?: string
   ts: number
+  payload?: unknown
 }
 
 interface SyncState {
@@ -34,12 +37,15 @@ interface SyncState {
 const PING_MS = 30_000
 const DEAD_AFTER_MS = 75_000
 
-function syncUrl(token: string): string {
+function syncUrl(token: string | null): string {
   const base = apiBase() || location.origin
   const url = new URL('/api/sync/ws', base)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  url.searchParams.set('token', token)
+  // No stored token is fine for same-origin sessions authenticated by the
+  // httpOnly cookie; the Durable Object accepts either.
+  if (token) url.searchParams.set('token', token)
   url.searchParams.set('clientId', getClientId())
+  url.searchParams.set('browserId', getBrowserId())
   return url.toString()
 }
 
@@ -112,7 +118,9 @@ function createSyncStore() {
       if (evt.type === 'log.saved') {
         logsStore.applySyncEvent(evt)
       } else if (evt.type === 'preferences.saved') {
-        preferencesStore.loadFromServer()
+        preferencesStore.applySyncEvent(evt)
+      } else if (evt.type === 'pomodoro.saved') {
+        pomodoroStore.applySyncEvent(evt)
       } else if (evt.type === 'files.changed') {
         filesStore.applySyncEvent()
       } else {
@@ -126,7 +134,6 @@ function createSyncStore() {
   function open() {
     teardown()
     const token = getToken()
-    if (!token) return // not authenticated yet
 
     let socket: WebSocket
     try {
@@ -155,6 +162,9 @@ function createSyncStore() {
         attempt = 0
         failuresSinceHello = 0
         set({ connected: true })
+        // Pomodoro events aren't replayed; catch up on the timer (and its
+        // notification owner) after a reconnect.
+        void pomodoroStore.loadFromServer()
         return
       }
       dispatch(msg as SyncEvent)

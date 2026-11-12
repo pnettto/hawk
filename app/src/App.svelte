@@ -6,6 +6,7 @@
   import { appStore } from './stores/app'
   import { logsStore } from './stores/logs'
   import { preferencesStore } from './stores/preferences'
+  import { pomodoroStore } from './stores/pomodoro'
   import { syncStore } from './stores/sync'
   import { formatDate } from './utils/date'
   import { hasUnsavedWork } from './stores/saving'
@@ -91,7 +92,9 @@
     if (!$authStore.isAuth || $authStore.isGuest) return
     if (prefsLoadedFor) return
     prefsLoadedFor = true
-    preferencesStore.loadFromServer()
+    // Load extensions before the shared timer, so the widget starts with the
+    // right settings instead of the defaults.
+    void preferencesStore.loadFromServer().then(() => pomodoroStore.loadFromServer())
   })
 
   // Open the cross-device sync stream once authenticated. Guest mode skips
@@ -104,21 +107,31 @@
 
   // Refresh today on window focus, mirroring the legacy behaviour.
   let onFocus: (() => void) | null = null
+  let onVisible: (() => void) | null = null
   $effect(() => {
     if (!$authStore.isAuth) return
     onFocus = () => {
       // Safe while typing: sessions ignore anything not newer than theirs.
       const dateStr = formatDate(get(appStore).selectedDate)
       logsStore.loadForDate(dateStr, true)
+      void pomodoroStore.loadFromServer()
+    }
+    // A hidden/suspended tab may have missed live events; catch up on the
+    // shared timer as soon as it is looked at again.
+    onVisible = () => {
+      if (document.visibilityState === 'visible') void pomodoroStore.loadFromServer()
     }
     globalThis.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       if (onFocus) globalThis.removeEventListener('focus', onFocus)
+      if (onVisible) document.removeEventListener('visibilitychange', onVisible)
     }
   })
 
   onDestroy(() => {
     if (onFocus) globalThis.removeEventListener('focus', onFocus)
+    if (onVisible) document.removeEventListener('visibilitychange', onVisible)
   })
 
   // Block reload/close while there's any unsaved work — both in-flight saves

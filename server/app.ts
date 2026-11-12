@@ -49,6 +49,7 @@ import {
   getPreferences,
   patchPreferences,
 } from "./routeHandlers/preferences.ts";
+import { getPomodoro, savePomodoro } from "./routeHandlers/pomodoro.ts";
 import { exportEntries, importEntries } from "./routeHandlers/admin.ts";
 
 export const app = new Hono();
@@ -157,6 +158,10 @@ app.get("/shared/collection/:cid", getSharedCollectionPage);
 // Preferences (theme + future settings)
 app.get("/api/preferences", getPreferences);
 app.post("/api/preferences", patchPreferences);
+
+// Shared Pomodoro timer (state + notification owner)
+app.get("/api/pomodoro", getPomodoro);
+app.post("/api/pomodoro", savePomodoro);
 
 // Raw data dump/restore (migration from Deno KV, backups)
 app.get("/api/admin/export", exportEntries);

@@ -1,4 +1,6 @@
 import { get, writable } from 'svelte/store'
+import { getClientId, isGuestMode } from '../api/client'
+import { getPomodoro, savePomodoro, type PomodoroRecord } from '../api/pomodoro'
 import { appStore } from './app'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
@@ -10,16 +12,22 @@ import {
   extensionSwitch,
 } from '../lib/extensions/registry'
 
-// A single focus timer that follows the tab around. Session state is local to
-// this browser: it's rebuilt from localStorage on reload, so leaving the page
-// or reloading doesn't lose the countdown. The block lengths come from the
-// Pomodoro extension's settings.
+// A single focus timer, shared across devices. The server stores the running
+// state; localStorage keeps a copy so the widget paints immediately on reload.
+// Every session renders the same countdown, but only the session that started
+// the current pomodoro shows the end-of-block notification. If it closes, the
+// server hands that duty to another session, preferring a tab in the same
+// browser. The block lengths come from the Pomodoro extension's settings.
 
 export const FOCUS_MS = 25 * 60_000
 export const BREAK_MS = 5 * 60_000
 export const EXTENSION_ID = 'pomodoro'
 const MINUTE = 60_000
 const STORAGE_KEY = 'hawk_pomodoro'
+// A phase that expired this long ago isn't worth a notification when another
+// session picks the timer back up; treat it like reopening hours later. Kept
+// above a background tab's timer throttling so a late tick still reports.
+const STALE_AFTER_MS = 5 * 60_000
 
 export type PomodoroMode = 'focus' | 'break'
 
@@ -43,7 +51,7 @@ export interface PomodoroState {
   // settings doesn't move the goalposts mid-block.
   focusMs: number
   breakMs: number
-  // Focus sessions finished in this tab.
+  // Focus sessions finished in the current shared timer.
   completed: number
 }
 
@@ -124,6 +132,17 @@ export function formatClock(ms: number): string {
 export function remainingMs(state: PomodoroState, now: number): number {
   if (!state.running || state.endsAt === null) return Math.max(0, state.remainingMs)
   return Math.max(0, state.endsAt - now)
+}
+
+// Point an active focus block at a different task without restarting it: the
+// clock, phase and completed count stay exactly as they were.
+export function retargetSession(state: PomodoroState, target: FocusTarget): PomodoroState {
+  return {
+    ...state,
+    taskId: target.id,
+    taskText: target.text,
+    dateStr: target.dateStr,
+  }
 }
 
 export function startSession(
@@ -207,14 +226,13 @@ function persist(state: PomodoroState) {
   }
 }
 
-function restore(now: number): PomodoroState {
+function parseStored(raw: string | null): PomodoroState | null {
+  if (!raw) return null
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return IDLE
     const saved = JSON.parse(raw) as Partial<PomodoroState>
-    if (saved.mode !== 'focus' && saved.mode !== 'break') return IDLE
-    if (typeof saved.remainingMs !== 'number') return IDLE
-    let state: PomodoroState = {
+    if (saved.mode !== 'focus' && saved.mode !== 'break') return null
+    if (typeof saved.remainingMs !== 'number') return null
+    return {
       taskId: typeof saved.taskId === 'string' ? saved.taskId : null,
       taskText: typeof saved.taskText === 'string' ? saved.taskText : '',
       dateStr: typeof saved.dateStr === 'string' ? saved.dateStr : null,
@@ -226,6 +244,15 @@ function restore(now: number): PomodoroState {
       breakMs: typeof saved.breakMs === 'number' ? saved.breakMs : BREAK_MS,
       completed: typeof saved.completed === 'number' ? saved.completed : 0,
     }
+  } catch {
+    return null
+  }
+}
+
+function restore(now: number): PomodoroState {
+  try {
+    let state = parseStored(localStorage.getItem(STORAGE_KEY))
+    if (!state) return IDLE
     // The clock kept running while the tab was closed. A phase that ran out
     // in the meantime is just over — reopening shouldn't dump you into a
     // break that started hours ago.
@@ -520,20 +547,228 @@ function askForNotifications() {
   void requestNotificationPermission()
 }
 
+function hasActiveTimer(state: PomodoroState): boolean {
+  return state.running || state.taskId !== null || state.mode === 'break'
+}
+
+function isPomodoroRecord(value: unknown): value is PomodoroRecord {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<PomodoroRecord>
+  return typeof record.rev === 'number' &&
+    !!record.state &&
+    (record.state.mode === 'focus' || record.state.mode === 'break')
+}
+
 function createPomodoroStore() {
   const { subscribe, set } = writable<PomodoroState>(restore(Date.now()))
 
-  function commit(next: PomodoroState, finished: PomodoroMode | null = null) {
+  // Server revision this local state is based on.
+  let rev = 0
+  // Session allowed to show notifications for the current block. Assume this
+  // one until the server says otherwise, so a timer restored from
+  // localStorage still works if the server can't be reached.
+  let ownerClientId: string | null = getClientId()
+  // Bumped on every local change, so a late server reply can't overwrite a
+  // newer action made while it was in flight.
+  let localVersion = 0
+  let saveChain: Promise<void> = Promise.resolve()
+  let loadInFlight: Promise<void> | null = null
+  // A sync event can arrive while a fetch is running; make sure a fresh fetch
+  // follows the in-flight one instead of reusing its older result.
+  let loadAgain = false
+  // Bumped by an event that carries a record, so an older GET can't apply
+  // after it (relays change the owner without bumping rev).
+  let eventSeq = 0
+  // Same-browser tabs exchange accepted records directly as well. The sync
+  // socket covers devices, but this keeps tabs in step even if their sockets
+  // are reconnecting or were given the same origin by a duplicated tab.
+  const channel = typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('hawk-pomodoro')
+    : null
+
+  const current = () => get({ subscribe })
+  const isNotifier = () => ownerClientId === getClientId()
+
+  function applyState(next: PomodoroState) {
     set(next)
     persist(next)
+  }
+
+  function saveInBackground(state: PomodoroState, version: number, claim = false) {
+    if (isGuestMode()) return
+    saveChain = saveChain.then(async () => {
+      try {
+        const res = await savePomodoro(state, rev, claim)
+        if (res.ok) {
+          if (res.data.rev < rev) return
+          rev = res.data.rev
+          if (version === localVersion) ownerClientId = res.data.ownerClientId
+          channel?.postMessage({ payload: res.data })
+          return
+        }
+        // Someone else wrote a newer state. Apply it unless this tab has
+        // already moved on to a newer local change.
+        if (!res.conflict || res.conflict.rev < rev) return
+        rev = res.conflict.rev
+        ownerClientId = res.conflict.ownerClientId
+        if (version === localVersion) {
+          applyState(res.conflict.state)
+          catchUp()
+        }
+      } catch {
+        // Offline or signed out: keep the localStorage copy until the next
+        // write goes through.
+      }
+    })
+  }
+
+  // `claim` is set only when this session starts a new pomodoro. Other
+  // changes keep the notification duty where it is.
+  function commit(
+    next: PomodoroState,
+    finished: PomodoroMode | null = null,
+    claim = false,
+  ) {
+    localVersion += 1
+    const version = localVersion
+    if (claim || ownerClientId === null) ownerClientId = getClientId()
+    applyState(next)
+    saveInBackground(next, version, claim)
     if (finished) announce(next, finished)
+  }
+
+  function applyRecord(record: PomodoroRecord): boolean {
+    // Ignore an out-of-order response; sync events and fetches can overlap.
+    if (record.rev < rev) return false
+    rev = record.rev
+    ownerClientId = record.ownerClientId
+    const next = record.state.running && record.state.endsAt !== null
+      ? { ...record.state, remainingMs: remainingMs(record.state, Date.now()) }
+      : record.state
+    applyState(next)
+    catchUp()
+    return true
+  }
+
+  // A session that has just become the notifier for a phase that has already
+  // run out moves the block on and reports it, so a quick handover still gets
+  // its notification.
+  function catchUp() {
+    if (!isNotifier()) return
+    const state = current()
+    if (!state.running || state.endsAt === null) return
+    tick()
+  }
+
+  function tick() {
+    const state = current()
+    const now = Date.now()
+    if (!state.running || state.endsAt === null) {
+      const left = remainingMs(state, now)
+      if (left !== state.remainingMs) set({ ...state, remainingMs: left })
+      return
+    }
+    const left = remainingMs(state, now)
+    if (left > 0) {
+      set({ ...state, remainingMs: left })
+      return
+    }
+    if (!isNotifier()) {
+      // Only the notifier moves the block on; everyone else waits for its
+      // update and keeps the clock at zero in the meantime.
+      if (state.remainingMs !== 0) set({ ...state, remainingMs: 0 })
+      return
+    }
+    // The notifier came back long after the block ended; don't replay a stale
+    // break or focus block. Within the grace window it still counts.
+    if (state.endsAt !== null && now - state.endsAt > STALE_AFTER_MS) {
+      commit(idleFrom(state))
+      return
+    }
+    const { state: next, finished } = advance(state, now, autoStarts())
+    if (finished) commit(next, finished)
+    else set(next)
+  }
+
+  async function loadOnce() {
+    const versionAtLoad = localVersion
+    const eventAtLoad = eventSeq
+    try {
+      const record = await getPomodoro()
+      // A local action or a newer event landed while the request was in
+      // flight; its result (or the event) wins.
+      if (localVersion !== versionAtLoad || eventSeq !== eventAtLoad) return
+      if (record) {
+        applyRecord(record)
+        return
+      }
+      // First shared timer for this account: publish the local one, if any.
+      const local = current()
+      if (hasActiveTimer(local)) {
+        localVersion += 1
+        ownerClientId = getClientId()
+        saveInBackground(local, localVersion, true)
+      }
+    } catch {
+      // Offline / signed out: keep the localStorage copy.
+    }
+  }
+
+  function loadFromServer(): Promise<void> {
+    if (isGuestMode()) return Promise.resolve()
+    if (loadInFlight) {
+      loadAgain = true
+      return loadInFlight
+    }
+    loadInFlight = (async () => {
+      try {
+        await loadOnce()
+      } finally {
+        loadInFlight = null
+        if (loadAgain) {
+          loadAgain = false
+          void loadFromServer()
+        }
+      }
+    })()
+    return loadInFlight
+  }
+
+  // A sync event carries the new record, so apply it straight away. Older
+  // servers omitted the payload; fall back to a fetch.
+  function applySyncEvent(evt: { payload?: unknown }) {
+    if (isPomodoroRecord(evt.payload)) {
+      if (applyRecord(evt.payload)) eventSeq += 1
+      return
+    }
+    void loadFromServer()
+  }
+
+  if (channel) {
+    channel.onmessage = (event: MessageEvent) => {
+      const payload = (event.data as { payload?: unknown } | null)?.payload
+      if (isPomodoroRecord(payload)) applySyncEvent({ payload })
+    }
+  }
+
+  // The demo has no server or sync socket, so tabs share the localStorage copy
+  // directly. Storage events fire in the other tabs, not the writer.
+  if (typeof window !== 'undefined' && isGuestMode()) {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== STORAGE_KEY || event.newValue === null) return
+      const next = parseStored(event.newValue)
+      if (!next) return
+      set(next)
+    })
   }
 
   return {
     subscribe,
+    loadFromServer,
+    applySyncEvent,
     // Start on this task, or pause/resume if it's the one already running.
     focusOn(target: FocusTarget) {
-      const state = get({ subscribe })
+      const state = current()
       const now = Date.now()
       if (state.taskId === target.id && state.mode === 'focus') {
         if (!state.running) askForNotifications()
@@ -541,19 +776,26 @@ function createPomodoroStore() {
         return
       }
       askForNotifications()
-      commit(startSession(state, target, now, configuredDurations()))
+      // Switching tasks while a focus block is running keeps the clock going;
+      // only its label and task change. A paused, idle or break timer still
+      // starts a fresh focus.
+      if (state.running && state.mode === 'focus') {
+        commit(retargetSession(state, target), null, true)
+        return
+      }
+      commit(startSession(state, target, now, configuredDurations()), null, true)
     },
     toggle() {
-      const state = get({ subscribe })
+      const state = current()
       const now = Date.now()
       if (!state.running) askForNotifications()
       commit(state.running ? pause(state, now) : resume(state, now))
     },
     skip() {
-      commit(skip(get({ subscribe }), Date.now()))
+      commit(skip(current(), Date.now()))
     },
     stop() {
-      const state = get({ subscribe })
+      const state = current()
       const durations = configuredDurations()
       commit({
         ...IDLE,
@@ -565,15 +807,11 @@ function createPomodoroStore() {
     // Bring a parked phase (auto-start off) back to life, from the
     // notification's action or its click.
     resume() {
-      const state = get({ subscribe })
+      const state = current()
       if (state.running || state.taskId === null) return
       commit(resume(state, Date.now()))
     },
-    tick() {
-      const { state, finished } = advance(get({ subscribe }), Date.now(), autoStarts())
-      if (finished) commit(state, finished)
-      else set(state)
-    },
+    tick,
   }
 }
 

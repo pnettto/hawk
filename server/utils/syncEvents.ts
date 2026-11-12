@@ -14,6 +14,7 @@ export type SyncEventType =
   | "trash.emptied"
   | "log.saved"
   | "preferences.saved"
+  | "pomodoro.saved"
   | "files.changed";
 
 export interface SyncEvent {
@@ -24,6 +25,9 @@ export interface SyncEvent {
   // The clientId that triggered the write — used to suppress echoes.
   originClientId?: string;
   ts: number;
+  // Optional snapshot of the new value, so clients can apply it directly
+  // instead of refetching (and racing an earlier in-flight fetch).
+  payload?: unknown;
 }
 
 // Crockford base32 ulid: 10 chars time + 16 chars random. Monotonic within
@@ -80,6 +84,7 @@ interface EmitArgs {
   type: SyncEventType;
   ref: string;
   originClientId?: string;
+  payload?: unknown;
 }
 
 type Broadcaster = (event: SyncEvent) => void;
@@ -97,6 +102,7 @@ export function emitSyncEvent(args: EmitArgs): Promise<void> {
     ref: args.ref,
     originClientId: args.originClientId,
     ts: Date.now(),
+    payload: args.payload,
   };
   try {
     broadcaster?.(event);
@@ -108,4 +114,10 @@ export function emitSyncEvent(args: EmitArgs): Promise<void> {
 
 export function getClientIdFromCtx(c: Context): string | undefined {
   return c.req.header("X-Client-Id") || undefined;
+}
+
+// Stable per browser (localStorage), unlike the per-tab client id. Used to
+// prefer a sibling tab when the Pomodoro notifier closes.
+export function getBrowserIdFromCtx(c: Context): string | undefined {
+  return c.req.header("X-Browser-Id") || undefined;
 }
