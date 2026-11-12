@@ -8,6 +8,8 @@
   import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
   import { parseQuickTask } from './quickTask'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
+  import ActionMenu from '../ui/ActionMenu.svelte'
+  import type { ActionMenuItem } from '../ui/menuItem'
   import TimePicker from '../ui/TimePicker.svelte'
   import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
   import { preferencesStore } from '../../stores/preferences'
@@ -564,6 +566,79 @@
     logsStore.reorderTasks(dateStr, ids)
   }
 
+  // ---- row menu ------------------------------------------------------------
+
+  // On a phone the row's secondary actions would crowd the text out, so they
+  // collapse into one menu: the row is the checkbox, its text and a "⋯".
+  let menuTaskId = $state<string | null>(null)
+  let menuAnchorEl = $state<HTMLButtonElement | null>(null)
+
+  function toggleRowMenu(id: string, el: HTMLButtonElement) {
+    menuTaskId = menuTaskId === id ? null : id
+    menuAnchorEl = el
+  }
+
+  function removeTask(task: Task) {
+    if (menuTaskId === task.id) menuTaskId = null
+    // Deleting a group takes its subtasks along, timer and all.
+    const focused = tasks.find((t) => t.id === focusedId)
+    if (focused && (focused.id === task.id || focused.parentId === task.id)) {
+      pomodoroStore.stop()
+    }
+    logsStore.removeTask(dateStr, task.id)
+  }
+
+  const TIMER_ICON = [
+    'M6 5.1C3.9 5.3 2.5 6.9 2.5 9.4 2.5 12.4 5 14.3 8 14.3s5.5-1.9 5.5-4.9c0-2.5-1.4-4.1-3.5-4.3',
+    'M8 5.6 5.4 4.3M8 5.6l2.6-1.3M8 5.6 8 3.4c0-.6.3-1 .9-1.2',
+    'M4.9 9.2c.1-.8.6-1.5 1.3-1.8',
+  ]
+
+  // Same set of actions the row shows on hover, in the same order.
+  function rowMenuItems(task: Task, row: Row): ActionMenuItem[] {
+    const items: ActionMenuItem[] = []
+    if (row.depth === 0 && !row.header) {
+      items.push({
+        label: 'Add subtask',
+        icon: ['M3 3v5a2 2 0 0 0 2 2h6', 'M8.5 7.5 11 10 8.5 12.5'],
+        onSelect: () => void addSubtask(task),
+      })
+    }
+    items.push({
+      label: task.comment ? 'Edit comment' : 'Add comment',
+      icon: 'M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z',
+      onSelect: () => {
+        if (openComments.has(task.id)) {
+          listEl?.querySelector<HTMLTextAreaElement>(`[data-task-comment="${task.id}"]`)?.focus()
+          return
+        }
+        toggleComment(task.id)
+      },
+    })
+    if (pomodoroOn && !row.header) {
+      const running = focusedId === task.id
+      items.push({
+        label: running ? (timer.running ? 'Pause the timer' : 'Resume the timer') : 'Start a focus timer',
+        icon: running ? ['M6 4v8', 'M10 4v8'] : TIMER_ICON,
+        onSelect: () => toggleFocus(task),
+      })
+    }
+    if (row.depth === 0) {
+      items.push({
+        label: 'Carry over to tomorrow',
+        icon: ['M2.5 8h9', 'M9 4.5 12.5 8 9 11.5'],
+        onSelect: () => logsStore.carryTaskOver(dateStr, task.id),
+      })
+    }
+    items.push({
+      label: 'Delete task',
+      icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5',
+      danger: true,
+      onSelect: () => removeTask(task),
+    })
+    return items
+  }
+
   // ---- history / checkpoints -----------------------------------------------
 
   let showHistory = $state(false)
@@ -575,6 +650,12 @@
     const ds = dateStr
     if (!el) return
     return bindSnapshotTriggers(el, () => void logsStore.flushTasks(ds, { snapshot: true }))
+  })
+
+  // A row menu belongs to one day's list.
+  $effect(() => {
+    void dateStr
+    menuTaskId = null
   })
 
   onDestroy(() => {
@@ -748,7 +829,7 @@
             {#if row.depth === 0 && !row.header}
               <button
                 type="button"
-                class="icon-btn ghost add-sub"
+                class="icon-btn ghost row-action add-sub"
                 title="Add a subtask"
                 aria-label="Add a subtask"
                 onclick={() => void addSubtask(task)}
@@ -762,7 +843,7 @@
 
             <button
               type="button"
-              class="icon-btn ghost comment-toggle"
+              class="icon-btn ghost row-action comment-toggle"
               class:active={!!task.comment || openComments.has(task.id)}
               title="Comment"
               aria-label="Comment"
@@ -777,7 +858,7 @@
             {#if pomodoroOn && !row.header}
               <button
                 type="button"
-                class="icon-btn ghost focus-btn"
+                class="icon-btn ghost row-action focus-btn"
                 class:active={focusedId === task.id}
                 class:paused={focusedId === task.id && !timer.running}
                 title={focusedId === task.id ? 'Pause or resume the timer' : 'Start a focus timer'}
@@ -805,7 +886,7 @@
               />
               <button
                 type="button"
-                class="icon-btn ghost carry-over"
+                class="icon-btn ghost row-action carry-over"
                 title="Carry over to next day"
                 aria-label="Carry over to next day"
                 onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
@@ -818,23 +899,40 @@
             {/if}
             <button
               type="button"
-              class="icon-btn ghost danger remove"
+              class="icon-btn ghost danger row-action remove"
               title="Delete task"
               aria-label="Delete task"
-              onclick={() => {
-                // Deleting a group takes its subtasks along, timer and all.
-                const focused = tasks.find((t) => t.id === focusedId)
-                if (focused && (focused.id === task.id || focused.parentId === task.id)) {
-                  pomodoroStore.stop()
-                }
-                logsStore.removeTask(dateStr, task.id)
-              }}
+              onclick={() => removeTask(task)}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
                 <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
               </svg>
             </button>
+            <button
+              type="button"
+              class="icon-btn ghost row-more"
+              title="More actions"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuTaskId === task.id}
+              onclick={(e) => toggleRowMenu(task.id, e.currentTarget)}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" aria-hidden="true">
+                <circle cx="3.4" cy="8" r="1.15" />
+                <circle cx="8" cy="8" r="1.15" />
+                <circle cx="12.6" cy="8" r="1.15" />
+              </svg>
+            </button>
           </div>
+
+          {#if menuTaskId === task.id}
+            <ActionMenu
+              anchor={menuAnchorEl}
+              items={rowMenuItems(task, row)}
+              label="Task actions"
+              onClose={() => (menuTaskId = null)}
+            />
+          {/if}
 
           {#if task.comment || openComments.has(task.id)}
             <textarea
@@ -1107,6 +1205,8 @@
   .focus-btn,
   .carry-over,
   .remove { opacity: 0; }
+  /* The overflow menu is only a thing on narrow screens. */
+  .row-more { display: none; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
   .task:hover .add-sub,
@@ -1146,6 +1246,18 @@
     .focus-btn,
     .carry-over,
     .remove { opacity: 0.45; }
+  }
+
+  /* Phones: one menu per row instead of a strip of icons. The checkbox, the
+     task text and the menu are the row; a running timer keeps its chip. */
+  @media (max-width: 600px) {
+    .row-action { display: none; }
+    .row-action.focus-btn.active { display: inline-flex; }
+    .row-more { display: inline-flex; opacity: 0.5; width: 32px; height: 32px; }
+    .task:hover .row-more,
+    .task:focus-within .row-more { opacity: 1; }
+    .task:hover .row-action.focus-btn.active,
+    .task:focus-within .row-action.focus-btn.active { opacity: 1; }
   }
 
   /* Subtasks sit indented under their parent, marked by a short guide line. */

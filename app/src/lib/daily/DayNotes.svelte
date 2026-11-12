@@ -8,6 +8,8 @@
   import { showError } from '../../stores/toast'
   import NoteEditor from '../notes/NoteEditor.svelte'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
+  import ActionMenu from '../ui/ActionMenu.svelte'
+  import type { ActionMenuItem } from '../ui/menuItem'
   import type { Note, NoteMetadata } from '../../types/models'
 
   // A day's notes are regular notes with `day` set — the same ones Notepad
@@ -88,11 +90,49 @@
   let reading = $state(false)
   let showHistory = $state(false)
   let historyAnchorEl = $state<HTMLButtonElement | null>(null)
+  // Phones get the same actions behind one menu instead of five icons. The
+  // popover anchors to whichever trigger opened it.
+  let barMenuOpen = $state(false)
+  let barMenuEl = $state<HTMLButtonElement | null>(null)
+  let historyFromMenu = $state(false)
+
+  function toggleHistory(fromMenu: boolean) {
+    historyFromMenu = fromMenu
+    showHistory = fromMenu ? true : !showHistory
+  }
+
+  const COPY_ICON = [
+    'M5.5 2.5h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z',
+    'M2.5 5.5v7a2 2 0 0 0 2 2h6',
+  ]
+  const HISTORY_ICON = ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5', 'M12 7v5l3 2']
+  const DELETE_ICON = 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5'
+  const READING_ICON = ['M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10']
+
+  let barMenuItems: ActionMenuItem[] = $derived.by(() => {
+    const items: ActionMenuItem[] = []
+    if (!loaded || !notes.length) return items
+    items.push({
+      label: view === 'tabs' ? 'Copy note as markdown' : 'Copy the day’s notes as markdown',
+      icon: COPY_ICON,
+      onSelect: () => void copyNotes(),
+    })
+    const id = activeId
+    if (view === 'tabs' && id) {
+      items.push({ label: 'Version history', icon: HISTORY_ICON, onSelect: () => toggleHistory(true) })
+      if (notes.length > 1) {
+        items.push({ label: 'Delete note', icon: DELETE_ICON, danger: true, onSelect: () => removeNote(id) })
+      }
+      items.push({ label: 'Reading mode', icon: READING_ICON, onSelect: () => (reading = true) })
+    }
+    return items
+  })
 
   $effect(() => {
     void activeId
     void dateStr
     showHistory = false
+    barMenuOpen = false
   })
 
   // ---- copy ----------------------------------------------------------------
@@ -179,7 +219,7 @@
     <div class="bar-actions">
     <button
       type="button"
-      class="copy-btn"
+      class="copy-btn bar-action"
       class:copied
       title={view === 'tabs' ? 'Copy note as markdown' : 'Copy the day’s notes as markdown'}
       aria-label={view === 'tabs' ? 'Copy note as markdown' : 'Copy the day’s notes as markdown'}
@@ -196,11 +236,11 @@
       <div class="history-wrap">
         <button
           type="button"
-          class="icon-btn ghost"
+          class="icon-btn ghost bar-action"
           title="Version history"
           aria-label="Version history"
           bind:this={historyAnchorEl}
-          onclick={() => (showHistory = !showHistory)}
+          onclick={() => toggleHistory(false)}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
@@ -212,20 +252,20 @@
           <HistoryPopover
             kind="note"
             entityId={activeId}
-            anchor={historyAnchorEl}
+            anchor={historyFromMenu ? barMenuEl : historyAnchorEl}
             prepare={() => notesStore.triggerSnapshot(activeId, true)}
             onClose={() => (showHistory = false)}
           />
         {/if}
       </div>
       {#if notes.length > 1}
-        <button type="button" class="icon-btn ghost danger" title="Delete note" aria-label="Delete note" onclick={() => removeNote(activeId)}>
+        <button type="button" class="icon-btn ghost bar-action danger" title="Delete note" aria-label="Delete note" onclick={() => removeNote(activeId)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
           </svg>
         </button>
       {/if}
-      <button type="button" class="icon-btn ghost" title="Reading mode" aria-label="Reading mode" onclick={() => (reading = true)}>
+      <button type="button" class="icon-btn ghost bar-action" title="Reading mode" aria-label="Reading mode" onclick={() => (reading = true)}>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
       </button>
     {/if}
@@ -255,6 +295,32 @@
         </svg>
       </button>
     </div>
+    {#if barMenuItems.length}
+      <button
+        type="button"
+        class="icon-btn ghost bar-more"
+        title="More actions"
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={barMenuOpen}
+        bind:this={barMenuEl}
+        onclick={() => (barMenuOpen = !barMenuOpen)}
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" aria-hidden="true">
+          <circle cx="3.4" cy="8" r="1.15" />
+          <circle cx="8" cy="8" r="1.15" />
+          <circle cx="12.6" cy="8" r="1.15" />
+        </svg>
+      </button>
+      {#if barMenuOpen}
+        <ActionMenu
+          anchor={barMenuEl}
+          items={barMenuItems}
+          label="Note actions"
+          onClose={() => (barMenuOpen = false)}
+        />
+      {/if}
+    {/if}
     </div>
   </div>
 
@@ -301,6 +367,13 @@
   .bar.tabs-view { margin-bottom: 0.75rem; }
   .bar-actions { display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0; }
   .bar-actions .view-toggle { margin-left: 0.2rem; }
+  /* The overflow menu is only a thing on narrow screens. */
+  .bar-more { display: none; }
+  @media (max-width: 600px) {
+    .bar-actions .bar-action { display: none; }
+    .bar-more { display: inline-flex; width: 32px; height: 32px; }
+    .bar-actions { gap: 0.4rem; }
+  }
   .history-wrap { position: relative; }
   .copy-btn {
     width: 28px;
