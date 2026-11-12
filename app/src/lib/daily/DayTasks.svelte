@@ -538,8 +538,8 @@
     color: var(--text);
     font: inherit;
     font-size: 1rem;
-    line-height: var(--row-h);
-    padding: 0 0.4rem;
+    line-height: 1.4;
+    padding: 0.2rem 0.4rem;
     border-radius: 6px;
     outline: none;
     resize: none;
