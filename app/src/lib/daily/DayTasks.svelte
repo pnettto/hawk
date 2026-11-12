@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte'
-  import { safeFlip } from '../../utils/safeFlip'
   import { fade, slide } from 'svelte/transition'
   import { appStore } from '../../stores/app'
   import { logsStore, sortTasks } from '../../stores/logs'
@@ -17,34 +16,50 @@
   let dateStr = $derived(formatDate($appStore.selectedDate))
   let loaded = $derived(dateStr in $logsStore.byDate)
   let tasks = $derived(sortTasks($logsStore.byDate[dateStr]?.tasks ?? []))
-  let doneCount = $derived(tasks.filter((t) => t.done).length)
+
+  // A task with subtasks becomes a group header: it no longer counts as a
+  // completable task, its children do.
+  let parentIds = $derived(new Set(tasks.filter((t) => t.parentId).map((t) => t.parentId!)))
+  let leafTasks = $derived(tasks.filter((t) => !parentIds.has(t.id)))
+  let doneCount = $derived(leafTasks.filter((t) => t.done).length)
 
   // Subtasks live in the same list, linked by parentId. Render parents with
-  // their children directly underneath.
-  type Row = { task: Task; depth: number }
+  // their children directly underneath, then a group add row.
+  type Row = { task: Task; depth: number; header: boolean; addRow?: boolean; index: number }
   let topLevel = $derived.by(() => {
     const ids = new Set(tasks.map((t) => t.id))
     return tasks.filter((t) => !t.parentId || !ids.has(t.parentId))
   })
   let rows = $derived.by(() => {
     const out: Row[] = []
+    let index = 0
     for (const parent of topLevel) {
-      out.push({ task: parent, depth: 0 })
-      for (const child of sortTasks(tasks.filter((t) => t.parentId === parent.id))) {
-        out.push({ task: child, depth: 1 })
+      const children = sortTasks(tasks.filter((t) => t.parentId === parent.id))
+      const header = children.length > 0
+      out.push({ task: parent, depth: 0, header, index: index++ })
+      for (const child of children) {
+        out.push({ task: child, depth: 1, header: false, index: index++ })
       }
+      if (header) out.push({ task: parent, depth: 1, header: false, addRow: true, index: -1 })
     }
     return out
   })
+  let taskRows = $derived(rows.filter((r) => !r.addRow))
 
   let prevDateStr = $derived.by(() => {
     const d = new Date($appStore.selectedDate)
     d.setDate(d.getDate() - 1)
     return formatDate(d)
   })
-  let carryable = $derived(
-    ($logsStore.byDate[prevDateStr]?.tasks ?? []).filter((t) => !t.parentId && !t.done && t.text.trim()),
-  )
+  let carryable = $derived.by(() => {
+    const prev = $logsStore.byDate[prevDateStr]?.tasks ?? []
+    const parents = new Set(prev.filter((t) => t.parentId).map((t) => t.parentId!))
+    return prev.filter((t) => !t.parentId).filter((t) => {
+      // A group comes along while any of its children is unfinished.
+      if (parents.has(t.id)) return prev.some((c) => c.parentId === t.id && !c.done)
+      return !t.done && !!t.text.trim()
+    })
+  })
   let prevDayName = $derived(
     new Date(prevDateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }),
   )
@@ -62,15 +77,15 @@
   // just above it. Hidden when there's no timed task on either side.
   let nowIndex = $derived.by(() => {
     if (!isToday) return -1
-    if (!rows.some((r) => r.task.time)) return -1
-    const idx = rows.findIndex((r) => r.task.time && toMinutes(r.task.time) > nowMinutes)
+    if (!taskRows.some((r) => r.task.time)) return -1
+    const idx = taskRows.findIndex((r) => r.task.time && toMinutes(r.task.time) > nowMinutes)
     if (idx === 0) return -1
     if (idx !== -1) return idx
     // Every timed task is in the past: sit before the next untimed one.
     let lastTimed = -1
-    for (let i = 0; i < rows.length; i++) if (rows[i].task.time) lastTimed = i
-    const next = rows.findIndex((r, i) => i > lastTimed && r.depth === 0 && !r.task.time)
-    return next === -1 ? rows.length : next
+    for (let i = 0; i < taskRows.length; i++) if (taskRows[i].task.time) lastTimed = i
+    const next = taskRows.findIndex((r, i) => i > lastTimed && r.depth === 0 && !r.task.time)
+    return next === -1 ? taskRows.length : next
   })
 
   // ---- add -----------------------------------------------------------------
@@ -157,6 +172,52 @@
     focusTask(sibling.id)
   }
 
+  // ---- group add rows ------------------------------------------------------
+
+  // Each group gets its own add row, same idea and style as the global one:
+  // the first typed character becomes the new subtask and the cursor follows.
+  let groupDrafts = $state<Record<string, string>>({})
+
+  function focusGroupAdd(id: string) {
+    listEl?.querySelector<HTMLInputElement>(`[data-group-add="${id}"]`)?.focus()
+  }
+
+  function clearGroupDraft(id: string) {
+    const next = { ...groupDrafts }
+    delete next[id]
+    groupDrafts = next
+  }
+
+  async function createGroupTaskFromDraft(parent: Task) {
+    const text = (groupDrafts[parent.id] ?? '').trimStart()
+    if (!text) return
+    const ds = dateStr
+    finishFresh()
+    const child = logsStore.addTask(ds, { text, parentId: parent.id })
+    freshId = child.id
+    freshIsSubtask = true
+    clearGroupDraft(parent.id)
+    await tick()
+    if (dateStr === ds) focusTask(child.id)
+  }
+
+  function onGroupAddInput(parent: Task, e: Event & { currentTarget: HTMLInputElement }) {
+    groupDrafts = { ...groupDrafts, [parent.id]: e.currentTarget.value }
+    if ((e as Event as InputEvent).isComposing) return
+    void createGroupTaskFromDraft(parent)
+  }
+
+  function onGroupAddKeydown(e: KeyboardEvent, parent: Task) {
+    if (e.isComposing) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void createGroupTaskFromDraft(parent)
+    } else if (e.key === 'Escape') {
+      clearGroupDraft(parent.id)
+      ;(e.currentTarget as HTMLInputElement | null)?.blur()
+    }
+  }
+
   function onAddInput(e: Event & { currentTarget: HTMLInputElement }) {
     draft = e.currentTarget.value
     if ((e as Event as InputEvent).isComposing) return
@@ -192,9 +253,9 @@
     } else if (e.key === 'Escape') {
       resetDraft()
       addInput?.blur()
-    } else if (e.key === 'ArrowUp' && rows.length) {
+    } else if (e.key === 'ArrowUp' && taskRows.length) {
       e.preventDefault()
-      focusTask(rows[rows.length - 1].task.id)
+      focusTask(taskRows[taskRows.length - 1].task.id)
     }
   }
 
@@ -211,24 +272,25 @@
     el.setSelectionRange(pos, pos)
   }
 
-  function onTextKeydown(e: KeyboardEvent, task: Task, index: number) {
+  function onTextKeydown(e: KeyboardEvent, task: Task, index: number, header: boolean) {
     if (e.isComposing) return
     const input = e.currentTarget as HTMLTextAreaElement
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !header) {
       e.preventDefault()
       logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (task.parentId) void addSibling(task)
+      if (header) focusGroupAdd(task.id)
+      else if (task.parentId) void addSibling(task)
       else addInput?.focus()
     } else if (e.key === 'ArrowUp' && index > 0) {
       e.preventDefault()
-      focusTask(rows[index - 1].task.id)
+      focusTask(taskRows[index - 1].task.id)
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (index < rows.length - 1) focusTask(rows[index + 1].task.id)
+      if (index < taskRows.length - 1) focusTask(taskRows[index + 1].task.id)
       else addInput?.focus()
-    } else if (e.key === 'Backspace' && input.value === '' && !task.comment) {
+    } else if (e.key === 'Backspace' && input.value === '' && !task.comment && !header) {
       e.preventDefault()
       // Backing out of a task that was just started returns to where it came from.
       if (task.id === freshId) {
@@ -236,7 +298,7 @@
         freshIsSubtask = false
         logsStore.removeTask(dateStr, task.id, { quiet: true })
         if (task.parentId) {
-          const prev = rows[index - 1]
+          const prev = taskRows[index - 1]
           if (prev) tick().then(() => focusTask(prev.task.id))
           else addInput?.focus()
         } else {
@@ -244,7 +306,7 @@
         }
         return
       }
-      const prev = rows[index - 1]?.task
+      const prev = taskRows[index - 1]?.task
       logsStore.removeTask(dateStr, task.id)
       if (prev) tick().then(() => focusTask(prev.id))
       else addInput?.focus()
@@ -304,9 +366,9 @@
 
 <section class="tasks" bind:this={rootEl} aria-label="Tasks">
   <div class="toolbar">
-    <span class="progress" class:all-done={tasks.length > 0 && doneCount === tasks.length}>
-      {#if tasks.length}
-        {doneCount} of {tasks.length} done
+    <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
+      {#if leafTasks.length}
+        {doneCount} of {leafTasks.length} done
       {/if}
     </span>
     <div class="history-wrap">
@@ -337,49 +399,85 @@
 
   {#key dateStr}
     <ul class="list" bind:this={listEl} class:loading={!loaded}>
-      {#each rows as row, i (row.task.id)}
+      {#each rows as row (row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
         {@const task = row.task}
+        {#if row.addRow}
+          <li class="group-add-row">
+            <div class="add group-add" class:has-draft={!!groupDrafts[task.id]?.trim()}>
+              <div class="row">
+                <button
+                  type="button"
+                  class="add-icon"
+                  title="Add a task"
+                  aria-label="Add a task to this group"
+                  onclick={() => focusGroupAdd(task.id)}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+                </button>
+                <input
+                  class="add-input"
+                  data-group-add={task.id}
+                  value={groupDrafts[task.id] ?? ''}
+                  placeholder="Add a task"
+                  aria-label="Add a task to this group"
+                  enterkeyhint="done"
+                  oninput={(e) => onGroupAddInput(task, e)}
+                  oncompositionend={() => void createGroupTaskFromDraft(task)}
+                  onkeydown={(e) => onGroupAddKeydown(e, task)}
+                />
+              </div>
+            </div>
+          </li>
+        {:else}
         <li
           class="task"
-          class:done={task.done}
+          class:done={task.done && !row.header}
+          class:header={row.header}
           class:sub={row.depth > 0}
           class:has-comment={!!task.comment}
-          animate:safeFlip={{ duration: 220 }}
           transition:slide={{ duration: 160 }}
         >
-          {#if i === nowIndex}
+          {#if row.index === nowIndex}
             <div class="now-marker" aria-label="Now" transition:fade={{ duration: 150 }}><span>now</span></div>
           {/if}
           <div class="row">
-            <button
-              type="button"
-              class="check"
-              role="checkbox"
-              aria-checked={task.done}
-              aria-label={task.done ? 'Mark not done' : 'Mark done'}
-              onclick={() => logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })}
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
+            {#if row.header}
+              <span class="group-mark" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                  <path d="M3 4.5h10M3 8h10M3 11.5h6" />
+                </svg>
+              </span>
+            {:else}
+              <button
+                type="button"
+                class="check"
+                role="checkbox"
+                aria-checked={task.done}
+                aria-label={task.done ? 'Mark not done' : 'Mark done'}
+                onclick={() => logsStore.editTask(dateStr, task.id, { done: !task.done }, { immediate: true })}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            {/if}
 
             <textarea
               class="text"
               data-task-input={task.id}
               rows="1"
               value={task.text}
-              placeholder={row.depth ? 'Subtask' : 'Task'}
-              aria-label={row.depth ? 'Subtask' : 'Task'}
+              placeholder={row.header ? 'Group' : row.depth ? 'Subtask' : 'Task'}
+              aria-label={row.header ? 'Group name' : row.depth ? 'Subtask' : 'Task'}
               use:autosize
               oninput={(e) => logsStore.editTask(dateStr, task.id, { text: e.currentTarget.value })}
-              onkeydown={(e) => onTextKeydown(e, task, i)}
+              onkeydown={(e) => onTextKeydown(e, task, row.index, row.header)}
               onblur={() => {
                 if (task.id === freshId) finishFresh()
               }}
             ></textarea>
 
-            {#if row.depth === 0}
+            {#if row.depth === 0 && !row.header}
               <button
                 type="button"
                 class="icon-btn ghost add-sub"
@@ -408,7 +506,7 @@
               </svg>
             </button>
 
-            {#if pomodoroOn && row.depth === 0}
+            {#if pomodoroOn && row.depth === 0 && !row.header}
               <button
                 type="button"
                 class="icon-btn ghost focus-btn"
@@ -483,8 +581,9 @@
             ></textarea>
           {/if}
         </li>
+        {/if}
       {/each}
-      {#if nowIndex === rows.length && rows.length}
+      {#if nowIndex === taskRows.length && taskRows.length}
         <li class="now-marker" aria-label="Now"><span>now</span></li>
       {/if}
     </ul>
@@ -597,6 +696,18 @@
   }
   .task:hover,
   .task:focus-within { background: var(--glass-dark); }
+  .task.header .text { font-weight: 500; }
+  .group-mark {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    opacity: 0.55;
+  }
+  .group-mark svg { width: 0.85rem; height: 0.85rem; }
   .row {
     display: flex;
     align-items: center;
@@ -739,6 +850,13 @@
   }
   .task.sub .text { font-size: 0.95rem; }
   .task.sub .comment { margin-left: 2.35rem; }
+
+  .group-add-row { list-style: none; }
+  .add.group-add {
+    margin-top: 0;
+    margin-left: 1.7rem;
+  }
+  .group-add .add-input { font-size: 0.95rem; }
 
   .comment {
     display: block;

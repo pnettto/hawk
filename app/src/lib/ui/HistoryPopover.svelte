@@ -107,16 +107,19 @@
         const all = res?.content?.tasks ?? []
         const ids = new Set(all.map((t) => t.id))
         const lines: string[] = []
-        const ordered: { task: (typeof all)[number]; depth: number }[] = []
+        const ordered: { task: (typeof all)[number]; depth: number; header: boolean }[] = []
         for (const parent of sortTasks(all.filter((t) => !t.parentId || !ids.has(t.parentId)))) {
-          ordered.push({ task: parent, depth: 0 })
-          for (const child of sortTasks(all.filter((t) => t.parentId === parent.id))) {
-            ordered.push({ task: child, depth: 1 })
-          }
+          const children = sortTasks(all.filter((t) => t.parentId === parent.id))
+          ordered.push({ task: parent, depth: 0, header: children.length > 0 })
+          for (const child of children) ordered.push({ task: child, depth: 1, header: false })
         }
-        for (const { task: t, depth } of ordered) {
+        for (const { task: t, depth, header } of ordered) {
           const indent = '  '.repeat(depth)
-          lines.push(`${indent}${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`)
+          lines.push(
+            header
+              ? `${t.time ? t.time + '  ' : ''}${t.text}`
+              : `${indent}${t.done ? '✓' : '·'} ${t.time ? t.time + '  ' : ''}${t.text}`,
+          )
           // Indent comments so they nest visually under their task.
           for (const cline of (t.comment ?? '').split('\n').filter(Boolean)) {
             lines.push(`${indent}    ${cline}`)
