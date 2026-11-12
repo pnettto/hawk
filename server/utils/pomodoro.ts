@@ -129,7 +129,7 @@ async function setPomodoroOwner(
     };
     const res = await kv.atomic().check(cur).set(POMODORO_KEY, next).commit();
     if (res.ok) {
-      await emitSyncEvent({ type: "pomodoro.saved", ref: "pomodoro" });
+      await emitSyncEvent({ type: "pomodoro.saved", ref: "pomodoro", payload: next });
       return;
     }
   }
@@ -161,7 +161,7 @@ export async function ensurePomodoroDuty(
     if (next.ownerClientId === record.ownerClientId && next.ownerBrowserId === record.ownerBrowserId) return;
     const res = await kv.atomic().check(cur).set(POMODORO_KEY, next).commit();
     if (res.ok) {
-      await emitSyncEvent({ type: "pomodoro.saved", ref: "pomodoro" });
+      await emitSyncEvent({ type: "pomodoro.saved", ref: "pomodoro", payload: next });
       return;
     }
   }

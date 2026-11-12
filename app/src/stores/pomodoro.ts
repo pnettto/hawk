@@ -532,6 +532,14 @@ function hasActiveTimer(state: PomodoroState): boolean {
   return state.running || state.taskId !== null || state.mode === 'break'
 }
 
+function isPomodoroRecord(value: unknown): value is PomodoroRecord {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<PomodoroRecord>
+  return typeof record.rev === 'number' &&
+    !!record.state &&
+    (record.state.mode === 'focus' || record.state.mode === 'break')
+}
+
 function createPomodoroStore() {
   const { subscribe, set } = writable<PomodoroState>(restore(Date.now()))
 
@@ -546,6 +554,12 @@ function createPomodoroStore() {
   let localVersion = 0
   let saveChain: Promise<void> = Promise.resolve()
   let loadInFlight: Promise<void> | null = null
+  // A sync event can arrive while a fetch is running; make sure a fresh fetch
+  // follows the in-flight one instead of reusing its older result.
+  let loadAgain = false
+  // Bumped by an event that carries a record, so an older GET can't apply
+  // after it (relays change the owner without bumping rev).
+  let eventSeq = 0
 
   const current = () => get({ subscribe })
   const isNotifier = () => ownerClientId === getClientId()
@@ -597,9 +611,9 @@ function createPomodoroStore() {
     if (finished) announce(next, finished)
   }
 
-  function applyRecord(record: PomodoroRecord) {
+  function applyRecord(record: PomodoroRecord): boolean {
     // Ignore an out-of-order response; sync events and fetches can overlap.
-    if (record.rev < rev) return
+    if (record.rev < rev) return false
     rev = record.rev
     ownerClientId = record.ownerClientId
     const next = record.state.running && record.state.endsAt !== null
@@ -607,6 +621,7 @@ function createPomodoroStore() {
       : record.state
     applyState(next)
     catchUp()
+    return true
   }
 
   // A session that has just become the notifier for a phase that has already
@@ -649,39 +664,64 @@ function createPomodoroStore() {
     else set(next)
   }
 
+  async function loadOnce() {
+    const versionAtLoad = localVersion
+    const eventAtLoad = eventSeq
+    try {
+      const record = await getPomodoro()
+      // A local action or a newer event landed while the request was in
+      // flight; its result (or the event) wins.
+      if (localVersion !== versionAtLoad || eventSeq !== eventAtLoad) return
+      if (record) {
+        applyRecord(record)
+        return
+      }
+      // First shared timer for this account: publish the local one, if any.
+      const local = current()
+      if (hasActiveTimer(local)) {
+        localVersion += 1
+        ownerClientId = getClientId()
+        saveInBackground(local, localVersion, true)
+      }
+    } catch {
+      // Offline / signed out: keep the localStorage copy.
+    }
+  }
+
   function loadFromServer(): Promise<void> {
     if (isGuestMode()) return Promise.resolve()
-    if (loadInFlight) return loadInFlight
+    if (loadInFlight) {
+      loadAgain = true
+      return loadInFlight
+    }
     loadInFlight = (async () => {
-      const versionAtLoad = localVersion
       try {
-        const record = await getPomodoro()
-        // A local action while the request was in flight wins; its save (or
-        // conflict reply) catches up with the server.
-        if (localVersion !== versionAtLoad) return
-        if (record) {
-          applyRecord(record)
-          return
-        }
-        // First shared timer for this account: publish the local one, if any.
-        const local = current()
-        if (hasActiveTimer(local)) {
-          localVersion += 1
-          ownerClientId = getClientId()
-          saveInBackground(local, localVersion, true)
-        }
-      } catch {
-        // Offline / signed out: keep the localStorage copy.
+        await loadOnce()
       } finally {
         loadInFlight = null
+        if (loadAgain) {
+          loadAgain = false
+          void loadFromServer()
+        }
       }
     })()
     return loadInFlight
   }
 
+  // A sync event carries the new record, so apply it straight away. Older
+  // servers omitted the payload; fall back to a fetch.
+  function applySyncEvent(evt: { payload?: unknown }) {
+    if (isPomodoroRecord(evt.payload)) {
+      if (applyRecord(evt.payload)) eventSeq += 1
+      return
+    }
+    void loadFromServer()
+  }
+
   return {
     subscribe,
     loadFromServer,
+    applySyncEvent,
     // Start on this task, or pause/resume if it's the one already running.
     focusOn(target: FocusTarget) {
       const state = current()

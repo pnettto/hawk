@@ -56,6 +56,7 @@ export async function savePomodoro(c: Context) {
         type: "pomodoro.saved",
         ref: "pomodoro",
         originClientId: clientId ?? undefined,
+        payload: next,
       });
       return c.json(next);
     }

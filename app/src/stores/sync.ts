@@ -24,6 +24,7 @@ export interface SyncEvent {
   ref: string
   originClientId?: string
   ts: number
+  payload?: unknown
 }
 
 interface SyncState {
@@ -115,9 +116,9 @@ function createSyncStore() {
       if (evt.type === 'log.saved') {
         logsStore.applySyncEvent(evt)
       } else if (evt.type === 'preferences.saved') {
-        preferencesStore.loadFromServer()
+        preferencesStore.applySyncEvent(evt)
       } else if (evt.type === 'pomodoro.saved') {
-        pomodoroStore.loadFromServer()
+        pomodoroStore.applySyncEvent(evt)
       } else if (evt.type === 'files.changed') {
         filesStore.applySyncEvent()
       } else {

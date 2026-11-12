@@ -25,6 +25,7 @@ export async function patchPreferences(c: Context) {
     type: "preferences.saved",
     ref: "preferences",
     originClientId: getClientIdFromCtx(c),
+    payload: next,
   });
   return c.json(next);
 }
