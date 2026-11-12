@@ -76,10 +76,27 @@ jobs:
             package-lock.json
             app/package-lock.json
 
+      # Also restored by pi.yml. Only saved from pushes to main, where the
+      # cache accepts writes. Key must match pi.yml.
+      - name: Cache node_modules
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            app/node_modules
+          key: deps-${{ runner.os }}-node22-${{ hashFiles('package-lock.json', 'app/package-lock.json') }}
+
       - name: Install, test, build
+        env:
+          CACHE_HIT: ${{ steps.deps.outputs.cache-hit }}
         run: |
-          npm ci
-          (cd app && npm ci)
+          if [ "$CACHE_HIT" != true ]; then
+            npm ci &
+            root_pid=$!
+            (cd app && npm ci)
+            wait "$root_pid"
+          fi
           npm test
           (cd app && npm run build)
 

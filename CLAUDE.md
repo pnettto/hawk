@@ -41,6 +41,30 @@ Write interface text (labels, buttons, tooltips, dialogs, toasts, empty states, 
 
 Local secrets for `wrangler dev` live in `.dev.vars` (`API_KEY=...`), git-ignored. If port 8787 is taken: `BACKEND_PORT=8788 npm run dev`.
 
+## Where things live
+
+Go straight to these instead of exploring. Frontend paths are under `app/src/`.
+
+| Area | Files |
+| --- | --- |
+| Shell: nav, page switching, lazy routes | `App.svelte`, `stores/app.ts` (`Page`, `JournalTab`) |
+| Journal: date picker, tasks, day notes | `routes/Journal.svelte`, `lib/daily/` (`DatePicker`, `DayTasks`, `DayNotes`, `quickTask.ts` for "14:30 Gym" parsing), `stores/logs.ts` |
+| Overview (date-range roll-up) | `routes/Overview.svelte` |
+| Notepad: list, filter menu, editor, sharing | `routes/Notes.svelte`, `lib/notes/` (`NotesColumn`, `NotesFilter`, `NoteEditor`, `NoteSharePopover`, `tags.ts`), `stores/notes.ts` |
+| Rich text editor (Tiptap) | `lib/editor/` (`RichEditor`, `schema.ts`, `blocks.ts` for the +/"/" menu, `paste.ts`) |
+| Editing sync and merging | `sync/docSession.ts`, `sync/merge.ts`, `stores/sync.ts` |
+| Files | `routes/Files.svelte`, `stores/files.ts` |
+| Settings and themes | `routes/Admin.svelte`, `lib/themes/`, `stores/preferences.ts`, `app/public/css/themes.css` |
+| Shared UI: dialogs, toasts, popovers, time picker | `lib/ui/`, `stores/confirm.ts`, `stores/toast.ts` |
+| Login, guest mode ("Let me test it") | `lib/auth/Auth.svelte`, `stores/auth.ts`, `api/guest.ts` |
+| API client per resource | `api/*.ts` (`client.ts` is the base) |
+| Shared types | `types/models.ts` |
+| Global CSS, logo, favicon | `app/public/css/` (`variables.css`, `base.css`), `app/public/logo.svg`, `app/public/favicon.svg` |
+| Server routes | `server/app.ts` (route table), `server/routeHandlers/*.ts` |
+| Server storage helpers | `server/utils/` (`notesStore.ts`, `dayLog.ts`, `versioning.ts`, `syncEvents.ts`, `tags.ts`) |
+
+Tests sit next to the code as `*.test.ts`.
+
 ## High-level architecture
 
 **Worker → one Durable Object.** `server/worker.ts` is the Worker entry. Static Assets serve the SPA from `app/dist` (with SPA fallback); only `/api/*` and `/shared/*` run the Worker (`run_worker_first` in `wrangler.jsonc`), and it forwards them all to a single Durable Object instance, `HawkDO` named `"hawk"` (`server/hawkDO.ts`). The DO owns the data, runs the Hono app (`server/app.ts`), and holds the sync WebSockets. Single user means a single instance, so there are no cross-instance consistency issues, and in-memory state (rate limits) sees all traffic. In dev, Vite on `:5173` proxies `/api` (with `ws: true`) and `/shared` to `wrangler dev` on `:8787`.

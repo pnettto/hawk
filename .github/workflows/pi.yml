@@ -8,7 +8,8 @@
 # Nothing here deploys to prod; see deploy.yml.
 #
 # Secrets: DEEPSEEK_API_KEY, CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (preview deploy only).
-# Variables (optional): PI_MODEL (default deepseek-v4-pro).
+# Variables (optional): PI_MODEL (default deepseek-flash), PI_THINKING (off/low/high/max;
+# default: picked per request by a quick model call).
 
 name: pi
 
@@ -51,6 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
+          echo "STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
           if [ -n "$COMMENT_ID" ]; then
             gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes >/dev/null
           else
@@ -104,11 +106,30 @@ jobs:
             package-lock.json
             app/package-lock.json
 
+      # Saved by deploy.yml on pushes to main (the cache refuses writes from
+      # issue/comment events). Key must match deploy.yml.
+      - name: Restore node_modules
+        id: deps
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            app/node_modules
+          key: deps-${{ runner.os }}-node22-${{ hashFiles('package-lock.json', 'app/package-lock.json') }}
+
       - name: Install dependencies
+        env:
+          CACHE_HIT: ${{ steps.deps.outputs.cache-hit }}
         run: |
-          npm ci
-          (cd app && npm ci)
-          npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
+          npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.2 &
+          pi_pid=$!
+          if [ "$CACHE_HIT" != true ]; then
+            npm ci &
+            root_pid=$!
+            (cd app && npm ci)
+            wait "$root_pid"
+          fi
+          wait "$pi_pid"
 
       - name: Restore pi session
         env:
@@ -144,6 +165,7 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           PI_MODEL: ${{ vars.PI_MODEL }}
+          PI_THINKING: ${{ vars.PI_THINKING }}
           SESSION_ID: ${{ steps.branch.outputs.session }}
           PROMPT_FILE: ${{ runner.temp }}/prompt.md
         run: bash "$RUNNER_TEMP/ci/pi/run.sh"
@@ -216,6 +238,7 @@ jobs:
           PR_URL: ${{ steps.pr.outputs.url }}
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
           PREVIEW_OUTCOME: ${{ steps.preview.outcome }}
+          THINKING: ${{ steps.pi.outputs.thinking }}
         run: |
           body="$RUNNER_TEMP/report.md"
           {
@@ -233,6 +256,7 @@ jobs:
               echo "Preview deploy failed."
             fi
             echo "Run: $RUN_URL"
+            bash "$RUNNER_TEMP/ci/pi/stats.sh" 2>/dev/null || true
             if [ -s "$RUNNER_TEMP/pi-summary.md" ]; then
               echo
               cat "$RUNNER_TEMP/pi-summary.md"
