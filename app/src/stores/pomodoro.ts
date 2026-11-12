@@ -344,43 +344,91 @@ export function notificationsSupported(): boolean {
   return typeof window !== 'undefined' && 'Notification' in window
 }
 
+// The Pomodoro notifications go through a service worker (app/public/sw.js):
+// that's the only way to get action buttons, and the only way notifications
+// work at all on mobile browsers.
+let swRegistration: Promise<ServiceWorkerRegistration | null> | null = null
+
+export function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return Promise.resolve(null)
+  }
+  if (!swRegistration) {
+    swRegistration = navigator.serviceWorker
+      .register('/sw.js')
+      // `ready` waits until it is active; `showNotification` needs that.
+      .then(() => navigator.serviceWorker.ready)
+      .catch(() => null)
+  }
+  return swRegistration
+}
+
 // Ask the browser for permission. Only prompts the first time; a blocked
 // permission can't be re-requested from here, so say so.
 export async function requestNotificationPermission(): Promise<void> {
   if (!notificationsSupported()) return
-  if (Notification.permission !== 'default') {
-    if (Notification.permission === 'denied') showToast('Notifications are blocked in your browser')
-    return
+  // Prompt first, while the click still counts as a user gesture.
+  let permission = Notification.permission
+  if (permission === 'default') {
+    try {
+      permission = await Notification.requestPermission()
+    } catch {
+      permission = Notification.permission
+    }
   }
-  try {
-    const permission = await Notification.requestPermission()
-    if (permission === 'denied') showToast('Notifications are blocked in your browser')
-  } catch {
-    /* some browsers refuse to prompt without a service worker */
+  if (permission === 'denied') showToast('Notifications are blocked in your browser')
+  if (permission === 'granted') await ensureServiceWorker()
+}
+
+// TypeScript's DOM lib dropped `actions`, but browsers that can show action
+// buttons still read it.
+interface PhaseNotificationOptions extends NotificationOptions {
+  actions?: { action: string; title: string }[]
+}
+
+// Copy for the notification that reports a finished block.
+function phaseCopy(state: PomodoroState, finished: PomodoroMode) {
+  const auto = autoStarts()
+  const task = state.taskText ? ` — ${state.taskText}` : ''
+  if (finished === 'focus') {
+    return {
+      title: auto ? 'Break started' : 'Break ready',
+      body: auto ? `Time to rest${task}` : `Start your break when you're ready${task}`,
+      action: 'Start break',
+    }
+  }
+  return {
+    title: auto ? 'Focus started' : 'Focus ready',
+    body: auto ? `Back to work${task}` : `Start focusing when you're ready${task}`,
+    action: 'Start focus',
   }
 }
 
 // Show a system notification when a block ends while the tab is in the
 // background. The widget and toast already cover the visible case.
-function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
+async function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return
   if (typeof document === 'undefined' || !document.hidden) return
-  const auto = autoStarts()
-  const title =
-    finished === 'focus'
-      ? auto ? 'Break started' : 'Break ready'
-      : auto ? 'Focus started' : 'Focus ready'
-  const task = state.taskText ? ` — ${state.taskText}` : ''
-  const body =
-    finished === 'focus'
-      ? auto ? `Time to rest${task}` : `Start your break when you're ready${task}`
-      : auto ? `Back to work${task}` : `Start focusing when you're ready${task}`
+  const { title, body, action } = phaseCopy(state, finished)
+  const options: PhaseNotificationOptions = {
+    body,
+    tag: 'hawk-pomodoro',
+    icon: '/favicon.svg',
+    // With auto-start off the block waits for you, so keep it on screen.
+    requireInteraction: !autoStarts(),
+    actions: [{ action: 'resume', title: action }],
+  }
+  const registration = await ensureServiceWorker()
+  if (registration) {
+    try {
+      await registration.showNotification(title, options)
+      return
+    } catch {
+      /* fall back to the page's own notification */
+    }
+  }
   try {
-    const notification = new Notification(title, {
-      body,
-      tag: 'hawk-pomodoro',
-      icon: '/favicon.svg',
-    })
+    const notification = new Notification(title, { body, tag: options.tag, icon: options.icon })
     // Bring the tab forward and show the Journal where the timer lives.
     notification.onclick = () => {
       window.focus()
@@ -389,7 +437,7 @@ function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
       notification.close()
     }
   } catch {
-    /* mobile browsers need a service worker for this constructor */
+    /* mobile browsers only have the service worker route */
   }
 }
 
@@ -458,6 +506,13 @@ function createPomodoroStore() {
         completed: state.completed,
       })
     },
+    // Bring a parked phase (auto-start off) back to life, from the
+    // notification's action or its click.
+    resume() {
+      const state = get({ subscribe })
+      if (state.running || state.taskId === null) return
+      commit(resume(state, Date.now()))
+    },
     tick() {
       const { state, finished } = advance(get({ subscribe }), Date.now(), autoStarts())
       if (finished) commit(state, finished)
@@ -467,3 +522,34 @@ function createPomodoroStore() {
 }
 
 export const pomodoroStore = createPomodoroStore()
+
+// A notification click lands here: bring the app forward and, when the action
+// asked for it, start the block that was waiting.
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
+    const data = event.data as { type?: string; action?: string } | null
+    if (data?.type !== 'hawk-pomodoro') return
+    appStore.setCurrentPage('app')
+    appStore.setJournalTab('tasks')
+    if (data.action === 'resume') pomodoroStore.resume()
+  })
+}
+
+// Same for a click that had to open the app: the worker puts this on the URL.
+if (typeof location !== 'undefined') {
+  try {
+    const params = new URLSearchParams(location.search)
+    if (params.get('pomodoro') === 'resume') {
+      params.delete('pomodoro')
+      const query = params.toString()
+      history.replaceState(
+        null,
+        '',
+        `${location.pathname}${query ? `?${query}` : ''}${location.hash}`,
+      )
+      pomodoroStore.resume()
+    }
+  } catch {
+    /* malformed URL */
+  }
+}

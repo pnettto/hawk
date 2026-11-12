@@ -2,7 +2,13 @@
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
-  import { EXTENSION_ID, formatClock, phaseMs, pomodoroStore } from '../../stores/pomodoro'
+  import {
+    EXTENSION_ID,
+    ensureServiceWorker,
+    formatClock,
+    phaseMs,
+    pomodoroStore,
+  } from '../../stores/pomodoro'
   import { logsStore } from '../../stores/logs'
   import { preferencesStore } from '../../stores/preferences'
   import { extensionState } from '../extensions/registry'
@@ -24,7 +30,12 @@
       : state.taskText,
   )
 
-  onMount(() => pomodoroStore.tick())
+  onMount(() => {
+    pomodoroStore.tick()
+    // Notifications live in the service worker, so keep it registered while
+    // the extension is on (it stays put across reloads otherwise).
+    if (ext.enabled) void ensureServiceWorker()
+  })
 
   // Turning the extension off puts the timer away for good.
   $effect(() => {
