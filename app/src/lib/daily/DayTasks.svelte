@@ -319,6 +319,11 @@
               </svg>
             </button>
 
+            <TimePicker
+              class="time"
+              value={task.time}
+              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+            />
             <button
               type="button"
               class="icon-btn ghost carry-over"
@@ -331,11 +336,6 @@
                 <path d="M9 4.5L12.5 8 9 11.5" />
               </svg>
             </button>
-            <TimePicker
-              class="time"
-              value={task.time}
-              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
-            />
             <button
               type="button"
               class="icon-btn ghost danger remove"
