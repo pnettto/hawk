@@ -219,16 +219,6 @@
   let historyAnchorEl = $state<HTMLButtonElement | null>(null)
   let rootEl = $state<HTMLElement | null>(null)
 
-  function toggleHistory(anchor: HTMLButtonElement) {
-    if (showHistory && historyAnchorEl === anchor) {
-      showHistory = false
-      historyAnchorEl = null
-    } else {
-      historyAnchorEl = anchor
-      showHistory = true
-    }
-  }
-
   $effect(() => {
     const el = rootEl
     const ds = dateStr
@@ -249,20 +239,31 @@
         {doneCount} of {tasks.length} done
       {/if}
     </span>
+    <div class="history-wrap">
+      <button
+        class="icon-btn history-toggle"
+        title="Version history"
+        aria-label="Version history"
+        bind:this={historyAnchorEl}
+        onclick={() => (showHistory = !showHistory)}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+          <path d="M3 3v5h5" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      </button>
+      {#if showHistory}
+        <HistoryPopover
+          kind="day-tasks"
+          entityId={dateStr}
+          anchor={historyAnchorEl}
+          prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
+          onClose={() => (showHistory = false)}
+        />
+      {/if}
+    </div>
   </div>
-
-  {#if showHistory}
-    <HistoryPopover
-      kind="day-tasks"
-      entityId={dateStr}
-      anchor={historyAnchorEl}
-      prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
-      onClose={() => {
-        showHistory = false
-        historyAnchorEl = null
-      }}
-    />
-  {/if}
 
   {#key dateStr}
     <ul class="list" bind:this={listEl} class:loading={!loaded}>
@@ -304,12 +305,6 @@
               }}
             />
 
-            <TimePicker
-              class="time"
-              value={task.time}
-              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
-            />
-
             <button
               type="button"
               class="icon-btn ghost comment-toggle"
@@ -336,19 +331,11 @@
                 <path d="M9 4.5L12.5 8 9 11.5" />
               </svg>
             </button>
-            <button
-              type="button"
-              class="icon-btn ghost history-toggle"
-              title="Version history"
-              aria-label="Version history"
-              onclick={(e) => toggleHistory(e.currentTarget)}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                <path d="M3 3v5h5" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-            </button>
+            <TimePicker
+              class="time"
+              value={task.time}
+              onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
+            />
             <button
               type="button"
               class="icon-btn ghost danger remove"
@@ -474,6 +461,7 @@
     transition: color var(--dur-base) var(--ease-out);
   }
   .progress.all-done { color: var(--accent); opacity: 1; }
+  .history-wrap { position: relative; }
 
   .list {
     list-style: none;
@@ -573,28 +561,22 @@
 
   .comment-toggle,
   .carry-over,
-  .history-toggle,
   .remove { opacity: 0; }
   .task:hover .comment-toggle,
   .task:focus-within .comment-toggle,
   .task:hover .carry-over,
   .task:focus-within .carry-over,
-  .task:hover .history-toggle,
-  .task:focus-within .history-toggle,
   .task:hover .remove,
   .task:focus-within .remove { opacity: 0.6; }
   .comment-toggle.active { opacity: 0.8; color: var(--accent); }
   .comment-toggle:hover,
   .carry-over:hover,
-  .history-toggle:hover,
   .remove:hover { opacity: 1 !important; }
-  .carry-over:hover,
-  .history-toggle:hover { color: var(--accent); }
+  .carry-over:hover { color: var(--accent); }
   @media (hover: none) {
     .task :global(.time:not(.set)),
     .comment-toggle,
     .carry-over,
-    .history-toggle,
     .remove { opacity: 0.45; }
   }
 
