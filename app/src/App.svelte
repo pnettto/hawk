@@ -27,7 +27,6 @@
     notes: () => import('./routes/Notes.svelte'),
     files: () => import('./routes/Files.svelte'),
     admin: () => import('./routes/Admin.svelte'),
-    logos: () => import('./routes/LogoPicker.svelte'),
   } as const
   type PageId = keyof typeof routeLoaders
   const routeCache: Partial<Record<PageId, Component>> = {}
@@ -142,7 +141,7 @@
 {:else if !$authStore.isAuth}
   <Auth />
 {:else}
-  <div class="container" class:wide={$appStore.currentPage === 'notes' || $appStore.currentPage === 'logos'}>
+  <div class="container" class:wide={$appStore.currentPage === 'notes'}>
     <nav>
       <button
         class="nav-logo-btn"
@@ -167,10 +166,6 @@
           onclick={() => appStore.setCurrentPage('files')}>Files</button
         >
       {/if}
-      <button
-        class:active={$appStore.currentPage === 'logos'}
-        onclick={() => appStore.setCurrentPage('logos')}>Logos</button
-      >
       <span class="nav-spacer"></span>
       <SavingIndicator />
       <button
