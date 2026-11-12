@@ -1158,10 +1158,19 @@
     margin: 1.5rem 0;
     font-family: var(--font-ui);
   }
-  :global(.rich-editor .tiptap .note-map-title) {
-    min-height: 1.6rem;
+  :global(.rich-editor .tiptap .note-map-head) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 28px;
     margin-bottom: 0.45rem;
-    padding-right: 4.5rem;
+  }
+  :global(.rich-editor .tiptap .note-map-title) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.6;
@@ -1179,12 +1188,10 @@
     outline-offset: 2px;
   }
   :global(.rich-editor .tiptap .note-map-actions) {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1001;
     display: flex;
+    flex: none;
     gap: 4px;
+    margin-left: auto;
   }
   :global(.rich-editor .tiptap .note-map-icon) {
     display: inline-flex;

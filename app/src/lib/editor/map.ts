@@ -308,8 +308,23 @@ function mapNodeView() {
       return clickable(el, onClick)
     }
 
-    const addActions = (withFullscreen: boolean) => {
-      if (!editor.isEditable) return
+    // A row above the map for its title and controls, so nothing sits on the map.
+    const makeHead = (title: string | null) => {
+      if (!title && !editor.isEditable) return null
+      const head = document.createElement('div')
+      head.className = 'note-map-head'
+      if (title) {
+        const el = document.createElement('div')
+        el.className = 'note-map-title'
+        el.textContent = title
+        head.append(el)
+      }
+      dom.append(head)
+      return head
+    }
+
+    const addActions = (head: HTMLElement | null, withFullscreen: boolean) => {
+      if (!head || !editor.isEditable) return
       const actions = document.createElement('div')
       actions.className = 'note-map-actions'
       if (withFullscreen) {
@@ -320,7 +335,7 @@ function mapNodeView() {
         actions.append(fullscreenButton)
       }
       actions.append(iconButton(ICONS.edit, 'Edit map data', edit))
-      dom.append(actions)
+      head.append(actions)
     }
 
     // The note text column is capped at 70ch; the map uses the whole pane.
@@ -406,17 +421,11 @@ function mapNodeView() {
       } catch (error) {
         if (fullscreen) setFullscreen(false)
         showError(error instanceof MapDataError ? error.message : 'Could not read this map.')
-        addActions(false)
+        addActions(makeHead(null), false)
         return
       }
 
-      if (parsed.title) {
-        const title = document.createElement('div')
-        title.className = 'note-map-title'
-        title.textContent = parsed.title
-        dom.append(title)
-      }
-
+      const head = makeHead(parsed.title)
       const canvas = document.createElement('div')
       canvas.className = 'note-map-canvas'
       canvas.setAttribute('role', 'region')
@@ -436,7 +445,7 @@ function mapNodeView() {
         canvas.remove()
         showError(error instanceof MapDataError ? error.message : 'Could not show this map.')
       }
-      addActions(true)
+      addActions(head, true)
       sizeToNote()
     }
 
