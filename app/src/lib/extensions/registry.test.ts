@@ -6,7 +6,13 @@ describe('extensionState', () => {
   it('falls back to the registry defaults, switched off', () => {
     const state = extensionState(undefined, 'pomodoro')
     expect(state.enabled).toBe(false)
-    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
+    expect(state.settings).toEqual({
+      focusMinutes: 25,
+      breakMinutes: 5,
+      chime: 'double',
+      volume: 60,
+      autoStart: true,
+    })
   })
 
   it('reads saved values over the defaults', () => {
@@ -15,7 +21,13 @@ describe('extensionState', () => {
       'pomodoro',
     )
     expect(state.enabled).toBe(true)
-    expect(state.settings).toEqual({ focusMinutes: 50, breakMinutes: 5, chime: 'soft', volume: 30 })
+    expect(state.settings).toEqual({
+      focusMinutes: 50,
+      breakMinutes: 5,
+      chime: 'soft',
+      volume: 30,
+      autoStart: true,
+    })
   })
 
   it('only accepts values offered by a select', () => {
@@ -44,7 +56,13 @@ describe('extensionState', () => {
       'pomodoro',
     )
     expect(state.enabled).toBe(false)
-    expect(state.settings).toEqual({ focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 })
+    expect(state.settings).toEqual({
+      focusMinutes: 25,
+      breakMinutes: 5,
+      chime: 'double',
+      volume: 60,
+      autoStart: true,
+    })
     expect(state.settings.nope).toBeUndefined()
   })
 

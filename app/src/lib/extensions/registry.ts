@@ -118,8 +118,14 @@ export const EXTENSIONS: Extension[] = [
         unit: '%',
         hideWhen: { key: 'chime', equals: 'off' },
       },
+      {
+        kind: 'switch',
+        key: 'autoStart',
+        label: 'Start next block automatically',
+        help: 'Otherwise the timer waits for you after each block.',
+      },
     ],
-    defaults: { focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60 },
+    defaults: { focusMinutes: 25, breakMinutes: 5, chime: 'double', volume: 60, autoStart: true },
   },
 ]
 

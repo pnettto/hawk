@@ -1,8 +1,14 @@
 import { get, writable } from 'svelte/store'
+import { appStore } from './app'
 import { logsStore } from './logs'
 import { preferencesStore } from './preferences'
 import { showToast } from './toast'
-import { extensionChoice, extensionNumber, extensionState } from '../lib/extensions/registry'
+import {
+  extensionChoice,
+  extensionNumber,
+  extensionState,
+  extensionSwitch,
+} from '../lib/extensions/registry'
 
 // A single focus timer that follows the tab around. Session state is local to
 // this browser: it's rebuilt from localStorage on reload, so leaving the page
@@ -67,6 +73,13 @@ function configuredDurations(): Durations {
     focusMs: Math.round(extensionNumber(ext, 'focusMinutes', FOCUS_MS / MINUTE) * MINUTE),
     breakMs: Math.round(extensionNumber(ext, 'breakMinutes', BREAK_MS / MINUTE) * MINUTE),
   }
+}
+
+// Whether each new block starts on its own, or waits to be resumed. Read from
+// the extension settings at the moment a block ends.
+export function autoStarts(): boolean {
+  const ext = extensionState(get(preferencesStore).extensions, EXTENSION_ID)
+  return extensionSwitch(ext, 'autoStart', true)
 }
 
 function chimeSettings(): { sound: string; volume: number } {
@@ -154,22 +167,28 @@ function breakSession(state: PomodoroState, now: number): PomodoroState {
   }
 }
 
+// With auto-start off the new phase is parked at full length, paused, so it
+// waits for the user instead of running on.
+function parked(state: PomodoroState): PomodoroState {
+  return { ...state, running: false, endsAt: null, remainingMs: phaseMs(state) }
+}
+
 // Move the clock on to `now`. Reports the phase that just ran out, if any.
 export function advance(
   state: PomodoroState,
   now: number,
+  autoStart = true,
 ): { state: PomodoroState; finished: PomodoroMode | null } {
   const left = remainingMs(state, now)
   if (!state.running || left > 0) return { state: { ...state, remainingMs: left }, finished: null }
   if (state.mode === 'focus') {
-    return {
-      state: { ...breakSession(state, now), completed: state.completed + 1 },
-      finished: 'focus',
-    }
+    const next = { ...breakSession(state, now), completed: state.completed + 1 }
+    return { state: autoStart ? next : parked(next), finished: 'focus' }
   }
   // Blocks alternate until the timer is stopped: the break hands straight
   // over to the next focus block on the same task.
-  return { state: nextFocusSession(state, now), finished: 'break' }
+  const next = nextFocusSession(state, now)
+  return { state: autoStart ? next : parked(next), finished: 'break' }
 }
 
 // End the current phase early. A skipped focus session isn't counted.
@@ -319,11 +338,68 @@ export function previewChime() {
   chime(settings.sound, settings.volume)
 }
 
+// ---- notifications -------------------------------------------------------
+
+export function notificationsSupported(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
+// Ask the browser for permission. Only prompts the first time; a blocked
+// permission can't be re-requested from here, so say so.
+export async function requestNotificationPermission(): Promise<void> {
+  if (!notificationsSupported()) return
+  if (Notification.permission !== 'default') {
+    if (Notification.permission === 'denied') showToast('Notifications are blocked in your browser')
+    return
+  }
+  try {
+    const permission = await Notification.requestPermission()
+    if (permission === 'denied') showToast('Notifications are blocked in your browser')
+  } catch {
+    /* some browsers refuse to prompt without a service worker */
+  }
+}
+
+// Show a system notification when a block ends while the tab is in the
+// background. The widget and toast already cover the visible case.
+function notifyPhaseChange(state: PomodoroState, finished: PomodoroMode) {
+  if (!notificationsSupported() || Notification.permission !== 'granted') return
+  if (typeof document === 'undefined' || !document.hidden) return
+  const auto = autoStarts()
+  const title =
+    finished === 'focus'
+      ? auto ? 'Break started' : 'Break ready'
+      : auto ? 'Focus started' : 'Focus ready'
+  const task = state.taskText ? ` — ${state.taskText}` : ''
+  const body =
+    finished === 'focus'
+      ? auto ? `Time to rest${task}` : `Start your break when you're ready${task}`
+      : auto ? `Back to work${task}` : `Start focusing when you're ready${task}`
+  try {
+    const notification = new Notification(title, {
+      body,
+      tag: 'hawk-pomodoro',
+      icon: '/favicon.svg',
+    })
+    // Bring the tab forward and show the Journal where the timer lives.
+    notification.onclick = () => {
+      window.focus()
+      appStore.setCurrentPage('app')
+      appStore.setJournalTab('tasks')
+      notification.close()
+    }
+  } catch {
+    /* mobile browsers need a service worker for this constructor */
+  }
+}
+
 function announce(state: PomodoroState, finished: PomodoroMode) {
   const settings = chimeSettings()
   chime(settings.sound, settings.volume)
+  notifyPhaseChange(state, finished)
+  const auto = autoStarts()
   if (finished === 'break') {
-    showToast('Break over — back to focus')
+    showToast(auto ? 'Break over — back to focus' : 'Break over — focus ready')
     return
   }
   const id = state.taskId
@@ -331,15 +407,16 @@ function announce(state: PomodoroState, finished: PomodoroMode) {
   const task = id && dateStr
     ? get(logsStore).byDate[dateStr]?.tasks.find((t) => t.id === id)
     : undefined
+  const message = auto ? 'Focus done — break time' : 'Focus done — break ready'
   if (task && !task.done) {
-    showToast('Focus done — break time', {
+    showToast(message, {
       action: 'Mark done',
       duration: 8000,
       onAction: () => logsStore.editTask(dateStr!, id!, { done: true }, { immediate: true }),
     })
     return
   }
-  showToast('Focus done — break time')
+  showToast(message)
 }
 
 function createPomodoroStore() {
@@ -382,7 +459,7 @@ function createPomodoroStore() {
       })
     },
     tick() {
-      const { state, finished } = advance(get({ subscribe }), Date.now())
+      const { state, finished } = advance(get({ subscribe }), Date.now(), autoStarts())
       if (finished) commit(state, finished)
       else set(state)
     },

@@ -8,7 +8,7 @@
     type RangeSetting,
   } from '../lib/extensions/registry'
   import { preferencesStore } from '../stores/preferences'
-  import { previewChime } from '../stores/pomodoro'
+  import { previewChime, requestNotificationPermission } from '../stores/pomodoro'
 
   function setNumber(ext: Extension, setting: NumberSetting | RangeSetting, e: Event & { currentTarget: HTMLInputElement }) {
     const input = e.currentTarget
@@ -51,7 +51,13 @@
               role="switch"
               checked={state.enabled}
               aria-label={`${ext.name} extension`}
-              onchange={(e) => preferencesStore.setExtensionEnabled(ext.id, e.currentTarget.checked)}
+              onchange={(e) => {
+                const enabled = e.currentTarget.checked
+                preferencesStore.setExtensionEnabled(ext.id, enabled)
+                // The timer reports finished blocks from the background, which
+                // needs the browser's permission first.
+                if (enabled && ext.id === 'pomodoro') void requestNotificationPermission()
+              }}
             />
             <span class="track" aria-hidden="true"><span class="knob"></span></span>
             <span class="switch-label">{state.enabled ? 'On' : 'Off'}</span>
