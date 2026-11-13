@@ -3,6 +3,8 @@
   import { safeFlip } from '../utils/safeFlip'
   import { fade, scale } from 'svelte/transition'
   import { filesStore } from '../stores/files'
+  import { showError, showToast } from '../stores/toast'
+  import { publicFileDownloadUrl } from '../api/files'
   import type { FileMeta } from '../types/models'
 
   let query = $state('')
@@ -252,6 +254,16 @@
   }
 
   // ---- open / preview --------------------------------------------------
+
+  async function copyLink(f: FileMeta) {
+    try {
+      await navigator.clipboard.writeText(publicFileDownloadUrl(f.id))
+      showToast('Link copied')
+    } catch (e) {
+      console.error('[files] copy link failed', e)
+      showError('Couldn’t copy the link.')
+    }
+  }
 
   async function open(f: FileMeta) {
     if (!previewable(f)) {
@@ -514,10 +526,31 @@
               <button type="button" class="name" onclick={() => open(f)}>{f.name}</button>
             {/if}
             <span class="sub">
-              {fmtSize(f.size)} · {fmtDate(f.createdAt)}{#if f.inline}<span class="tag">in a note</span>{/if}
+              {fmtSize(f.size)} · {fmtDate(f.createdAt)}{#if f.inline}<span class="tag">in a note</span>{/if}{#if f.isPublic}<span class="tag public">public</span>{/if}
             </span>
           </div>
           <div class="actions">
+            {#if f.isPublic}
+              <button type="button" class="icon-btn ghost" title="Copy public link" aria-label="Copy public link for {f.name}" onclick={() => copyLink(f)}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M6.5 9.5l3-3M6.8 4.4l1.2-1.2a2.4 2.4 0 0 1 3.4 3.4l-1.2 1.2M9.2 11.6l-1.2 1.2a2.4 2.4 0 0 1-3.4-3.4l1.2-1.2" />
+                </svg>
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="icon-btn ghost"
+              class:on={f.isPublic}
+              title={f.isPublic ? 'Make private' : 'Make public'}
+              aria-label="{f.isPublic ? 'Make private' : 'Make public'} {f.name}"
+              aria-pressed={!!f.isPublic}
+              onclick={() => filesStore.setPublic(f.id, !f.isPublic)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="8" cy="8" r="5.5" />
+                <path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.5 2.4 5.5S9.6 12.4 8 13.5C6.4 11.9 5.6 10 5.6 8S6.4 4.1 8 2.5z" />
+              </svg>
+            </button>
             <button type="button" class="icon-btn ghost" title="Download" aria-label="Download {f.name}" onclick={() => filesStore.download(f)}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M8 3v8M4.5 7.5L8 11l3.5-3.5M3 13h10" />
@@ -825,6 +858,9 @@
     background: var(--glass-dark);
     font-size: 0.6875rem;
   }
+  .tag.public { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .icon-btn.on { color: var(--accent); }
+  .icon-btn.on:hover { background: var(--glass-dark); border-color: transparent; color: var(--accent); }
   .actions { display: flex; gap: 0.15rem; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
   .row:hover .actions, .row:focus-within .actions { opacity: 1; }
   @media (hover: none) { .actions { opacity: 1; } }

@@ -96,6 +96,22 @@ function createFilesStore() {
     }
   }
 
+  async function setPublic(id: string, isPublic: boolean) {
+    const cur = get({ subscribe }).files.find((f) => f.id === id)
+    if (!cur || !!cur.isPublic === isPublic) return
+    update((s) => ({
+      ...s,
+      files: s.files.map((f) => (f.id === id ? { ...f, isPublic: isPublic || undefined } : f)),
+    }))
+    try {
+      await savingStore.track(filesApi.setFilePublic(id, isPublic))
+    } catch (e) {
+      console.error('[files] sharing failed', e)
+      update((s) => ({ ...s, files: s.files.map((f) => (f.id === id ? cur : f)) }))
+      showError('Couldn’t update sharing.')
+    }
+  }
+
   // Asks first, then deletes for real — no undo window.
   async function remove(ids: string[]): Promise<boolean> {
     const all = get({ subscribe }).files
@@ -203,7 +219,7 @@ function createFilesStore() {
     if (get({ subscribe }).loaded) void load()
   }
 
-  return { subscribe, load, upload, rename, remove, purge, blobUrl, download, downloadMany, applySyncEvent }
+  return { subscribe, load, upload, rename, remove, purge, setPublic, blobUrl, download, downloadMany, applySyncEvent }
 }
 
 export const filesStore = createFilesStore()

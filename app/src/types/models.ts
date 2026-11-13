@@ -31,6 +31,7 @@ export interface FileMeta {
   chunks: number;
   createdAt: number;
   inline?: boolean;
+  isPublic?: boolean;
 }
 
 export interface Task {

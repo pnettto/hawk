@@ -6,6 +6,9 @@ export const listFiles = () => api.get<FileMeta[]>('/api/files')
 export const renameFile = (id: string, name: string) =>
   api.post<FileMeta>(`/api/files/${id}`, { name })
 
+export const setFilePublic = (id: string, isPublic: boolean) =>
+  api.post<FileMeta>(`/api/files/${id}/public`, { isPublic })
+
 export const deleteFile = (id: string) => api.del(`/api/files/${id}`)
 
 export const deleteFiles = (ids: string[]) =>
@@ -61,3 +64,6 @@ export async function fetchFileBlob(id: string): Promise<Blob> {
 // Stable URL for editor-embedded images (served without auth; see files.ts).
 export const publicFileUrl = (id: string) =>
   `${apiBase() || location.origin}/api/public/files/${id}`
+
+// Shared-file link: same public route, but always as a download.
+export const publicFileDownloadUrl = (id: string) => `${publicFileUrl(id)}?download=1`
