@@ -15,8 +15,9 @@ import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
 //
 // Files uploaded from the editor (pasted/dropped images) are flagged `inline`
 // and are also served unauthenticated at /api/public/files/:id — an <img> tag
-// can't send a bearer token, and shared notes must render their images. The
-// id is a random UUID, so the URL is a capability link.
+// can't send a bearer token, and shared notes must render their images. Files
+// the user explicitly marks public are served there too, as downloads. The id
+// is a random UUID, so the URL is a capability link.
 
 const CHUNK_SIZE = 60 * 1024;
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -28,6 +29,7 @@ export interface FileMeta {
   size: number;
   createdAt: number;
   inline?: boolean;
+  isPublic?: boolean;
   storage?: "r2";
   // Legacy KV-chunked files only.
   chunks?: number;
@@ -218,9 +220,28 @@ export async function getPublicFile(c: Context) {
   const id = c.req.param("id");
   if (!id) return c.text("Not found", 404);
   const meta = (await kv.get<FileMeta>(metaKey(id))).value;
-  // Only editor-embedded files are reachable without auth.
-  if (!meta || !meta.inline) return c.text("Not found", 404);
-  return await streamFile(c, meta, false);
+  // Note media and explicitly shared files are reachable without auth.
+  if (!meta || (!meta.inline && !meta.isPublic)) return c.text("Not found", 404);
+  // Note media stays inline so <img> keeps working; shared files download.
+  const download = c.req.query("download") === "1" || (!meta.inline && meta.isPublic === true);
+  return await streamFile(c, meta, download);
+}
+
+export async function setFilePublic(c: Context) {
+  const id = c.req.param("id");
+  if (!id) return c.json({ error: "Missing id" }, 400);
+  const { isPublic } = await c.req.json().catch(() => ({})) as { isPublic?: unknown };
+  if (typeof isPublic !== "boolean") {
+    return c.json({ error: "isPublic must be a boolean" }, 400);
+  }
+  const res = await kv.get<FileMeta>(metaKey(id));
+  if (!res.value) return c.json({ error: "Not found" }, 404);
+  const meta: FileMeta = { ...res.value };
+  if (isPublic) meta.isPublic = true;
+  else delete meta.isPublic;
+  await kv.set(metaKey(id), meta);
+  await emitFilesChanged(c, id);
+  return c.json(meta);
 }
 
 export async function renameFile(c: Context) {

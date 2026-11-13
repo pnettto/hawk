@@ -25,6 +25,7 @@ import {
   listFiles,
   migrateFilesToR2,
   renameFile,
+  setFilePublic,
   uploadFile,
 } from "./routeHandlers/files.ts";
 import {
@@ -144,6 +145,7 @@ app.post("/api/files/delete", deleteFiles);
 app.post("/api/files/migrate", migrateFilesToR2);
 app.get("/api/files/:id", getFile);
 app.post("/api/files/:id", renameFile);
+app.post("/api/files/:id/public", setFilePublic);
 app.delete("/api/files/:id", deleteFile);
 app.get("/api/public/files/:id", getPublicFile);
 
