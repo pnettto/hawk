@@ -124,10 +124,10 @@
     appStore.setCurrentPage('app')
   }
 
-  // composedPath, not target.closest: clicking "Enable public link"
-  // re-renders the popover and detaches the clicked node, which used to read
-  // as an outside click and close the popover before the link appeared.
-  function onClickOutside(e: MouseEvent) {
+  // pointerdown, so the menu click that opens the popover can't also close
+  // it, and composedPath so a node detached by a re-render (clicking "Enable
+  // public link") still counts as inside.
+  function onClickOutside(e: PointerEvent) {
     if (!showSharePopover) return
     const inside = e.composedPath().some((n) => n === rootEl?.querySelector('.share-wrap'))
     if (!inside) showSharePopover = false
@@ -172,7 +172,16 @@
     unlockError = ''
   })
 
+  let canShare = $derived(variant === 'page' && !$authStore.isGuest)
+
   let menuItems: ActionMenuItem[] = $derived([
+    ...(canShare
+      ? [{
+          label: note?.isPublic ? 'Share settings' : 'Share',
+          icon: ['M8 10V2.5M5 5.5l3-3 3 3', 'M5.5 7.5H4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1h-1.5'],
+          onSelect: () => (showSharePopover = true),
+        }]
+      : []),
     ...(concealed
       ? []
       : [
@@ -219,14 +228,14 @@
   function onKeydown(e: KeyboardEvent) {
     if (e.key !== 'Escape' || !showSharePopover) return
     showSharePopover = false
-    rootEl?.querySelector<HTMLElement>('.share-toggle')?.focus()
+    menuAnchorEl?.focus()
   }
 
   $effect(() => {
-    document.addEventListener('click', onClickOutside)
+    document.addEventListener('pointerdown', onClickOutside)
     document.addEventListener('keydown', onKeydown)
     return () => {
-      document.removeEventListener('click', onClickOutside)
+      document.removeEventListener('pointerdown', onClickOutside)
       document.removeEventListener('keydown', onKeydown)
     }
   })
@@ -305,27 +314,6 @@
           onClose={() => (showHistoryPopover = false)}
         />
       {/if}
-      {#if variant === 'page' && !$authStore.isGuest}
-        <div class="share-wrap">
-          <button
-            type="button"
-            class="share-toggle icon-btn"
-            class:active={note.isPublic}
-            title={note.isPublic ? 'Public — share settings' : 'Share'}
-            aria-label={note.isPublic ? 'Public — share settings' : 'Share'}
-            aria-haspopup="dialog"
-            aria-expanded={showSharePopover}
-            onclick={() => (showSharePopover = !showSharePopover)}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M8 10V2.5M5 5.5l3-3 3 3" /><path d="M5.5 7.5H4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1h-1.5" />
-            </svg>
-          </button>
-          {#if showSharePopover}
-            <NoteSharePopover note={note} onClose={() => (showSharePopover = false)} />
-          {/if}
-        </div>
-      {/if}
       {#if note.hidden && !concealed}
         <button
           type="button"
@@ -355,12 +343,17 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
         {/if}
       </button>
-      <MoreButton
-        expanded={menuOpen}
-        ghost={variant === 'day'}
-        bind:anchor={menuAnchorEl}
-        onclick={() => (menuOpen = !menuOpen)}
-      />
+      <div class="share-wrap">
+        <MoreButton
+          expanded={menuOpen}
+          ghost={variant === 'day'}
+          bind:anchor={menuAnchorEl}
+          onclick={() => (menuOpen = !menuOpen)}
+        />
+        {#if showSharePopover}
+          <NoteSharePopover note={note} onClose={() => (showSharePopover = false)} />
+        {/if}
+      </div>
       {#if menuOpen}
         <ActionMenu anchor={menuAnchorEl} items={menuItems} label="Note actions" onClose={() => (menuOpen = false)} />
       {/if}
@@ -434,12 +427,10 @@
   }
   .reading .mobile-back { display: none !important; }
   .icon-btn.full-screen-button,
-  .icon-btn.lock-button,
-  .icon-btn.share-toggle { width: 32px; height: 32px; }
+  .icon-btn.lock-button { width: 32px; height: 32px; }
   @media (pointer: coarse) {
     .icon-btn.full-screen-button,
-    .icon-btn.lock-button,
-    .icon-btn.share-toggle { width: 40px; height: 40px; }
+    .icon-btn.lock-button { width: 40px; height: 40px; }
     .page .day-chip { height: 40px; }
   }
   .editor-header {
@@ -535,7 +526,6 @@
   .day-chip svg { color: var(--accent); }
 
   .share-wrap { position: relative; }
-  .share-toggle.active { color: var(--accent); border-color: var(--accent); }
   .hidden-body {
     display: flex;
     flex-direction: column;
