@@ -33,6 +33,13 @@ describe('body markdown round-trip', () => {
     expect(first.trim()).toBe('Body\n\n#general-notes')
   })
 
+  it('preserves writing space before a new collection tag on reload', () => {
+    const { first, second, editor } = roundTrip('&nbsp;\n\n#work')
+    expect(second).toBe(first)
+    expect(editor.state.doc.firstChild?.textContent).toBe('')
+    expect(editor.state.doc.child(1).textContent).toBe('#work')
+  })
+
   it('keeps tables as GFM', () => {
     const input = '| A | B |\n| --- | --- |\n| 1 | **2** |'
     const { first, second, editor } = roundTrip(input)

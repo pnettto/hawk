@@ -108,6 +108,12 @@
     richEditor.focusBody()
   }
 
+  function openTag(tag: string) {
+    reading = false
+    notesStore.setFilter({ kind: 'tag', tag })
+    appStore.setCurrentPage('notes')
+  }
+
   function openDay() {
     if (!note?.day) return
     appStore.setSelectedDate(new Date(note.day + 'T12:00:00'))
@@ -313,6 +319,7 @@
         bind:this={richEditor}
         {session}
         {tags}
+        onOpenTag={openTag}
         placeholder={placeholder ?? (variant === 'day' ? 'Notes for the day…' : 'Write here…')}
       />
     {/key}

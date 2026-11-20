@@ -325,6 +325,8 @@ function createNotesStore() {
   }
 
   function setFilter(filter: NotesFilter) {
+    const prev = get({ subscribe }).selectedNid
+    if (prev) void sessions.get(prev)?.flush()
     writeFilter(filter)
     update((s) => ({ ...s, filter, selectedNid: null }))
   }
@@ -369,7 +371,7 @@ function createNotesStore() {
   // makes it a journal note for that date.
   function createNote(opts: { tag?: string; day?: string; dayOrder?: number; select?: boolean } = {}): string {
     const nid = crypto.randomUUID()
-    const content = opts.tag ? `#${opts.tag}` : ''
+    const content = opts.tag ? `&nbsp;\n\n#${opts.tag}` : ''
     const note: Note = {
       id: nid,
       title: '',

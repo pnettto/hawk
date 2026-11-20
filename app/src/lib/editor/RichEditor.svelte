@@ -3,7 +3,7 @@
   import { get } from 'svelte/store'
   import { Editor, InputRule, Extension, createDocument } from '@tiptap/core'
   import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
-  import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+  import { type EditorView } from '@tiptap/pm/view'
   import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
   import Placeholder from '@tiptap/extension-placeholder'
   import type { DocSession, EditorBridge } from '../../sync/docSession'
@@ -16,6 +16,7 @@
   import { bulletsToMarkdown, looksLikeMarkdown, normalizePastedHtml, splitSoftBreaks } from './paste'
   import { TAG_TYPING_RE } from '../notes/tags'
   import { contentExtensions } from './schema'
+  import { tagLinks } from './tagLinks'
   import { REMOVE_ATTACHMENT, attachmentFileId } from './nodes'
   import { filterBlocks, isYoutubeUrl, normalizeUrl, slashQuery, type BlockId, type BlockItem } from './blocks'
   import InsertMenu from './InsertMenu.svelte'
@@ -31,8 +32,9 @@
     autofocus?: boolean
     // Existing tags, most used first — offered when typing "#".
     tags?: string[]
+    onOpenTag?: (tag: string) => void
   }
-  let { session, onBlur, placeholder = 'Write here…', autofocus = false, tags = [] }: Props = $props()
+  let { session, onBlur, placeholder = 'Write here…', autofocus = false, tags = [], onOpenTag = () => {} }: Props = $props()
 
   let wrapper: HTMLDivElement
   let element: HTMLDivElement
@@ -85,45 +87,6 @@
     name: 'customInputRules',
     addInputRules() {
       return [markdownLinkInputRule, youtubeInputRule, imageInputRule]
-    },
-  })
-
-  // ---- tags --------------------------------------------------------------
-  // #words are tags (see lib/notes/tags.ts). They're plain text in the
-  // document; this only paints them.
-
-  const TAG_IN_TEXT = /(^|[\s(])#([\p{L}\p{N}][\p{L}\p{N}_\-/]*)/gu
-
-  function tagDecorations(doc: PMNode): DecorationSet {
-    const decos: Decoration[] = []
-    doc.descendants((node, pos) => {
-      if (node.type.spec.code) return false
-      if (!node.isText || node.marks.some((m) => m.type.name === 'code' || m.type.name === 'link')) return
-      for (const m of node.text!.matchAll(TAG_IN_TEXT)) {
-        if (!/\p{L}/u.test(m[2])) continue
-        const from = pos + m.index! + m[1].length
-        decos.push(Decoration.inline(from, from + 1 + m[2].length, { class: 'hawk-tag' }))
-      }
-    })
-    return DecorationSet.create(doc, decos)
-  }
-
-  const TagHighlight = Extension.create({
-    name: 'tagHighlight',
-    addProseMirrorPlugins() {
-      const key = new PluginKey<DecorationSet>('tagHighlight')
-      return [
-        new Plugin<DecorationSet>({
-          key,
-          state: {
-            init: (_, { doc }) => tagDecorations(doc),
-            apply: (tr, old) => (tr.docChanged ? tagDecorations(tr.doc) : old),
-          },
-          props: {
-            decorations: (state) => key.getState(state),
-          },
-        }),
-      ]
     },
   })
 
@@ -291,8 +254,8 @@
     if (!editor) return ''
     // tiptap-markdown stores its serializer here; it isn't part of the typed editor surface.
     const md = (editor.storage as { markdown?: { getMarkdown: () => string } }).markdown?.getMarkdown() ?? ''
-    // Leading blank lines don't survive a reload anyway; dropping them keeps
-    // the line padTagOnlyBody adds from counting as an edit.
+    // Strip raw whitespace only. Real blank paragraphs use &nbsp; and survive
+    // reloads, including the writing space before a collection tag.
     return md.replace(/^\n+/, '')
   }
 
@@ -951,7 +914,7 @@
         }),
         CustomInputRules,
         SmartPaste,
-        TagHighlight,
+        tagLinks((tag) => onOpenTag(tag)),
       ],
       content: session.local().body,
       editorProps: {
@@ -1413,7 +1376,10 @@
     border-radius: var(--r-xs);
     padding: 0 0.15em;
     margin: 0 -0.15em;
+    cursor: pointer;
   }
+  :global(.rich-editor .tiptap .hawk-tag:hover) { text-decoration: underline; }
+  :global(.rich-editor .tiptap .hawk-tag:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   :global(.rich-editor .tiptap hr) {
     border: none;
     border-top: 1px solid var(--line);

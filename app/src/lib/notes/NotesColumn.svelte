@@ -263,7 +263,12 @@
                     <span>{relativeTime($notesStore.filter.kind === 'day' ? n.updatedAt : listTime(n))}</span>
                   {/if}
                   {#each rowTags(n) as t (t)}
-                    <span class="row-tag">#{t}</span>
+                    <button
+                      type="button"
+                      class="row-tag tag-link"
+                      aria-label="Open #{t} collection"
+                      onclick={(e) => { e.stopPropagation(); notesStore.setFilter({ kind: 'tag', tag: t }) }}
+                    >#{t}</button>
                   {/each}
                 </div>
               </div>
@@ -437,6 +442,9 @@
     white-space: nowrap;
   }
   .row-tag.day { color: var(--accent); }
+  .tag-link { border: 0; color: inherit; font-family: inherit; cursor: pointer; }
+  .tag-link:hover { color: var(--accent); text-decoration: underline; }
+  .tag-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .row-actions { display: flex; gap: 2px; align-items: flex-start; }
   .row-action {
