@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte'
+  import { onMount, onDestroy, tick } from 'svelte'
   import { fade } from 'svelte/transition'
   import { appStore } from '../../stores/app'
   import { notesStore, sortDayNotes } from '../../stores/notes'
@@ -137,18 +137,136 @@
     }
   }
 
+  // Stable, untransformed tab geometry for the entire pointer gesture.
+  let tabsEl: HTMLDivElement
+  let drag = $state<{ id: string; from: number; to: number; offset: number; moved: boolean } | null>(null)
+  let geometry: { id: string; left: number; width: number }[] = []
+  let pointerId = -1
+  let startX = 0
+  let clientX = 0
+  let startScroll = 0
+  let dragDay = ''
+  let frame = 0
+  let suppressClick = false
+
+  function cancelDrag() {
+    cancelAnimationFrame(frame)
+    drag = null
+  }
+  onDestroy(cancelDrag)
+
+  function startDrag(e: PointerEvent, id: string) {
+    if (e.button !== 0 || notes.length < 2) return
+    suppressClick = false
+    geometry = Array.from(tabsEl.querySelectorAll<HTMLElement>('[data-tab]')).map((el) => {
+      const rect = el.getBoundingClientRect()
+      return { id: el.dataset.tab!, left: rect.left, width: rect.width }
+    })
+    const from = geometry.findIndex((g) => g.id === id)
+    if (from < 0) return
+    pointerId = e.pointerId
+    startX = clientX = e.clientX
+    startScroll = tabsEl.scrollLeft
+    dragDay = dateStr
+    drag = { id, from, to: from, offset: 0, moved: false }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    frame = requestAnimationFrame(autoScroll)
+  }
+
+  function updateDrag() {
+    if (!drag) return
+    // Cancel if sync, deletion or a day switch changes the captured list.
+    if (dateStr !== dragDay || notes.map((n) => n.id).join() !== geometry.map((g) => g.id).join()) {
+      cancelDrag()
+      return
+    }
+    const offset = clientX - startX + tabsEl.scrollLeft - startScroll
+    if (!drag.moved && Math.abs(offset) < 5) return
+    const source = geometry[drag.from]
+    const center = source.left + source.width / 2 + offset
+    const to = geometry.filter((g) => g.id !== drag!.id && center > g.left + g.width / 2).length
+    drag = { ...drag, offset, to, moved: true }
+    suppressClick = true
+  }
+
+  function moveDrag(e: PointerEvent) {
+    if (!drag || e.pointerId !== pointerId) return
+    clientX = e.clientX
+    updateDrag()
+  }
+
+  function autoScroll() {
+    if (!drag) return
+    if (drag.moved) {
+      const rect = tabsEl.getBoundingClientRect()
+      const speed = clientX < rect.left + 28 ? -8 : clientX > rect.right - 28 ? 8 : 0
+      if (speed) {
+        tabsEl.scrollLeft += speed
+        updateDrag()
+      }
+    }
+    frame = requestAnimationFrame(autoScroll)
+  }
+
+  function tabOffset(id: string) {
+    if (!drag?.moved) return 0
+    if (id === drag.id) return drag.offset
+    // Variable-width tabs fill the gap at their preview positions.
+    const order = geometry.filter((g) => g.id !== drag!.id)
+    order.splice(drag.to, 0, geometry[drag.from])
+    const gap = geometry.length > 1 ? geometry[1].left - geometry[0].left - geometry[0].width : 0
+    let left = geometry[0].left
+    for (const tab of order) {
+      if (tab.id === id) return left - geometry.find((g) => g.id === id)!.left
+      left += tab.width + gap
+    }
+    return 0
+  }
+
+  function finishDrag(e: PointerEvent) {
+    if (!drag || e.pointerId !== pointerId) return
+    clientX = e.clientX
+    updateDrag()
+    const settled = drag
+    cancelDrag()
+    if (!settled?.moved || settled.from === settled.to) return
+    const ids = geometry.map((g) => g.id)
+    ids.splice(settled.from, 1)
+    ids.splice(settled.to, 0, settled.id)
+    void notesStore.reorderDayNotes(dragDay, ids)
+  }
+
+  function onDragKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && drag) {
+      e.preventDefault()
+      e.stopPropagation()
+      cancelDrag()
+    }
+  }
+
   function onTabKeydown(e: KeyboardEvent, i: number) {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
     e.preventDefault()
+    if (e.altKey) {
+      const to = i + (e.key === 'ArrowRight' ? 1 : -1)
+      if (to < 0 || to >= notes.length) return
+      const ids = notes.map((n) => n.id)
+      const [id] = ids.splice(i, 1)
+      ids.splice(to, 0, id)
+      void notesStore.reorderDayNotes(dateStr, ids)
+      return
+    }
     const next = notes[(i + (e.key === 'ArrowRight' ? 1 : -1) + notes.length) % notes.length]
     select(next.id)
     tick().then(() => document.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus())
   }
 </script>
 
+<svelte:window onkeydown={onDragKey} />
+
 <section class="day-notes" aria-label="Day notes">
   <div class="bar">
-    <div class="tabs" role="tablist" aria-label="Notes">
+    <div class="tabs" class:reordering={drag?.moved} bind:this={tabsEl} role="tablist" aria-label="Notes">
       {#each notes as n, i (n.id)}
         {#if renaming === n.id}
           <input
@@ -169,11 +287,18 @@
             type="button"
             class="tab"
             role="tab"
+            class:dragging={drag?.id === n.id && drag.moved}
+            style:transform={`translateX(${tabOffset(n.id)}px)`}
             data-tab={n.id}
             aria-selected={n.id === activeId}
             tabindex={n.id === activeId ? 0 : -1}
-            title="Double-click to rename"
-            onclick={() => select(n.id)}
+            title="Drag to reorder · Alt+Left/Right to move · Double-click to rename"
+            onpointerdown={(e) => startDrag(e, n.id)}
+            onpointermove={moveDrag}
+            onpointerup={finishDrag}
+            onpointercancel={cancelDrag}
+            onlostpointercapture={cancelDrag}
+            onclick={() => { if (!suppressClick) select(n.id); suppressClick = false }}
             ondblclick={() => startRename(n.id)}
             onkeydown={(e) => onTabKeydown(e, i)}
           >
@@ -280,6 +405,11 @@
       color var(--dur-fast) var(--ease-out),
       border-color var(--dur-fast) var(--ease-out);
   }
+  .tab[data-tab] { touch-action: none; }
+  .tab[data-tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tabs.reordering { user-select: none; cursor: grabbing; }
+  .tabs.reordering .tab:not(.dragging) { transition: transform var(--dur-fast) var(--ease-out); }
+  .tab.dragging { position: relative; z-index: 1; cursor: grabbing; background: var(--surface-subtle); transition: none; }
   .tab:hover { color: var(--text); background: var(--glass-dark); }
   .tab[aria-selected='true'] { color: var(--accent); background: var(--glass); }
   .tab-rename {

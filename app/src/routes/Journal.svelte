@@ -47,7 +47,7 @@
       {/if}
     </div>
     <div class="journal-tabs" role="tablist" aria-label="Journal">
-      {#each [['notes', 'Day Notes'], ['tasks', 'Tasks'], ['overview', 'Overview']] as [id, label] (id)}
+      {#each [['tasks', 'Tasks'], ['notes', 'Day Notes'], ['overview', 'Overview']] as [id, label] (id)}
         <button
           role="tab"
           aria-selected={$appStore.journalTab === id}

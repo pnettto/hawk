@@ -442,6 +442,40 @@ function createNotesStore() {
     }
   }
 
+  // Serialize settled reorders so a quick second drag cannot be saved first.
+  let reorderSave = Promise.resolve()
+  function reorderDayNotes(day: string, ids: string[]): Promise<void> {
+    const current = sortDayNotes(get({ subscribe }).allNotes.filter((n) => n.day === day && !n.deletedAt))
+    const requested = [...new Set(ids)].filter((id) => current.some((n) => n.id === id))
+    const order = [...requested, ...current.map((n) => n.id).filter((id) => !requested.includes(id))]
+    const changed = order.flatMap((id, dayOrder) => {
+      const note = current.find((n) => n.id === id)!
+      return note.dayOrder === dayOrder ? [] : [{ id, dayOrder, previous: note.dayOrder }]
+    })
+    if (!changed.length) return reorderSave
+    update((s) => ({ ...s, allNotes: s.allNotes.map((n) => {
+      const change = changed.find((c) => c.id === n.id)
+      return change ? { ...n, dayOrder: change.dayOrder } : n
+    }) }))
+    reorderSave = savingStore.track(reorderSave.then(async () => {
+      // Let any in-flight text save finish before writing metadata only.
+      await Promise.all(changed.map(({ id }) => sessions.get(id)?.flush()))
+      await Promise.all(changed.map(async ({ id, dayOrder }) => {
+        const note = find(id)
+        if (!note || note.deletedAt) return
+        const result = await notesApi.saveNote({ id, day, dayOrder, createdAt: note.createdAt })
+        patchNote(id, { rev: result.rev, local: undefined })
+      }))
+    })).catch((e) => {
+      console.error('Failed to reorder notes', e)
+      for (const change of changed) {
+        if (find(change.id)?.dayOrder === change.dayOrder) patchNote(change.id, { dayOrder: change.previous })
+      }
+      showError('Couldn’t save note order.')
+    })
+    return reorderSave
+  }
+
   function hasUnsavedWork() {
     for (const s of sessions.values()) if (s.hasLocalEdits) return true
     return false
@@ -640,6 +674,7 @@ function createNotesStore() {
     ensureDayDraft,
     setTitle,
     setPublic,
+    reorderDayNotes,
     sessionFor,
     flushSaves,
     flushOnHide,
