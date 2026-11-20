@@ -161,7 +161,7 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" /><path d="m5 8 2 2 4-4" /></svg>
           </button>
         {/if}
-        <button class="icon-btn primary" title="New note" aria-label="New note" onclick={onCreate}>
+        <button type="button" class="icon-btn" title="New note" aria-label="New note" onclick={onCreate}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
         </button>
       {/if}
@@ -340,11 +340,6 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
-  .icon-btn.primary {
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
-  }
-  .icon-btn.primary:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
   .selection-toggle.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
   @media (pointer: coarse) {
     .icon-btn { width: 40px; height: 40px; }

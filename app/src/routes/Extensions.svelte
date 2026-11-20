@@ -220,9 +220,7 @@
     border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
     background: var(--surface-subtle);
-    transition: border-color var(--dur-fast) var(--ease-out);
   }
-  .ext.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
   .ext-head {
     display: flex;
     align-items: flex-start;

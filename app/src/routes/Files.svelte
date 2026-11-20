@@ -688,8 +688,10 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
     margin-left: auto;
     font-size: 0.75rem;
+    white-space: nowrap;
     color: var(--muted);
     cursor: pointer;
     user-select: none;
@@ -697,6 +699,7 @@
   .media-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .media-switch .track {
     position: relative;
+    flex-shrink: 0;
     width: 28px;
     height: 16px;
     border-radius: var(--r-pill);
@@ -963,6 +966,7 @@
   .lb-loading { width: 100%; padding: 3rem; }
 
   @media (max-width: 600px) {
+    .toolbar { flex-wrap: wrap; row-gap: 0.5rem; }
     .sel-actions .btn-secondary { padding: 0 0.6rem; }
     .segmented button { padding: 0.3rem 0.6rem; }
     .search { width: 100%; }
