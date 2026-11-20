@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte'
+  import { onDestroy, onMount, tick } from 'svelte'
   import { safeFlip } from '../../utils/safeFlip'
   import { fade, slide } from 'svelte/transition'
   import { appStore } from '../../stores/app'
@@ -385,6 +385,20 @@
   }
 
   let reorderMode = $state(false)
+  let desktopReorder = $state(false)
+
+  onMount(() => {
+    // Match the phone layout, and keep touch-only devices in explicit mode.
+    const media = window.matchMedia('(min-width: 601px) and (hover: hover) and (pointer: fine)')
+    const update = () => {
+      resetDrag()
+      desktopReorder = media.matches
+      reorderMode = false
+    }
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  })
   let dragId = $state<string | null>(null)
   // How far the dragged block follows the pointer, and where the gap opens.
   let dragOffset = $state(0)
@@ -428,7 +442,7 @@
   }
 
   function startDrag(e: PointerEvent, task: Task) {
-    if (!reorderMode || task.time || e.button !== 0 || !listEl) return
+    if ((!desktopReorder && !reorderMode) || task.time || e.button !== 0 || !listEl) return
     e.preventDefault()
     const listRect = listEl.getBoundingClientRect()
     dragRows = untimedSiblings(task).map((t, index) => {
@@ -667,7 +681,7 @@
 
 <svelte:window onkeydown={onReorderKeydown} />
 
-<section class="tasks" bind:this={rootEl} aria-label="Tasks">
+<section class="tasks" class:desktop-reorder={desktopReorder} bind:this={rootEl} aria-label="Tasks">
   <div class="toolbar">
     <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
       {#if leafTasks.length}
@@ -770,7 +784,7 @@
           </div>
         {:else}
           <div class="row">
-            {#if reorderMode}
+            {#if desktopReorder || reorderMode}
               <button
                 type="button"
                 class="handle"
@@ -1046,6 +1060,7 @@
   .progress.all-done { color: var(--accent); opacity: 1; }
   .tools { display: flex; align-items: center; gap: 0.35rem; }
   .reorder-toggle.active { color: var(--accent); border-color: var(--accent); }
+  .desktop-reorder .reorder-toggle { display: none; }
   .history-wrap { position: relative; }
 
   .list {
@@ -1062,6 +1077,9 @@
   .list.reordering .task:not(.dragging):not(.following) { transition: transform 170ms var(--ease-out); }
   /* Add rows would otherwise show up in the gap while groups move. */
   .list.reorder-mode .group-add-row { display: none; }
+  /* Desktop handles are always available: preserve the geometry captured at
+     pointer-down while hiding group inputs during the gesture. */
+  .desktop-reorder .list.reordering .group-add-row { visibility: hidden; }
   .task.dragging {
     position: relative;
     z-index: 3;
@@ -1118,15 +1136,48 @@
     touch-action: none;
     transition:
       opacity var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out),
-      background-color var(--dur-fast) var(--ease-out);
+      color var(--dur-fast) var(--ease-out);
   }
-  .handle:hover { opacity: 1; color: var(--text); background: var(--glass); }
+  .handle:hover { opacity: 1; color: var(--text); }
   .handle:active { cursor: grabbing; }
   .handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .handle.disabled { opacity: 0.2; cursor: default; }
   .handle.disabled:hover { opacity: 0.2; color: var(--muted); background: none; }
   .handle svg { width: 14px; height: 14px; }
+
+  /* Bleed desktop handles into the left gutter without taking up row space.
+     Anchor to the main row so comments don't change their vertical position. */
+  .desktop-reorder .task {
+    margin-left: -0.5rem;
+    padding-left: 0.5rem;
+  }
+  .desktop-reorder .task.sub { margin-left: 1.2rem; }
+  .desktop-reorder .row { position: relative; padding-left: 0; }
+  /* Align the visible circle, not the padded button, with the heading. */
+  .desktop-reorder .row > .check,
+  .desktop-reorder .row > .group-mark,
+  .desktop-reorder .row > .add-icon { margin-left: -0.375rem; }
+  .desktop-reorder .handle {
+    position: absolute;
+    right: calc(100% + 0.375rem);
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0;
+    width: 2rem;
+    height: 100%;
+    min-height: 2rem;
+    opacity: 0;
+    /* The invisible gutter is targetable too, revealing the handle on entry. */
+    pointer-events: auto;
+  }
+  .desktop-reorder .task:hover .handle,
+  .desktop-reorder .task:focus-within .handle,
+  .desktop-reorder .task.dragging .handle { opacity: 0.55; }
+  .desktop-reorder .task .handle:hover,
+  .desktop-reorder .task .handle:focus-visible { opacity: 1; }
+  .desktop-reorder .task .handle.disabled { opacity: 0; }
+  .desktop-reorder .task:hover .handle.disabled,
+  .desktop-reorder .task:focus-within .handle.disabled { opacity: 0.2; }
 
   .check {
     flex-shrink: 0;
@@ -1303,6 +1354,11 @@
   .comment:hover,
   .comment:focus { background: transparent; }
   .comment:focus { color: var(--text); }
+  .desktop-reorder .task .comment,
+  .desktop-reorder .add .comment {
+    margin-left: 1.625rem;
+    width: calc(100% - 1.875rem);
+  }
 
   .now-marker {
     display: flex;
