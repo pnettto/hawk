@@ -69,7 +69,7 @@
     return (n.tags ?? []).filter((t) => !(f.kind === 'tag' && f.tag === t)).slice(0, 3)
   }
 
-  // Multi-select: "Select" in the header, or Cmd/Ctrl/Shift-click a row.
+  // Multi-select: the header icon, or Cmd/Ctrl/Shift-click a row.
   let selecting = $state(false)
   let picked = $state(new Set<string>())
   let anchorId: string | null = null
@@ -151,10 +151,14 @@
         <button class="text-action danger" disabled={picked.size === 0} onclick={deletePicked}>
           Delete{picked.size ? ` ${picked.size}` : ''}
         </button>
-        <button class="text-action" onclick={stopSelecting}>Done</button>
+        <button type="button" class="icon-btn selection-toggle active" title="Done selecting notes" aria-label="Done selecting notes" aria-pressed="true" onclick={stopSelecting}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" /><path d="m5 8 2 2 4-4" /></svg>
+        </button>
       {:else}
         {#if visibleNotes.length > 0}
-          <button class="text-action" onclick={() => (selecting = true)}>Select</button>
+          <button type="button" class="icon-btn selection-toggle" title="Select notes" aria-label="Select notes" aria-pressed="false" onclick={() => (selecting = true)}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" /><path d="m5 8 2 2 4-4" /></svg>
+          </button>
         {/if}
         <button class="icon-btn primary" title="New note" aria-label="New note" onclick={onCreate}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
@@ -331,6 +335,10 @@
     outline-offset: 1px;
   }
   .icon-btn.primary { color: var(--text); }
+  .selection-toggle.active { color: var(--accent); border-color: var(--accent); background: var(--glass-dark); }
+  @media (pointer: coarse) {
+    .icon-btn { width: 40px; height: 40px; }
+  }
   .icon-btn svg { width: 15px; height: 15px; display: block; }
 
   .text-action {

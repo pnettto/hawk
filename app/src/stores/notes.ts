@@ -32,16 +32,27 @@ interface NotesState {
 export type NotesSort = 'changed' | 'added'
 
 const FILTER_KEY = 'hawk_notes_filter'
+const FILTER_DEFAULT_KEY = 'hawk_notes_notepad_default'
 
 function readFilter(): NotesFilter {
   try {
     const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null') as NotesFilter | null
+    // Move the old All notes default once. Later explicit choices, including
+    // All notes, remain remembered just like the other collections.
+    if (localStorage.getItem(FILTER_DEFAULT_KEY) !== '1') {
+      localStorage.setItem(FILTER_DEFAULT_KEY, '1')
+      if (f?.kind === 'all') {
+        const filter: NotesFilter = { kind: 'notepad' }
+        localStorage.setItem(FILTER_KEY, JSON.stringify(filter))
+        return filter
+      }
+    }
     if (f && (f.kind === 'all' || f.kind === 'notepad' || f.kind === 'day' || f.kind === 'untagged' || f.kind === 'trash')) return { kind: f.kind }
     if (f?.kind === 'tag' && typeof f.tag === 'string') return f
   } catch {
     // Storage unavailable — fall back to the default view.
   }
-  return { kind: 'all' }
+  return { kind: 'notepad' }
 }
 
 function writeFilter(f: NotesFilter) {

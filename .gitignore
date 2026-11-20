@@ -18,3 +18,6 @@ migration-data/
 
 # Private Claude Code notes (prod details)
 CLAUDE.local.md
+
+# Local-only UI exploration (not part of the app)
+/app/notepad-layout-demo.html

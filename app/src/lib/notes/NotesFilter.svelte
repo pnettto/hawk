@@ -2,7 +2,7 @@
   import { tick } from 'svelte'
   import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: All notes, Notepad notes, Journal notes,
+  // The Notepad list's view picker: Notepad notes, All notes, Journal notes,
   // untagged notes, one #tag, or Trash, plus the sort order for views
   // that are listed by date.
 
@@ -43,8 +43,8 @@
 
   let items = $derived.by<Item[]>(() => {
     const fixed: Item[] = [
-      { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'notepad' }, label: 'Notepad notes', count: counts.notepad, key: 'notepad' },
+      { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'day' }, label: 'Journal notes', count: counts.day, key: 'day' },
       { filter: { kind: 'untagged' }, label: 'Not tagged', count: counts.untagged, key: 'untagged' },
     ]
