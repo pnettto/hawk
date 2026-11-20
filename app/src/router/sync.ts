@@ -168,6 +168,14 @@ function onLocationChange() {
   schedule()
 }
 
+// Go somewhere from inside the app (search results). Places push a history
+// entry, smaller steps replace, as for any other navigation.
+export function navigate(route: Route) {
+  lastRoute = currentRoute()
+  applyRoute(route, { boot: false })
+  schedule()
+}
+
 let started = false
 
 // Called once at startup, before the session check finishes, so the first

@@ -52,6 +52,7 @@ import {
 } from "./routeHandlers/preferences.ts";
 import { getPomodoro, savePomodoro } from "./routeHandlers/pomodoro.ts";
 import { exportEntries, importEntries } from "./routeHandlers/admin.ts";
+import { search } from "./routeHandlers/search.ts";
 
 export const app = new Hono();
 
@@ -128,6 +129,9 @@ app.get("/api/notes/days", getDayNotes);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", permanentlyDeleteNote);
+
+// Search across notes and tasks (read-only)
+app.get("/api/search", search);
 
 // Note version history
 app.get("/api/notes/notes/:nid/versions", listNoteVersions);

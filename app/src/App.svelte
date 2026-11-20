@@ -18,6 +18,8 @@
   import SavingIndicator from './lib/ui/SavingIndicator.svelte'
   import AboutDialog from './lib/ui/AboutDialog.svelte'
   import ConfirmDialog from './lib/ui/ConfirmDialog.svelte'
+  import SearchDialog from './lib/search/SearchDialog.svelte'
+  import { searchStore } from './stores/search'
 
   let aboutOpen = $state(false)
 
@@ -137,6 +139,22 @@
     if (onVisible) document.removeEventListener('visibilitychange', onVisible)
   })
 
+  // ⌘K / Ctrl+K opens search anywhere (the editor keeps it for links), and
+  // "/" when not typing somewhere.
+  function onSearchKey(e: KeyboardEvent) {
+    if (!$authStore.isAuth || e.defaultPrevented || e.altKey || e.shiftKey) return
+    const mod = e.metaKey || e.ctrlKey
+    if (mod && e.key.toLowerCase() === 'k') {
+      e.preventDefault()
+      searchStore.open()
+    } else if (!mod && e.key === '/') {
+      const t = e.target as HTMLElement | null
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
+      e.preventDefault()
+      searchStore.open()
+    }
+  }
+
   // Block reload/close while there's any unsaved work — both in-flight saves
   // AND pending debounces (typed-but-not-yet-flushed). Browsers ignore the
   // custom string and show their own "Leave site?" dialog.
@@ -194,6 +212,18 @@
       <SavingIndicator />
       <button
         class="nav-icon"
+        type="button"
+        onclick={() => searchStore.open()}
+        aria-label="Search"
+        title="Search (⌘K)"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5"/>
+          <path d="M10.5 10.5 14 14"/>
+        </svg>
+      </button>
+      <button
+        class="nav-icon"
         class:active={$appStore.currentPage === 'admin'}
         onclick={() => appStore.setCurrentPage('admin')}
         aria-label="Settings"
@@ -235,7 +265,10 @@
   </div>
   <ZenMode />
   <PomodoroWidget />
+  <SearchDialog />
 {/if}
+
+<svelte:window onkeydown={onSearchKey} />
 
 <Toast />
 <ConfirmDialog />

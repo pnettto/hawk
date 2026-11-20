@@ -14,6 +14,8 @@ interface AppState {
   overviewEnd: Date
   // A task to scroll to and flash once, set by a deep link. DayTasks clears it.
   highlightTaskId: string | null
+  // A day note to switch to once, set by search. DayNotes clears it.
+  focusDayNoteId: string | null
 }
 
 const JOURNAL_TAB_KEY = 'hawk_journal_tab'
@@ -38,6 +40,7 @@ function createAppStore() {
     })(),
     overviewEnd: new Date(),
     highlightTaskId: null,
+    focusDayNoteId: null,
   })
 
   return {
@@ -59,6 +62,7 @@ function createAppStore() {
         return { ...s, journalTab: tab }
       }),
     setHighlightTask: (id: string | null) => update((s) => ({ ...s, highlightTaskId: id })),
+    setFocusDayNote: (id: string | null) => update((s) => ({ ...s, focusDayNoteId: id })),
     setOverviewTab: (tab: OverviewTab) => update((s) => ({ ...s, overviewTab: tab })),
     // Keeps start ≤ end by swapping when the user picks them out of order.
     setOverviewRange: (start: Date, end: Date) =>

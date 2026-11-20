@@ -44,6 +44,14 @@
   })
   const select = (id: string) => (activeByDate = { ...activeByDate, [dateStr]: id })
 
+  // Opened from search: switch to that note's tab.
+  $effect(() => {
+    const id = $appStore.focusDayNoteId
+    if (!id || !loaded) return
+    appStore.setFocusDayNote(null)
+    if (notes.some((n) => n.id === id)) select(id)
+  })
+
   async function addNote() {
     const order = Math.max(0, ...notes.map((n) => n.dayOrder ?? 0)) + 1
     const id = notesStore.createNote({ day: dateStr, dayOrder: order, select: false })

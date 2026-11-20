@@ -9,6 +9,7 @@ import { ApiError } from './client'
 import { parseTags } from '../lib/notes/tags'
 import { buildPreview } from '../stores/notes'
 import { formatDate } from '../utils/date'
+import { parseQuery, searchNotes, searchTasks } from '../lib/search/match'
 import type { DayLog, Note, NoteMetadata, Task } from '../types/models'
 
 const STORE_KEY = 'hawk_guest_data'
@@ -50,7 +51,7 @@ const metaOf = ({ content, rev, ...meta }: Note): NoteMetadata => ({
 const clone = <T>(v: T): T => structuredClone(v)
 
 export async function guestRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
-  return clone(handle(method, path, body as Record<string, unknown>)) as T
+  return clone(await handle(method, path, body as Record<string, unknown>)) as T
 }
 
 function handle(method: string, path: string, body: Record<string, unknown> = {}): unknown {
@@ -117,6 +118,9 @@ function handle(method: string, path: string, body: Record<string, unknown> = {}
     }
   }
 
+  // ---- Search: the same matcher the server runs
+  if (p === '/api/search') return search(data, q('q'), q('kind') || 'all', Number(q('limit')) || 30)
+
   // ---- Preferences
   if (p === '/api/preferences') {
     if (method === 'POST') {
@@ -134,6 +138,36 @@ function handle(method: string, path: string, body: Record<string, unknown> = {}
 
 function notFound(): never {
   throw new ApiError(404, 'Not available in the demo')
+}
+
+// Mirrors server/routeHandlers/search.ts.
+async function search(data: GuestData, query: string, kind: string, limit: number) {
+  const q = parseQuery(query)
+  if (!q) return { notes: [], tasks: [], truncated: false }
+  limit = Math.min(100, Math.max(1, limit))
+  const empty = { results: [], truncated: false }
+  const notes =
+    kind === 'tasks'
+      ? empty
+      : await searchNotes(
+          Object.values(data.notes).map((n) => ({
+            id: n.id,
+            title: n.title ?? '',
+            body: buildPreview(n.content, Infinity),
+            tags: n.tags ?? [],
+            updatedAt: n.updatedAt ?? 0,
+            day: n.day,
+            hidden: n.hidden,
+            deletedAt: n.deletedAt,
+          })),
+          q,
+          limit,
+        )
+  const days = Object.entries(data.days)
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .map(([date, log]) => ({ date, tasks: log.tasks ?? [] }))
+  const tasks = kind === 'notes' ? empty : await searchTasks(days, q, limit)
+  return { notes: notes.results, tasks: tasks.results, truncated: notes.truncated || tasks.truncated }
 }
 
 // Mirrors server/routeHandlers/notes.ts saveNote: omitted fields keep their

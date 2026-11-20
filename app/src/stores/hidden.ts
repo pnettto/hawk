@@ -2,8 +2,9 @@ import { writable, get } from 'svelte/store'
 import { authStore } from './auth'
 
 // Hidden notes: a privacy screen, not encryption. A note marked `hidden` is
-// stored, synced and searched like any other; only its content is concealed
-// until the main password is entered in the note (NoteEditor). One note is
+// stored and synced like any other, and its content is concealed until the
+// main password is entered in the note (NoteEditor). Search matches it on
+// title and tags only and never shows a snippet of its body. One note is
 // revealed at a time. It's concealed again when you leave it, from
 // "Lock note", on reload or logout, or after a while without activity.
 

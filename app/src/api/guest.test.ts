@@ -64,4 +64,17 @@ describe('guest API', () => {
     expect(await req('GET', '/api/notes/notes/demo-welcome/versions')).toEqual([])
     expect(await req('GET', '/api/files')).toEqual([])
   })
+
+  it('searches the seeded notes and tasks', async () => {
+    const req = await freshGuest()
+    type Res = { notes: { id: string; snippet?: string }[]; tasks: { text: string }[] }
+    const r = await req<Res>('GET', '/api/search?q=paramo')
+    expect(r.notes.map((n) => n.id)).toEqual(['demo-reading'])
+    expect(r.notes[0].snippet).toContain('Páramo')
+    const t = await req<Res>('GET', '/api/search?q=designer&kind=tasks')
+    expect(t.notes).toEqual([])
+    expect(t.tasks.map((x) => x.text)).toEqual(['Call with the designer'])
+    const tag = await req<Res>('GET', '/api/search?q=%23travel')
+    expect(tag.notes.map((n) => n.id)).toEqual(['demo-trip'])
+  })
 })
