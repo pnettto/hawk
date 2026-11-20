@@ -101,7 +101,7 @@
     height: 28px;
     padding: 0 8px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--text);
     font-family: inherit;
@@ -120,7 +120,7 @@
     height: 28px;
     padding: 0 8px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: var(--input-bg-strong, var(--glass-dark));
     color: var(--text);
     font: inherit;

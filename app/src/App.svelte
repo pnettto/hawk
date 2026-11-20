@@ -294,7 +294,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     transition: opacity var(--dur-fast) var(--ease-out);
   }
   .nav-logo-btn:hover .nav-logo { opacity: 1; }
@@ -323,7 +323,7 @@
     font-family: inherit;
     font-size: 0.78rem;
     padding: 0.45rem 0.85rem;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     white-space: nowrap;
     transition:
       background-color var(--dur-fast) var(--ease-out),
@@ -358,7 +358,7 @@
     padding: 0.45rem;
     width: 1.85rem;
     height: 1.85rem;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
   }
   .nav-icon svg { width: 14px; height: 14px; display: block; }
   .nav-icon.active { color: var(--accent); background: var(--glass); }

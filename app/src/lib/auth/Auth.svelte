@@ -90,7 +90,7 @@
     font-family: inherit;
   }
   .auth-form input {
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     background: var(--input-bg);
     border: 1px solid var(--line);
     transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
@@ -102,7 +102,7 @@
     outline: none;
   }
   .auth-form button {
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     background: var(--accent);
     color: var(--on-accent);
     cursor: pointer;

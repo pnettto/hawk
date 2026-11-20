@@ -9,6 +9,7 @@
   import { parseQuickTask } from './quickTask'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import ActionMenu from '../ui/ActionMenu.svelte'
+  import MoreButton from '../ui/MoreButton.svelte'
   import type { ActionMenuItem } from '../ui/menuItem'
   import TimePicker from '../ui/TimePicker.svelte'
   import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
@@ -582,8 +583,7 @@
 
   // ---- row menu ------------------------------------------------------------
 
-  // On a phone the row's secondary actions would crowd the text out, so they
-  // collapse into one menu: the row is the checkbox, its text and a "⋯".
+  // Secondary actions live in the same menu at every screen size.
   let menuTaskId = $state<string | null>(null)
   let menuAnchorEl = $state<HTMLButtonElement | null>(null)
 
@@ -608,7 +608,7 @@
     'M4.9 9.2c.1-.8.6-1.5 1.3-1.8',
   ]
 
-  // Same set of actions the row shows on hover, in the same order.
+  // Keep the time picker and any active timer directly accessible.
   function rowMenuItems(task: Task, row: Row): ActionMenuItem[] {
     const items: ActionMenuItem[] = []
     if (row.depth === 0 && !row.header) {
@@ -840,55 +840,18 @@
               }}
             ></textarea>
 
-            {#if row.depth === 0 && !row.header}
+            {#if pomodoroOn && !row.header && focusedId === task.id}
               <button
                 type="button"
-                class="icon-btn ghost row-action add-sub"
-                title="Add a subtask"
-                aria-label="Add a subtask"
-                onclick={() => void addSubtask(task)}
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M3 3v5a2 2 0 0 0 2 2h6" />
-                  <path d="M8.5 7.5 11 10 8.5 12.5" />
-                </svg>
-              </button>
-            {/if}
-
-            <button
-              type="button"
-              class="icon-btn ghost row-action comment-toggle"
-              class:active={!!task.comment || openComments.has(task.id)}
-              title="Comment"
-              aria-label="Comment"
-              aria-expanded={openComments.has(task.id) || !!task.comment}
-              onclick={() => toggleComment(task.id)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 3v-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z" />
-              </svg>
-            </button>
-
-            {#if pomodoroOn && !row.header}
-              <button
-                type="button"
-                class="icon-btn ghost row-action focus-btn"
+                class="icon-btn ghost focus-btn"
                 class:active={focusedId === task.id}
                 class:paused={focusedId === task.id && !timer.running}
-                title={focusedId === task.id ? 'Pause or resume the timer' : 'Start a focus timer'}
-                aria-label={focusedId === task.id ? 'Pause or resume the focus timer' : 'Start a focus timer'}
+                title="Pause or resume the timer"
+                aria-label="Pause or resume the focus timer"
                 aria-pressed={focusedId === task.id}
                 onclick={() => toggleFocus(task)}
               >
-                {#if focusedId === task.id}
-                  <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
-                {:else}
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M6 5.1C3.9 5.3 2.5 6.9 2.5 9.4 2.5 12.4 5 14.3 8 14.3s5.5-1.9 5.5-4.9c0-2.5-1.4-4.1-3.5-4.3" />
-                    <path d="M8 5.6 5.4 4.3M8 5.6l2.6-1.3M8 5.6 8 3.4c0-.6.3-1 .9-1.2" />
-                    <path d="M4.9 9.2c.1-.8.6-1.5 1.3-1.8" />
-                  </svg>
-                {/if}
+                <span class="focus-clock">{formatClock(timer.remainingMs)}</span>
               </button>
             {/if}
 
@@ -898,45 +861,11 @@
                 value={task.time}
                 onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
               />
-              <button
-                type="button"
-                class="icon-btn ghost row-action carry-over"
-                title="Carry over to next day"
-                aria-label="Carry over to next day"
-                onclick={() => logsStore.carryTaskOver(dateStr, task.id)}
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M2.5 8h9" />
-                  <path d="M9 4.5L12.5 8 9 11.5" />
-                </svg>
-              </button>
             {/if}
-            <button
-              type="button"
-              class="icon-btn ghost danger row-action remove"
-              title="Delete task"
-              aria-label="Delete task"
-              onclick={() => removeTask(task)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-                <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn ghost row-more"
-              title="More actions"
-              aria-label="More actions"
-              aria-haspopup="menu"
-              aria-expanded={menuTaskId === task.id}
-              onclick={(e) => toggleRowMenu(task.id, e.currentTarget)}
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" aria-hidden="true">
-                <circle cx="3.4" cy="8" r="1.15" />
-                <circle cx="8" cy="8" r="1.15" />
-                <circle cx="12.6" cy="8" r="1.15" />
-              </svg>
-            </button>
+            <MoreButton
+              expanded={menuTaskId === task.id}
+              onclick={(e) => toggleRowMenu(task.id, e.currentTarget as HTMLButtonElement)}
+            />
           </div>
 
           {#if menuTaskId === task.id}
@@ -1093,7 +1022,7 @@
   }
 
   .task {
-    border-radius: 8px;
+    border-radius: var(--r-md);
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   .task:hover,
@@ -1128,7 +1057,7 @@
     margin-left: -0.2rem;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--muted);
     opacity: 0.55;
@@ -1229,7 +1158,7 @@
     font-size: 1rem;
     line-height: 1.4;
     padding: 0.2rem 0.4rem;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     outline: none;
     resize: none;
     overflow: hidden;
@@ -1244,34 +1173,12 @@
     text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
   }
 
-  /* Untimed rows only show the clock on hover/focus. */
-  .task :global(.time:not(.set)) { opacity: 0; }
-  .task:hover :global(.time:not(.set)),
-  .task:focus-within :global(.time:not(.set)) { opacity: 0.7; }
-  .task :global(.time:not(.set):hover),
+  /* Even an unset time stays discoverable without hovering. */
+  .task :global(.time:not(.set)) { opacity: 0.7; }
+  .task :global(.time:hover),
   .task :global(.time.open) { opacity: 1; }
 
-  .comment-toggle,
-  .add-sub,
-  .focus-btn,
-  .carry-over,
-  .remove { opacity: 0; }
-  /* The overflow menu is only a thing on narrow screens. */
-  .row-more { display: none; }
-  .task:hover .comment-toggle,
-  .task:focus-within .comment-toggle,
-  .task:hover .add-sub,
-  .task:focus-within .add-sub,
-  .task:hover .focus-btn,
-  .task:focus-within .focus-btn,
-  .task:hover .carry-over,
-  .task:focus-within .carry-over,
-  .task:hover .remove,
-  .task:focus-within .remove { opacity: 0.6; }
-  .comment-toggle.active { opacity: 0.8; color: var(--accent); }
-  /* A running timer stays visible on its row. */
   .task .focus-btn.active {
-    opacity: 1;
     width: auto;
     min-width: 28px;
     padding: 0 0.35rem;
@@ -1282,33 +1189,6 @@
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.01em;
-  }
-  .comment-toggle:hover,
-  .add-sub:hover,
-  .focus-btn:hover,
-  .carry-over:hover,
-  .remove:hover { opacity: 1 !important; }
-  .add-sub:hover,
-  .carry-over:hover { color: var(--accent); }
-  @media (hover: none) {
-    .task :global(.time:not(.set)),
-    .comment-toggle,
-    .add-sub,
-    .focus-btn,
-    .carry-over,
-    .remove { opacity: 0.45; }
-  }
-
-  /* Phones: one menu per row instead of a strip of icons. The checkbox, the
-     task text and the menu are the row; a running timer keeps its chip. */
-  @media (max-width: 600px) {
-    .row-action { display: none; }
-    .row-action.focus-btn.active { display: inline-flex; }
-    .row-more { display: inline-flex; opacity: 0.5; width: 32px; height: 32px; }
-    .task:hover .row-more,
-    .task:focus-within .row-more { opacity: 1; }
-    .task:hover .row-action.focus-btn.active,
-    .task:focus-within .row-action.focus-btn.active { opacity: 1; }
   }
 
   /* Subtasks sit indented under their parent, marked by a short guide line. */
@@ -1343,7 +1223,7 @@
     resize: none;
     overflow: hidden;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: transparent;
     color: var(--muted);
     font: inherit;
@@ -1381,7 +1261,7 @@
 
   .add {
     margin-top: 0.25rem;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   .add:focus-within,
@@ -1394,7 +1274,7 @@
     justify-content: center;
     padding: 0;
     border: 0;
-    border-radius: 50%;
+    border-radius: var(--r-sm);
     background: none;
     cursor: pointer;
     color: var(--muted);
@@ -1438,7 +1318,7 @@
     margin: 1rem 0 0 2.6rem;
     padding: 0.45rem 0.8rem;
     border: 1px dashed var(--line);
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--muted);
     font-family: var(--font-ui);

@@ -363,7 +363,7 @@
     text-align: left;
     background: none;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     padding: 0.4rem 0.5rem;
     color: var(--text);
     cursor: pointer;
@@ -410,7 +410,7 @@
     padding: 0.5rem;
     background: var(--input-bg);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     font-size: 0.85rem;
     color: var(--text);
     line-height: 1.5;

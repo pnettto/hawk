@@ -191,7 +191,7 @@
     height: 1.75rem;
     padding: 0 0.5rem;
     border: 0;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-sm);
     background: none;
     color: var(--muted);
     font-family: var(--font-ui);
@@ -282,6 +282,7 @@
     opacity: 1;
   }
   @media (pointer: coarse) {
+    .tp-trigger { min-width: 40px; height: 40px; }
     .tp-slot { height: 40px; }
     .tp-grid { max-height: 280px; }
   }

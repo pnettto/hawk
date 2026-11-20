@@ -3,9 +3,12 @@
   import { notesStore, tagCounts, dayLabel } from '../../stores/notes'
   import { appStore } from '../../stores/app'
   import { authStore } from '../../stores/auth'
-  import { showError } from '../../stores/toast'
+  import { showError, showToast } from '../../stores/toast'
   import NoteSharePopover from './NoteSharePopover.svelte'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
+  import ActionMenu from '../ui/ActionMenu.svelte'
+  import MoreButton from '../ui/MoreButton.svelte'
+  import type { ActionMenuItem } from '../ui/menuItem'
   import RichEditor from '../editor/RichEditor.svelte'
   import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
   import type { Note } from '../../types/models'
@@ -16,7 +19,7 @@
     nid: string
     variant?: 'page' | 'day'
     placeholder?: string
-    // Shows a delete button next to version history.
+    // Optional delete action in the note menu.
     onDelete?: () => void
     // Journal tabs carry the title (double-click to rename), so no field here.
     hideTitle?: boolean
@@ -38,7 +41,8 @@
   let showSharePopover = $state(false)
   let showHistoryPopover = $state(false)
   let rootEl = $state<HTMLDivElement | null>(null)
-  let historyAnchorEl = $state<HTMLButtonElement | null>(null)
+  let menuAnchorEl = $state<HTMLButtonElement | null>(null)
+  let menuOpen = $state(false)
   let richEditor = $state<RichEditor | null>(null)
   let teardownTriggers: (() => void) | null = null
 
@@ -120,17 +124,26 @@
     if (!inside) showSharePopover = false
   }
 
-  let copied = $state(false)
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined
+  let menuItems: ActionMenuItem[] = $derived([
+    { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
+    { label: 'Version history', icon: ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5'], onSelect: () => (showHistoryPopover = true) },
+    ...(onDelete ? [{ label: 'Delete note', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: onDelete }] : []),
+  ])
+
+  // Do not carry transient menus over when another note is selected.
+  $effect(() => {
+    void nid
+    menuOpen = false
+    showHistoryPopover = false
+    showSharePopover = false
+  })
 
   async function copyNote() {
     await notesStore.loadBody(nid)
     const text = (($notesStore.allNotes.find((n) => n.id === nid) as Note | undefined)?.content ?? '').trim()
     try {
       await navigator.clipboard.writeText(text)
-      copied = true
-      clearTimeout(copiedTimer)
-      copiedTimer = setTimeout(() => (copied = false), 1500)
+      showToast('Copied as markdown')
     } catch (e) {
       console.error('Failed to copy', e)
       showError('Couldn’t copy to the clipboard.')
@@ -229,60 +242,14 @@
           <span>{dayLabel(note.day)}</span>
         </button>
       {/if}
-      <button
-        type="button"
-        class="icon-btn copy-btn"
-        class:ghost={variant === 'day'}
-        class:copied
-        title="Copy note as markdown"
-        aria-label="Copy note as markdown"
-        onclick={copyNote}
-      >
-        {#if copied}
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>
-        {:else}
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="8.5" height="10" rx="1.5" /><path d="M2.5 5.5v7.5a1.5 1.5 0 0 0 1.5 1.5h7" /></svg>
-        {/if}
-      </button>
-      <div class="history-wrap">
-        <button
-          type="button"
-          class="history-toggle icon-btn"
-          class:ghost={variant === 'day'}
-          aria-label="Version history"
-          title="Version history"
-          bind:this={historyAnchorEl}
-          onclick={() => (showHistoryPopover = !showHistoryPopover)}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-            <path d="M3 3v5h5" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-        </button>
-        {#if showHistoryPopover}
-          <HistoryPopover
-            kind="note"
-            entityId={note.id}
-            anchor={historyAnchorEl}
-            prepare={prepareHistory}
-            onClose={() => (showHistoryPopover = false)}
-          />
-        {/if}
-      </div>
-      {#if onDelete}
-        <button
-          type="button"
-          class="icon-btn danger"
-          class:ghost={variant === 'day'}
-          title="Delete note"
-          aria-label="Delete note"
-          onclick={onDelete}
-        >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
-          </svg>
-        </button>
+      {#if showHistoryPopover}
+        <HistoryPopover
+          kind="note"
+          entityId={note.id}
+          anchor={menuAnchorEl}
+          prepare={prepareHistory}
+          onClose={() => (showHistoryPopover = false)}
+        />
       {/if}
       {#if variant === 'page' && !$authStore.isGuest}
         <div class="share-wrap">
@@ -307,11 +274,10 @@
       {/if}
       <button
         type="button"
-        class="icon-btn"
+        class="icon-btn full-screen-button"
         class:ghost={variant === 'day'}
-        class:reading-toggle={variant === 'page'}
-        title={reading ? 'Exit reading mode (Esc)' : 'Reading mode'}
-        aria-label={reading ? 'Exit reading mode' : 'Reading mode'}
+        title={reading ? 'Exit full screen (Esc)' : 'Full screen'}
+        aria-label={reading ? 'Exit full screen' : 'Full screen'}
         aria-pressed={reading}
         onclick={() => (reading = !reading)}
       >
@@ -321,6 +287,15 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
         {/if}
       </button>
+      <MoreButton
+        expanded={menuOpen}
+        ghost={variant === 'day'}
+        bind:anchor={menuAnchorEl}
+        onclick={() => (menuOpen = !menuOpen)}
+      />
+      {#if menuOpen}
+        <ActionMenu anchor={menuAnchorEl} items={menuItems} label="Note actions" onClose={() => (menuOpen = false)} />
+      {/if}
     </div>
     {/if}
   </div>
@@ -346,7 +321,12 @@
 {/if}
 
 <style>
-  .editor-root { display: flex; flex-direction: column; min-width: 0; }
+  .editor-root {
+    --note-content-width: 70ch;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
   /* Reading mode: fixed over the whole app, just under popovers so history,
      share and the editor's own menus still open on top. */
   .editor-root.reading {
@@ -362,19 +342,32 @@
   .reading > .editor-loading,
   .reading > :global(.rich-editor) {
     width: 100%;
-    max-width: calc(70ch + 2rem);
+    max-width: var(--note-content-width);
     margin-inline: auto;
   }
   .reading .mobile-back { display: none !important; }
-  .reading-toggle,
-  .page .copy-btn { width: 30px; height: 30px; }
-  .copy-btn.copied { color: var(--accent); }
+  .icon-btn.full-screen-button,
+  .icon-btn.share-toggle { width: 32px; height: 32px; }
+  @media (pointer: coarse) {
+    .icon-btn.full-screen-button,
+    .icon-btn.share-toggle { width: 40px; height: 40px; }
+    .page .day-chip { height: 40px; }
+  }
   .editor-header {
     display: flex;
     align-items: center;
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
+  /* Keep the title and its actions on the same measure as the note body,
+     rather than stretching the toolbar into the empty editor-pane gutter. */
+  .page .editor-header {
+    width: 100%;
+    max-width: var(--note-content-width);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .page .note-title { font-size: 2rem; line-height: 1.25; }
   .day .editor-header { gap: 0.6rem; margin-bottom: 0.5rem; }
   .mobile-back {
     display: none;
@@ -384,7 +377,7 @@
     cursor: pointer;
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: var(--r-sm);
     align-items: center;
     justify-content: center;
     font-size: 1.1rem;
@@ -414,26 +407,22 @@
   .day .note-title::placeholder { opacity: 0.45; font-weight: 600; }
   .note-title:hover,
   .note-title:focus { background: none; }
-  .header-actions { display: flex; align-items: center; gap: 0.5rem; }
-  .day .header-actions {
-    gap: 0.15rem;
-    opacity: 0;
-    transition: opacity var(--dur-fast) var(--ease-out);
+  .header-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 0.375rem;
   }
-  .day:hover .header-actions,
-  .day:focus-within .header-actions { opacity: 1; }
-  @media (hover: none) {
-    .day .header-actions { opacity: 1; }
-  }
+  .day .header-actions { gap: 0.15rem; }
   .day-chip {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
     background: var(--glass-dark);
     border: 1px solid var(--line);
-    border-radius: var(--r-pill);
-    height: 30px;
-    padding: 0 12px;
+    border-radius: var(--r-sm);
+    height: 32px;
+    padding: 0 0.6rem;
     color: var(--muted);
     cursor: pointer;
     font-family: var(--font-ui);
@@ -447,10 +436,7 @@
   .day-chip:hover { color: var(--text); border-color: var(--accent); background: var(--glass); }
   .day-chip svg { color: var(--accent); }
 
-  .history-wrap { position: relative; }
-  .history-toggle { width: 30px; height: 30px; }
   .share-wrap { position: relative; }
-  .share-toggle { width: 30px; height: 30px; }
   .share-toggle.active { color: var(--accent); border-color: var(--accent); }
   .editor-loading {
     display: flex;

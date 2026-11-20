@@ -58,7 +58,7 @@
     padding: 0.5rem;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     cursor: pointer;
     color: var(--text);
     font: inherit;
@@ -79,7 +79,7 @@
   .preview {
     position: relative;
     background: var(--p-bg);
-    border-radius: 8px;
+    border-radius: var(--r-sm);
     padding: 0.7rem;
     display: flex;
     flex-direction: column;
@@ -144,7 +144,7 @@
     color: var(--muted);
     padding: 2px 6px;
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: var(--r-xs);
   }
   .check {
     margin-left: auto;

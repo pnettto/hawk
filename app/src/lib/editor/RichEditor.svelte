@@ -1131,7 +1131,7 @@
     display: block;
     max-width: 100%;
     height: auto;
-    border-radius: 12px;
+    border-radius: var(--r-md);
     margin: 1.5rem auto;
   }
   :global(.rich-editor .tiptap img.ProseMirror-selectednode),
@@ -1145,7 +1145,7 @@
     display: block;
     width: 100%;
     max-width: 800px;
-    border-radius: 12px;
+    border-radius: var(--r-md);
     border: none;
     margin: 1.5rem auto;
     background: #000;
@@ -1179,7 +1179,7 @@
     height: clamp(240px, 45vh, 420px);
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     background: var(--glass);
     isolation: isolate;
   }
@@ -1246,7 +1246,7 @@
     min-height: 140px;
     padding: 1rem;
     border: 1px dashed var(--line);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     background: var(--glass);
   }
   :global(.rich-editor .tiptap .note-map-empty p) { margin: 0; color: var(--muted); font-size: 0.85rem; }
@@ -1298,7 +1298,7 @@
     justify-content: center;
     padding: 0;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--muted);
     cursor: pointer;
@@ -1410,7 +1410,7 @@
   :global(.rich-editor .tiptap .hawk-tag) {
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     padding: 0 0.15em;
     margin: 0 -0.15em;
   }
@@ -1429,7 +1429,7 @@
   :global(.rich-editor .tiptap code) {
     background: var(--glass);
     padding: 0.2rem 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     font-family: var(--font-mono);
     font-size: 0.85em;
   }
@@ -1496,7 +1496,7 @@
     justify-content: center;
     padding: 0;
     border: 1px solid var(--line);
-    border-radius: 50%;
+    border-radius: var(--r-sm);
     background: var(--glass-dark);
     color: var(--muted);
     cursor: pointer;
@@ -1537,7 +1537,7 @@
     height: 26px;
     padding: 0 8px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--text);
     font-family: inherit;

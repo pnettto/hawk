@@ -113,7 +113,7 @@
   .about-dialog {
     background: var(--panel, #2f343d);
     border: 1px solid var(--line, #3a3f47);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     padding: 1.5rem;
     width: min(440px, 100%);
     max-height: 90vh;
@@ -196,7 +196,7 @@
     background: none;
     border: 1px solid var(--line);
     padding: 0.4rem 0.85rem;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     color: var(--text);
     cursor: pointer;
     font-family: inherit;

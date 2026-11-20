@@ -263,7 +263,7 @@
     position: relative;
     width: 28px;
     height: 16px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: var(--glass);
     border: 1px solid var(--line);
     transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);

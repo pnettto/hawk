@@ -43,7 +43,9 @@
 
     --dur-pop: 160ms;
 
-    /* Radii */
+    /* Shape scale: small labels, controls, then surfaces. Use the same
+       control radius for text/icon buttons, tabs, inputs and date shortcuts.
+       Pill/circular shapes are reserved for switches and round indicators. */
     --r-xs: 4px;
     --r-sm: 6px;
     --r-md: 10px;

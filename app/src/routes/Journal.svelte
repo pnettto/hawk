@@ -115,7 +115,7 @@
     font-size: 0.6875rem;
     height: var(--h-sm);
     padding: 0 0.8rem;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     text-transform: uppercase;
     letter-spacing: 0.12em;
     transition:

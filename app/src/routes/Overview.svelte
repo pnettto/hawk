@@ -189,7 +189,7 @@
   .segmented {
     display: inline-flex;
     padding: 2px;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-md);
     background: var(--glass-dark);
   }
   .segmented button {
@@ -200,7 +200,7 @@
     font-family: inherit;
     font-size: 0.75rem;
     padding: 0.3rem 0.8rem;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-sm);
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out);
@@ -218,7 +218,7 @@
     font-family: inherit;
     font-size: 0.75rem;
     padding: 0.4rem 0.7rem;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-sm);
     line-height: 1;
     transition:
       background-color var(--dur-fast) var(--ease-out),

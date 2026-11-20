@@ -5,6 +5,9 @@
   import { filesStore } from '../stores/files'
   import { showError, showToast } from '../stores/toast'
   import { publicFileDownloadUrl } from '../api/files'
+  import ActionMenu from '../lib/ui/ActionMenu.svelte'
+  import MoreButton from '../lib/ui/MoreButton.svelte'
+  import type { ActionMenuItem } from '../lib/ui/menuItem'
   import type { FileMeta } from '../types/models'
 
   let query = $state('')
@@ -13,6 +16,36 @@
   let renaming = $state<string | null>(null)
   let renameValue = $state('')
   let preview = $state<{ file: FileMeta; url: string | null; text?: string } | null>(null)
+
+  let menuFileId = $state<string | null>(null)
+  let menuAnchorEl = $state<HTMLButtonElement | null>(null)
+
+  function toggleMenu(id: string, anchor: HTMLButtonElement) {
+    menuAnchorEl = anchor
+    menuFileId = menuFileId === id ? null : id
+  }
+
+  function fileMenuItems(f: FileMeta): ActionMenuItem[] {
+    return [
+      ...(f.isPublic ? [{
+        label: 'Copy public link',
+        icon: 'M6.5 9.5l3-3M6.8 4.4l1.2-1.2a2.4 2.4 0 0 1 3.4 3.4l-1.2 1.2M9.2 11.6l-1.2 1.2a2.4 2.4 0 0 1-3.4-3.4l1.2-1.2',
+        onSelect: () => void copyLink(f),
+      }] : []),
+      {
+        label: f.isPublic ? 'Make private' : 'Make public',
+        icon: ['M2.5 8h11M8 2.5c1.6 1.6 2.4 3.5 2.4 5.5S9.6 12.4 8 13.5C6.4 11.9 5.6 10 5.6 8S6.4 4.1 8 2.5z', 'M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'],
+        onSelect: () => void filesStore.setPublic(f.id, !f.isPublic),
+      },
+      { label: 'Rename', icon: 'M10.5 3l2.5 2.5L6 12.5H3.5V10z', onSelect: () => void startRename(f) },
+      { label: 'Delete file', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: () => void filesStore.remove([f.id]) },
+    ]
+  }
+
+  // Close the menu if a filter or a remote deletion removes its row.
+  $effect(() => {
+    if (menuFileId && !files.some((f) => f.id === menuFileId)) menuFileId = null
+  })
 
   // ---- sorting / grouping ----------------------------------------------
 
@@ -530,42 +563,19 @@
             </span>
           </div>
           <div class="actions">
-            {#if f.isPublic}
-              <button type="button" class="icon-btn ghost" title="Copy public link" aria-label="Copy public link for {f.name}" onclick={() => copyLink(f)}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M6.5 9.5l3-3M6.8 4.4l1.2-1.2a2.4 2.4 0 0 1 3.4 3.4l-1.2 1.2M9.2 11.6l-1.2 1.2a2.4 2.4 0 0 1-3.4-3.4l1.2-1.2" />
-                </svg>
-              </button>
-            {/if}
-            <button
-              type="button"
-              class="icon-btn ghost"
-              class:on={f.isPublic}
-              title={f.isPublic ? 'Make private' : 'Make public'}
-              aria-label="{f.isPublic ? 'Make private' : 'Make public'} {f.name}"
-              aria-pressed={!!f.isPublic}
-              onclick={() => filesStore.setPublic(f.id, !f.isPublic)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="8" cy="8" r="5.5" />
-                <path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.5 2.4 5.5S9.6 12.4 8 13.5C6.4 11.9 5.6 10 5.6 8S6.4 4.1 8 2.5z" />
-              </svg>
-            </button>
             <button type="button" class="icon-btn ghost" title="Download" aria-label="Download {f.name}" onclick={() => filesStore.download(f)}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M8 3v8M4.5 7.5L8 11l3.5-3.5M3 13h10" />
               </svg>
             </button>
-            <button type="button" class="icon-btn ghost" title="Rename" aria-label="Rename {f.name}" onclick={() => startRename(f)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M10.5 3l2.5 2.5L6 12.5H3.5V10z" />
-              </svg>
-            </button>
-            <button type="button" class="icon-btn ghost danger" title="Delete" aria-label="Delete {f.name}" onclick={() => filesStore.remove([f.id])}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
-              </svg>
-            </button>
+            <MoreButton
+              label="More actions for {f.name}"
+              expanded={menuFileId === f.id}
+              onclick={(e) => toggleMenu(f.id, e.currentTarget as HTMLButtonElement)}
+            />
+            {#if menuFileId === f.id}
+              <ActionMenu anchor={menuAnchorEl} items={fileMenuItems(f)} label="File actions" onClose={() => (menuFileId = null)} />
+            {/if}
           </div>
         </li>
       {/each}
@@ -689,7 +699,7 @@
     position: relative;
     width: 28px;
     height: 16px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: var(--glass);
     border: 1px solid var(--line);
     transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
@@ -713,7 +723,7 @@
   .segmented {
     display: inline-flex;
     padding: 2px;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-md);
     background: var(--glass-dark);
   }
   .segmented button {
@@ -723,7 +733,7 @@
     font: inherit;
     font-size: 0.75rem;
     padding: 0.3rem 0.8rem;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-sm);
     cursor: pointer;
     white-space: nowrap;
     transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
@@ -773,7 +783,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     border: 1.5px solid color-mix(in srgb, var(--muted) 55%, transparent);
     color: var(--on-accent);
     transition:
@@ -834,7 +844,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border-radius: var(--r-xs);
+    border-radius: var(--r-sm);
   }
   .name:hover { color: var(--accent); }
   .rename-input {
@@ -844,7 +854,7 @@
     padding: 0 0.4rem;
     margin-left: -0.4rem;
     border: 1px solid var(--accent);
-    border-radius: var(--r-xs);
+    border-radius: var(--r-sm);
     background: var(--input-bg-strong);
     color: var(--text);
     font: inherit;
@@ -854,16 +864,12 @@
   .tag {
     margin-left: 0.5rem;
     padding: 0.05rem 0.4rem;
-    border-radius: var(--r-pill);
+    border-radius: var(--r-xs);
     background: var(--glass-dark);
     font-size: 0.6875rem;
   }
   .tag.public { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  .icon-btn.on { color: var(--accent); }
-  .icon-btn.on:hover { background: var(--glass-dark); border-color: transparent; color: var(--accent); }
-  .actions { display: flex; gap: 0.15rem; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
-  .row:hover .actions, .row:focus-within .actions { opacity: 1; }
-  @media (hover: none) { .actions { opacity: 1; } }
+  .actions { display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0; }
 
   .dropzone {
     width: 100%;
@@ -873,7 +879,7 @@
     gap: 0.5rem;
     padding: 3.5rem 1.5rem;
     border: 1.5px dashed var(--line);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     background: none;
     color: var(--muted);
     font-family: inherit;
@@ -900,7 +906,7 @@
   .drop-card {
     padding: 2.5rem 3.5rem;
     border: 2px dashed var(--accent);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     background: var(--panel);
     color: var(--accent);
     font-family: var(--font-ui);

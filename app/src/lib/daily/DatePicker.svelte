@@ -197,7 +197,7 @@
     color: var(--accent);
     width: 100%;
     padding: 10px 18px;
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     cursor: pointer;
     font-weight: normal;
     font-family: inherit;
@@ -285,7 +285,7 @@
     background: transparent;
     color: var(--accent);
     padding: 8px;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     cursor: pointer;
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
@@ -318,7 +318,7 @@
     padding: 8px;
     font-family: var(--font-ui);
     font-size: 0.8125rem;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   .cal-today:hover {
@@ -331,7 +331,7 @@
     color: var(--muted);
     height: var(--h-sm);
     padding: 0 0.8rem;
-    border-radius: 999px;
+    border-radius: var(--r-sm);
     cursor: pointer;
     font-family: var(--font-ui, inherit);
     font-size: 0.72rem;

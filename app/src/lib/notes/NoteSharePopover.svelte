@@ -64,7 +64,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     padding: 1rem;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     z-index: var(--z-popover);
     width: 320px;
   }
@@ -91,7 +91,7 @@
     border: 1px solid var(--line);
     padding: 0.5rem;
     color: var(--text);
-    border-radius: 4px;
+    border-radius: var(--r-sm);
     font-family: var(--font-mono);
     font-size: 0.8rem;
   }
@@ -107,7 +107,7 @@
     background: var(--accent);
     border: none;
     padding: 0.5rem 1rem;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     color: var(--on-accent);
     font-weight: bold;
     cursor: pointer;
@@ -122,7 +122,7 @@
     background: none;
     border: 1px solid var(--line);
     padding: 0.5rem 1rem;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     color: var(--text);
     cursor: pointer;
     width: 100%;

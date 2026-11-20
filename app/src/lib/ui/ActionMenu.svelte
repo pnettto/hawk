@@ -38,25 +38,36 @@
     return { destroy: () => node.remove() }
   }
 
+  function closeAndRestoreFocus() {
+    onClose()
+    anchor?.focus({ preventScroll: true })
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.preventDefault()
       e.stopPropagation()
-      onClose()
-      anchor?.focus()
+      closeAndRestoreFocus()
+      return
+    }
+    if (e.key === 'Tab') {
+      // Resume the page's tab order from the trigger, not the portalled panel.
+      closeAndRestoreFocus()
       return
     }
     const step = { ArrowDown: 1, ArrowUp: -1 }[e.key]
-    if (!step) return
+    if (!step && e.key !== 'Home' && e.key !== 'End') return
     e.preventDefault()
     const buttons = Array.from(el?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
     const i = buttons.indexOf(document.activeElement as HTMLButtonElement)
-    buttons[(i + step + buttons.length) % buttons.length]?.focus()
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (i + step! + buttons.length) % buttons.length
+    buttons[next]?.focus()
   }
 
   $effect(() => {
     if (el) {
       place()
-      // Keyboard users land on the first item; a pointer click leaves it be.
+      // Opening the menu always puts keyboard navigation on its first item.
       el.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true })
     }
     const onDoc = (e: PointerEvent) => {
@@ -91,13 +102,17 @@
   style:top={pos ? `${pos.top}px` : '-9999px'}
   style:left={pos ? `${pos.left}px` : '-9999px'}
 >
-  {#each items as item (item.label)}
+  {#each items as item, i (item.label)}
+    {#if item.danger && i > 0 && !items[i - 1].danger}
+      <div class="separator" role="separator"></div>
+    {/if}
     <button
       type="button"
       role="menuitem"
       class:danger={item.danger}
       onclick={() => {
-        onClose()
+        // Restore before the action runs so a dialog/editor can claim focus.
+        closeAndRestoreFocus()
         item.onSelect()
       }}
     >
@@ -117,8 +132,11 @@
   .action-menu {
     position: fixed;
     z-index: var(--z-popover);
-    min-width: 11.5rem;
-    max-width: 16rem;
+    min-width: min(11.5rem, calc(100vw - 16px));
+    max-width: min(16rem, calc(100vw - 16px));
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    box-sizing: border-box;
     padding: 0.3rem;
     border: 1px solid var(--line);
     border-radius: var(--r-md);
@@ -136,8 +154,8 @@
     align-items: center;
     gap: 0.55rem;
     width: 100%;
-    min-height: 34px;
-    padding: 0 0.55rem;
+    min-height: 36px;
+    padding: 0.45rem 0.55rem;
     border: 0;
     border-radius: var(--r-sm);
     background: none;
@@ -146,7 +164,7 @@
     font-size: 0.8125rem;
     text-align: left;
     cursor: pointer;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out);
@@ -161,6 +179,10 @@
     width: 14px;
     height: 14px;
     color: var(--muted);
+  }
+  .separator { height: 1px; margin: 0.3rem 0.25rem; background: var(--line); }
+  @media (pointer: coarse) {
+    .action-menu button { min-height: 44px; }
   }
   .action-menu button.danger { color: var(--danger); }
   .action-menu button.danger svg { color: currentColor; }
