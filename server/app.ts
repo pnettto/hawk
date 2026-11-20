@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { auth } from "./middleware/auth.ts";
-import { loginRateLimit, rateLimit } from "./middleware/rateLimit.ts";
+import { loginRateLimit, rateLimit, unlockRateLimit } from "./middleware/rateLimit.ts";
 
 import {
   deleteDayNote,
@@ -45,7 +45,7 @@ import {
   saveNote,
   trashNote,
 } from "./routeHandlers/notes.ts";
-import { authCheck, login, logout } from "./routeHandlers/auth.ts";
+import { authCheck, login, logout, verifyPassword } from "./routeHandlers/auth.ts";
 import {
   getPreferences,
   patchPreferences,
@@ -80,6 +80,7 @@ app.use(
     // sharing the budget with normal API traffic — otherwise a chatty session
     // can drain the general bucket and the user gets 429 on their own login.
     if (path === "/api/login") return await loginRateLimit(c, next);
+    if (path === "/api/verify-password") return await unlockRateLimit(c, next);
     // auth-check and logout are cheap, fire on every page load, and aren't
     // attack-worthy — exempting them avoids the cascade that started this bug.
     if (path === "/api/auth-check" || path === "/api/logout") {
@@ -117,6 +118,7 @@ app.post("/api/day/versions/restore", restoreDayVersion);
 
 // Auth API
 app.post("/api/login", login);
+app.post("/api/verify-password", verifyPassword);
 app.get("/api/logout", logout);
 app.get("/api/auth-check", authCheck);
 

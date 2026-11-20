@@ -59,9 +59,12 @@
     }
     const notes = sortDayNotes(notesByDate[date] ?? []).filter((n) => n.content.trim())
     return notes
-      .map((n) => (notes.length > 1 || n.title ? `### ${n.title || 'Note'}\n\n` : '') + n.content.trim())
+      .map((n) => (notes.length > 1 || n.title ? `### ${n.title || 'Note'}\n\n` : '') + bodyOf(n))
       .join('\n\n')
   }
+
+  // Hidden notes keep their place; the body only shows in the note itself.
+  const bodyOf = (n: Note) => (n.hidden ? '*Hidden note*' : n.content.trim())
 
   let sections = $derived(
     dates

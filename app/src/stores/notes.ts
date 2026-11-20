@@ -442,6 +442,26 @@ function createNotesStore() {
     }
   }
 
+  // Hide toggle: metadata-only, like sharing.
+  async function setHidden(nid: string, hidden: boolean) {
+    const note = find(nid)
+    // Unsaved drafts can't be hidden (the menu doesn't offer it).
+    if (!note || note.local || !!note.hidden === hidden) return
+    patchNote(nid, { hidden })
+    // Keep a list reload from showing the old state while this saves.
+    inFlightOps.add(nid)
+    try {
+      await sessions.get(nid)?.flush()
+      await savingStore.track(notesApi.saveNote({ id: nid, hidden }))
+    } catch (e) {
+      console.error('Failed to update hidden state', e)
+      patchNote(nid, { hidden: !hidden })
+      showError(hidden ? 'Couldn’t hide the note.' : 'Couldn’t unhide the note.')
+    } finally {
+      inFlightOps.delete(nid)
+    }
+  }
+
   // Serialize settled reorders so a quick second drag cannot be saved first.
   let reorderSave = Promise.resolve()
   function reorderDayNotes(day: string, ids: string[]): Promise<void> {
@@ -674,6 +694,7 @@ function createNotesStore() {
     ensureDayDraft,
     setTitle,
     setPublic,
+    setHidden,
     reorderDayNotes,
     sessionFor,
     flushSaves,

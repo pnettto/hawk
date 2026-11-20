@@ -53,3 +53,11 @@ export const loginRateLimit = makeRateLimit({
   windowMs: 15 * 60_000,
   label: "LOGIN_RATE_LIMIT",
 });
+
+// Password checks for revealing hidden notes. Its own bucket so a few unlocks
+// can't use up the login budget, and still bounded against guessing.
+export const unlockRateLimit = makeRateLimit({
+  limit: 20,
+  windowMs: 15 * 60_000,
+  label: "UNLOCK_RATE_LIMIT",
+});

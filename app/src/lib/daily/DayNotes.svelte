@@ -10,6 +10,8 @@
   import ActionMenu from '../ui/ActionMenu.svelte'
   import MoreButton from '../ui/MoreButton.svelte'
   import type { ActionMenuItem } from '../ui/menuItem'
+  import { revealedNote, isConcealed } from '../../stores/hidden'
+  import { hiddenMenuItems, LOCK_ICON } from '../notes/hiddenMenu'
   import type { Note, NoteMetadata } from '../../types/models'
 
   // A day's notes are regular notes with `day` set — the same ones Notepad
@@ -99,17 +101,22 @@
   let barMenuItems: ActionMenuItem[] = $derived.by(() => {
     const items: ActionMenuItem[] = []
     if (!loaded || !notes.length) return items
-    items.push({
-      label: 'Copy note as markdown',
-      icon: COPY_ICON,
-      onSelect: () => void copyNote(),
-    })
     const id = activeId
-    if (id) {
-      items.push({ label: 'Version history', icon: HISTORY_ICON, onSelect: () => (showHistory = true) })
-      if (notes.length > 1) {
-        items.push({ label: 'Delete note', icon: DELETE_ICON, danger: true, onSelect: () => removeNote(id) })
+    const active = notes.find((n) => n.id === id)
+    // A hidden note shows nothing but delete until it's revealed.
+    if (!isConcealed(active, $revealedNote)) {
+      items.push({
+        label: 'Copy note as markdown',
+        icon: COPY_ICON,
+        onSelect: () => void copyNote(),
+      })
+      if (id) {
+        items.push({ label: 'Version history', icon: HISTORY_ICON, onSelect: () => (showHistory = true) })
+        items.push(...hiddenMenuItems(active))
       }
+    }
+    if (id && notes.length > 1) {
+      items.push({ label: 'Delete note', icon: DELETE_ICON, danger: true, onSelect: () => removeNote(id) })
     }
     return items
   })
@@ -302,6 +309,9 @@
             ondblclick={() => startRename(n.id)}
             onkeydown={(e) => onTabKeydown(e, i)}
           >
+            {#if n.hidden}
+              <svg class="tab-lock" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden" role="img">{#each LOCK_ICON as d}<path {d} />{/each}</svg>
+            {/if}
             {label(n, i)}
           </button>
         {/if}
@@ -385,6 +395,7 @@
     margin: -3px;
   }
   .tabs::-webkit-scrollbar { display: none; }
+  .tab-lock { flex-shrink: 0; margin-right: 0.3rem; vertical-align: -1px; }
   .tab {
     flex-shrink: 0;
     height: 28px;

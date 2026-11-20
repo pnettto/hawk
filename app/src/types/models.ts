@@ -8,6 +8,8 @@ export interface NoteMetadata {
   deletedAt?: number;
   preview?: string;
   isPublic?: boolean;
+  // Content concealed until the main password is entered (stores/hidden.ts).
+  hidden?: boolean;
   // #words found in the body.
   tags?: string[];
   // "YYYY-MM-DD" for a day's journal note.

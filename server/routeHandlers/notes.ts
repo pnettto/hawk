@@ -160,9 +160,9 @@ export async function getDayNotes(c: Context) {
   return c.json(notes);
 }
 
-// Body: { id, title?, content?, createdAt?, isPublic?, day?, dayOrder?,
+// Body: { id, title?, content?, createdAt?, isPublic?, hidden?, day?, dayOrder?,
 // baseRev?, snapshot? }. Omitted fields keep their stored value, so a
-// metadata-only save (share toggle) never touches the body. Tags are always
+// metadata-only save (share or hide toggle) never touches the body. Tags are always
 // re-derived from the body.
 export async function saveNote(c: Context) {
   const body = await c.req.json().catch(() => null);
@@ -198,6 +198,8 @@ export async function saveNote(c: Context) {
   };
   const isPublic = typeof body.isPublic === "boolean" ? body.isPublic : existing?.isPublic;
   if (isPublic) note.isPublic = true;
+  const hidden = typeof body.hidden === "boolean" ? body.hidden : existing?.hidden;
+  if (hidden) note.hidden = true;
   if (existing?.deletedAt) note.deletedAt = existing.deletedAt;
   if (existing?.cid) note.cid = existing.cid;
   // A note's day is fixed when it's created.

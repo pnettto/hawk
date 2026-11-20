@@ -27,6 +27,14 @@ export async function login(c: Context) {
   return c.json({ error: "Invalid password" }, 401);
 }
 
+// Checks the main password without starting a session. Used to reveal hidden
+// notes; always 200 so a wrong password isn't read as a lost session.
+export async function verifyPassword(c: Context) {
+  const { password } = await c.req.json().catch(() => ({}));
+  if (typeof password !== "string" || !password) return c.json({ error: "Missing password" }, 400);
+  return c.json({ ok: await isValidPassword(password) });
+}
+
 export function logout(c: Context) {
   setCookie(c, "hawk_token", "", {
     path: "/",

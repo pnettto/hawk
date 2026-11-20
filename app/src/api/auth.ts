@@ -1,4 +1,4 @@
-import { api, apiOrigin, getToken, removeToken, saveToken } from './client'
+import { api, ApiError, apiOrigin, getToken, removeToken, saveToken } from './client'
 
 export type LoginFailReason = 'invalid' | 'rate_limited' | 'network'
 
@@ -40,5 +40,19 @@ export async function authCheck(): Promise<boolean> {
     return res.authenticated === true
   } catch {
     return false
+  }
+}
+
+// Checks the main password without starting a new session (reveals hidden
+// notes). Goes through the API client, so guest mode answers locally.
+export async function verifyPassword(password: string): Promise<'ok' | LoginFailReason> {
+  try {
+    const res = await api.post<{ ok?: boolean }>('/api/verify-password', { password })
+    return res.ok === true ? 'ok' : 'invalid'
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 429) return 'rate_limited'
+    if (e instanceof ApiError && e.status === 400) return 'invalid'
+    console.error('Password check failed:', e)
+    return 'network'
   }
 }

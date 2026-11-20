@@ -24,6 +24,9 @@ export interface NoteMetadata {
   deletedAt?: number;
   preview?: string;
   isPublic?: boolean;
+  // Content concealed in the UI until the main password is entered. Only a
+  // privacy screen: the note is stored and served like any other.
+  hidden?: boolean;
   tags: string[];
   // "YYYY-MM-DD" for day notes.
   day?: string;
@@ -80,6 +83,7 @@ export function metaOf(note: StoredNote): NoteMetadata {
   };
   if (note.deletedAt) meta.deletedAt = note.deletedAt;
   if (note.isPublic) meta.isPublic = true;
+  if (note.hidden) meta.hidden = true;
   if (note.day) meta.day = note.day;
   if (typeof note.dayOrder === "number") meta.dayOrder = note.dayOrder;
   return meta;

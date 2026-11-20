@@ -1,14 +1,17 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
+  import { onDestroy, untrack } from 'svelte'
   import { notesStore, tagCounts, dayLabel } from '../../stores/notes'
   import { appStore } from '../../stores/app'
   import { authStore } from '../../stores/auth'
+  import { revealedNote, reveal, conceal, isConcealed } from '../../stores/hidden'
+  import { verifyPassword } from '../../api/auth'
   import { showError, showToast } from '../../stores/toast'
   import NoteSharePopover from './NoteSharePopover.svelte'
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import ActionMenu from '../ui/ActionMenu.svelte'
   import MoreButton from '../ui/MoreButton.svelte'
   import type { ActionMenuItem } from '../ui/menuItem'
+  import { hiddenMenuItems, LOCK_ICON } from './hiddenMenu'
   import RichEditor from '../editor/RichEditor.svelte'
   import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
   import type { Note } from '../../types/models'
@@ -130,9 +133,53 @@
     if (!inside) showSharePopover = false
   }
 
+  // A hidden note's body, history and copy action wait for the password.
+  let concealed = $derived(isConcealed(note, $revealedNote))
+  let password = $state('')
+  let unlockError = $state('')
+  let checking = $state(false)
+
+  async function unlock(e: SubmitEvent) {
+    e.preventDefault()
+    if (!password || checking) return
+    const id = nid
+    checking = true
+    const res = await verifyPassword(password)
+    checking = false
+    password = ''
+    if (id !== nid) return
+    if (res === 'ok') {
+      unlockError = ''
+      reveal(id)
+    } else {
+      unlockError =
+        res === 'rate_limited' ? 'Too many attempts. Try again in a few minutes.'
+        : res === 'network' ? 'Couldn’t check the password.'
+        : 'Wrong password'
+    }
+  }
+
+  // Leaving a revealed note conceals it again. Compare ids rather than rely
+  // on effect cleanup: Notepad passes `nid` straight from the notes store, so
+  // this effect also re-runs on unrelated store updates.
+  let shownNid = untrack(() => nid)
+  $effect(() => {
+    const id = nid
+    if (id === shownNid) return
+    conceal(shownNid)
+    shownNid = id
+    password = ''
+    unlockError = ''
+  })
+
   let menuItems: ActionMenuItem[] = $derived([
-    { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
-    { label: 'Version history', icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'], onSelect: () => (showHistoryPopover = true) },
+    ...(concealed
+      ? []
+      : [
+          { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
+          { label: 'Version history', icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'], onSelect: () => (showHistoryPopover = true) },
+          ...hiddenMenuItems(note),
+        ]),
     ...(onDelete ? [{ label: 'Delete note', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: onDelete }] : []),
   ])
 
@@ -197,6 +244,7 @@
   })
 
   onDestroy(() => {
+    conceal(shownNid)
     teardownTriggers?.()
     teardownTriggers = null
   })
@@ -278,6 +326,20 @@
           {/if}
         </div>
       {/if}
+      {#if note.hidden && !concealed}
+        <button
+          type="button"
+          class="icon-btn lock-button"
+          class:ghost={variant === 'day'}
+          title="Lock note"
+          aria-label="Lock note"
+          onclick={() => conceal(nid)}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            {#each LOCK_ICON as d}<path {d} />{/each}
+          </svg>
+        </button>
+      {/if}
       <button
         type="button"
         class="icon-btn full-screen-button"
@@ -307,7 +369,25 @@
   </div>
   {/if}
 
-  {#if !session}
+  {#if concealed}
+    <form class="hidden-body" onsubmit={unlock}>
+      <div class="unlock-row">
+        <input
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          aria-label="Password"
+          aria-invalid={unlockError ? 'true' : undefined}
+          aria-describedby={unlockError ? `unlock-error-${nid}` : undefined}
+          bind:value={password}
+        />
+        <button type="submit" class="btn-secondary" disabled={!password || checking}>Show</button>
+      </div>
+      {#if unlockError}
+        <p id="unlock-error-{nid}" class="unlock-error" role="alert">{unlockError}</p>
+      {/if}
+    </form>
+  {:else if !session}
     <div class="editor-loading" aria-busy="true">
       <span class="skeleton-line" style:width="72%"></span>
       <span class="skeleton-line" style:width="88%"></span>
@@ -354,9 +434,11 @@
   }
   .reading .mobile-back { display: none !important; }
   .icon-btn.full-screen-button,
+  .icon-btn.lock-button,
   .icon-btn.share-toggle { width: 32px; height: 32px; }
   @media (pointer: coarse) {
     .icon-btn.full-screen-button,
+    .icon-btn.lock-button,
     .icon-btn.share-toggle { width: 40px; height: 40px; }
     .page .day-chip { height: 40px; }
   }
@@ -454,6 +536,32 @@
 
   .share-wrap { position: relative; }
   .share-toggle.active { color: var(--accent); border-color: var(--accent); }
+  .hidden-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 3rem 1rem;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+  }
+  .page:not(.reading) > .hidden-body { margin: 0 1.5rem 1.5rem; }
+  .day > .hidden-body { padding: 2rem 1rem; }
+  .unlock-row { display: flex; gap: 0.5rem; width: min(300px, 100%); }
+  .unlock-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--input-bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.875rem;
+  }
+  .unlock-row input:focus { border-color: var(--accent); outline: none; }
+  .unlock-error { margin: 0; color: var(--danger); font-size: 0.8125rem; }
   .editor-loading {
     display: flex;
     flex-direction: column;

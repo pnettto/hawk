@@ -4,6 +4,7 @@
   import { notesStore, isDayDraft, noteLabel, dayLabel } from '../../stores/notes'
   import { formatDate } from '../../utils/date'
   import NotesFilter from './NotesFilter.svelte'
+  import { revealedNote, isConcealed } from '../../stores/hidden'
   import type { NoteMetadata } from '../../types/models'
   import {
     relativeTime,
@@ -189,10 +190,13 @@
           <div class="row trash-row">
             <div class="row-body">
               <div class="row-title">{noteLabel(n)}</div>
-              {#if n.preview}
+              {#if isConcealed(n, $revealedNote)}
+                <div class="row-preview muted">Hidden note</div>
+              {:else if n.preview}
                 <div class="row-preview">{n.preview}</div>
               {/if}
               <div class="row-meta">
+                {#if n.hidden}<svg class="lock-icon" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden" role="img"><path d="M4.5 7.5h7a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" /><path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2" /></svg>{/if}
                 <span>{relativeTime(n.deletedAt ?? n.updatedAt)}</span>
                 {#if n.day}
                   <span class="meta-dot" aria-hidden="true">·</span>
@@ -255,12 +259,15 @@
               {/if}
               <div class="row-body">
                 <div class="row-title">{noteLabel(n)}</div>
-                {#if n.preview}
+                {#if isConcealed(n, $revealedNote)}
+                  <div class="row-preview muted">Hidden note</div>
+                {:else if n.preview}
                   <div class="row-preview">{n.preview}</div>
                 {:else}
                   <div class="row-preview muted">No content yet</div>
                 {/if}
                 <div class="row-meta">
+                  {#if n.hidden}<svg class="lock-icon" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden" role="img"><path d="M4.5 7.5h7a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" /><path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2" /></svg>{/if}
                   {#if n.day && n.title.trim() && $notesStore.filter.kind !== 'day'}
                     <span class="row-tag day">{dayLabel(n.day)}</span>
                   {:else}
@@ -440,6 +447,7 @@
     line-height: 1.35;
   }
   .row-preview.muted { opacity: 0.5; font-style: italic; }
+  .row-meta .lock-icon { flex-shrink: 0; }
   .row-meta {
     display: flex;
     align-items: center;

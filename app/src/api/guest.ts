@@ -60,6 +60,8 @@ function handle(method: string, path: string, body: Record<string, unknown> = {}
   const p = url.pathname
 
   if (p === '/api/auth-check') return { authenticated: true }
+  // The demo has no password: any entry reveals hidden notes.
+  if (p === '/api/verify-password') return { ok: typeof body.password === 'string' && body.password !== '' }
 
   // ---- Days
   if (p === '/api/day' && method === 'GET') return data.days[q('date')] ?? { tasks: [] }
@@ -157,6 +159,10 @@ function saveNote(data: GuestData, body: Record<string, unknown>) {
   if (!prev && typeof body.day === 'string') note.day = body.day
   if (note.day && typeof body.dayOrder === 'number') note.dayOrder = body.dayOrder
   if (typeof body.isPublic === 'boolean') note.isPublic = body.isPublic
+  if (typeof body.hidden === 'boolean') {
+    if (body.hidden) note.hidden = true
+    else delete note.hidden
+  }
   delete note.preview
   data.notes[id] = note
   persist()
