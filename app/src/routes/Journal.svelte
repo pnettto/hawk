@@ -25,62 +25,83 @@
 
 <svelte:window onkeydown={onKey} />
 
-<header class="app-header">
-  <div class="header-left">
-    {#if $appStore.journalTab === 'overview'}
-      <div class="range">
-        <DatePicker
-          value={$appStore.overviewStart}
-          onSelect={(d) => appStore.setOverviewRange(d, $appStore.overviewEnd)}
-          hideArrows
-        />
-        <span class="range-sep" aria-hidden="true">→</span>
-        <DatePicker
-          value={$appStore.overviewEnd}
-          onSelect={(d) => appStore.setOverviewRange($appStore.overviewStart, d)}
-          hideArrows
-        />
-      </div>
+<div class="journal-workspace">
+  <header class="app-header">
+    <div class="header-left">
+      {#if $appStore.journalTab === 'overview'}
+        <div class="range">
+          <DatePicker
+            value={$appStore.overviewStart}
+            onSelect={(d) => appStore.setOverviewRange(d, $appStore.overviewEnd)}
+            hideArrows
+          />
+          <span class="range-sep" aria-hidden="true">→</span>
+          <DatePicker
+            value={$appStore.overviewEnd}
+            onSelect={(d) => appStore.setOverviewRange($appStore.overviewStart, d)}
+            hideArrows
+          />
+        </div>
+      {:else}
+        <DatePicker />
+      {/if}
+    </div>
+    <div class="journal-tabs" role="tablist" aria-label="Journal">
+      {#each [['notes', 'Day Notes'], ['tasks', 'Tasks'], ['overview', 'Overview']] as [id, label] (id)}
+        <button
+          role="tab"
+          aria-selected={$appStore.journalTab === id}
+          class:active={$appStore.journalTab === id}
+          onclick={() => appStore.setJournalTab(id as 'notes' | 'tasks' | 'overview')}>{label}</button
+        >
+      {/each}
+    </div>
+  </header>
+
+  <div class="journal-body">
+    {#if $appStore.journalTab === 'tasks'}
+      <DayTasks />
+    {:else if $appStore.journalTab === 'overview'}
+      <Overview />
     {:else}
-      <DatePicker />
+      <DayNotes />
     {/if}
   </div>
-  <div class="journal-tabs" role="tablist" aria-label="Journal">
-    {#each [['notes', 'Day Notes'], ['tasks', 'Tasks'], ['overview', 'Overview']] as [id, label] (id)}
-      <button
-        role="tab"
-        aria-selected={$appStore.journalTab === id}
-        class:active={$appStore.journalTab === id}
-        onclick={() => appStore.setJournalTab(id as 'notes' | 'tasks' | 'overview')}>{label}</button
-      >
-    {/each}
-  </div>
-</header>
-
-{#if $appStore.journalTab === 'tasks'}
-  <DayTasks />
-{:else if $appStore.journalTab === 'overview'}
-  <Overview />
-{:else}
-  <DayNotes />
-{/if}
+</div>
 
 <style>
+  .journal-workspace {
+    min-width: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-md);
+    background: var(--bg);
+  }
   .app-header {
-    margin-bottom: 2rem;
     display: flex;
-    flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: 0.75rem;
+    min-height: var(--workspace-header-height);
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    background: var(--surface-subtle);
     border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+  .journal-body {
+    min-width: 0;
+    min-height: 24rem;
+    padding: 1.5rem;
   }
   @media (max-width: 600px) {
     .app-header {
       flex-direction: column;
       align-items: flex-start;
-      gap: 1rem;
+      gap: 0.5rem;
+      padding: 0.75rem;
+    }
+    .journal-body {
+      padding: 1rem 0.75rem;
     }
   }
   .header-left {
@@ -93,7 +114,6 @@
     align-items: center;
     gap: 0.25rem;
     flex-wrap: wrap;
-    margin-left: -18px;
   }
   .range-sep {
     color: var(--muted);

@@ -156,7 +156,7 @@ thead th {
     border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-subtle));
     border-radius: var(--r-xs);
     background: color-mix(in srgb, var(--accent) 7%, transparent);
-    color: color-mix(in srgb, var(--accent) 65%, var(--text));
+    color: var(--accent);
     font-family: var(--font-ui);
     font-size: var(--tag-font-size, 0.8125em);
     font-weight: 500;

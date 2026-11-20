@@ -183,7 +183,7 @@
     border: none;
     border-radius: var(--r-sm);
     background: none;
-    color: var(--text);
+    color: var(--accent);
     cursor: pointer;
     font-family: inherit;
     transition: background-color var(--dur-fast) var(--ease-out);
@@ -203,7 +203,7 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
-  .caret { align-self: center; color: var(--muted); flex-shrink: 0; }
+  .caret { align-self: center; flex-shrink: 0; }
 
   .menu {
     position: absolute;

@@ -309,7 +309,7 @@
   .icon-btn {
     background: none;
     border: 1px solid var(--line);
-    color: var(--muted);
+    color: var(--accent);
     cursor: pointer;
     width: 32px;
     height: 32px;
@@ -326,16 +326,19 @@
       border-color var(--dur-fast) var(--ease-out);
   }
   .icon-btn:hover {
-    background: var(--glass);
-    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
     border-color: var(--accent);
   }
   .icon-btn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
-  .icon-btn.primary { color: var(--text); }
-  .selection-toggle.active { color: var(--accent); border-color: var(--accent); background: var(--glass-dark); }
+  .icon-btn.primary {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+  }
+  .icon-btn.primary:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
+  .selection-toggle.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
   @media (pointer: coarse) {
     .icon-btn { width: 40px; height: 40px; }
   }
@@ -393,8 +396,13 @@
   }
   .row:hover { background: var(--glass-dark); }
   .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .row.active {
-    background: var(--glass);
+  .row.active,
+  .row.picked {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .row.active:hover,
+  .row.picked:hover {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
   .row.active::before {
     content: '';
@@ -450,7 +458,19 @@
     white-space: nowrap;
   }
   .row-tag.day { color: var(--accent); }
-  .tag-link { --tag-font-size: 0.6875rem; flex-shrink: 0; white-space: nowrap; }
+  .tag-link {
+    --tag-font-size: 0.6875rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+  }
+  .tag-link:hover {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border-subtle));
+  }
+  .tag-link:active { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 
   .row-actions { display: flex; gap: 2px; align-items: flex-start; }
   .row-action {
@@ -469,7 +489,6 @@
   }
   .row-action:hover { color: var(--text); background: var(--glass); }
   .row-action.danger:hover { color: var(--danger); background: var(--danger-bg); }
-  .row.picked { background: var(--glass); }
   .selecting .row { user-select: none; }
   .check {
     flex-shrink: 0;
@@ -484,7 +503,7 @@
     color: var(--text);
     transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   }
-  .row.picked .check { background: var(--accent); border-color: var(--accent); }
+  .row.picked .check { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .check svg { width: 12px; height: 12px; display: block; }
 
   .trash-row { font-style: normal; }
