@@ -217,9 +217,9 @@
     gap: 0.75rem;
   }
   .ext {
-    border: 1px solid var(--line);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
-    background: var(--panel);
+    background: var(--surface-subtle);
     transition: border-color var(--dur-fast) var(--ease-out);
   }
   .ext.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
@@ -288,7 +288,7 @@
     display: flex;
     flex-direction: column;
     margin: 0 1rem;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--border-subtle);
   }
   .setting {
     display: flex;

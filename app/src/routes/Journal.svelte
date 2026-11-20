@@ -73,7 +73,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1.5rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--border-subtle);
     padding-bottom: 0.5rem;
   }
   @media (max-width: 600px) {

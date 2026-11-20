@@ -52,14 +52,16 @@
     flex: 1;
     min-height: 0;
     height: 100%;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-md);
+    background: var(--bg);
+    overflow: hidden;
   }
   .editor-main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    /* Left room for the editor's "+" gutter button. */
-    padding: 1rem 1.5rem 1rem 3.5rem;
-    max-width: 960px;
+    padding: 0;
     min-width: 0;
     overflow-y: auto;
   }
@@ -79,8 +81,7 @@
       flex-direction: column;
     }
     .editor-main {
-      padding: 0.75rem 1rem 1rem;
-      max-width: none;
+      padding: 0;
     }
     /* Master-detail navigation on mobile: when a note is selected, hide the
        notes column so the editor takes the full content area. */

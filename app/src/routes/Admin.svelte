@@ -36,7 +36,7 @@
   .section-head {
     margin-bottom: 1.25rem;
     padding-bottom: 0.85rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--border-subtle);
   }
   .section-head h2 {
     font-size: 0.7rem;

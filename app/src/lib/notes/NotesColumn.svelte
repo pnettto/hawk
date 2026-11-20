@@ -281,9 +281,8 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--line);
-    border-right: 1px solid var(--line);
-    background: var(--glass-dark);
+    border-right: 1px solid var(--border-subtle);
+    background: var(--surface-subtle);
     min-height: 0;
     font-family: var(--font-ui, inherit);
   }
@@ -291,8 +290,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1rem 0.75rem;
-    border-bottom: 1px solid var(--line);
+    min-height: var(--workspace-header-height);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
     gap: 0.75rem;
   }
   .col-actions { display: flex; gap: 0.4rem; align-items: center; min-height: 32px; }

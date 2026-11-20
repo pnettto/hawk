@@ -359,15 +359,24 @@
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
-  /* Keep the title and its actions on the same measure as the note body,
-     rather than stretching the toolbar into the empty editor-pane gutter. */
-  .page .editor-header {
+  /* A shared header edge makes the list and editor one workspace. Reading
+     mode remains a separate, centred document rather than a framed pane. */
+  .page:not(.reading) .editor-header {
     width: 100%;
-    max-width: var(--note-content-width);
+    min-height: var(--workspace-header-height);
+    max-width: none;
+    padding: 0.75rem 1.5rem;
     gap: 0.75rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
   }
-  .page .note-title { font-size: 2rem; line-height: 1.25; }
+  .page:not(.reading) .note-title { font-size: 1.25rem; line-height: 1.4; }
+  .page:not(.reading) > :global(.rich-editor),
+  .page:not(.reading) > .editor-loading {
+    /* Preserve space for the editor's block-insertion gutter. */
+    margin: 0 1.5rem 1.5rem 3rem;
+  }
+  .page.reading .note-title { font-size: 2rem; line-height: 1.25; }
   .day .editor-header { gap: 0.6rem; margin-bottom: 0.5rem; }
   .mobile-back {
     display: none;
@@ -447,11 +456,14 @@
   }
   @media (max-width: 900px) {
     .mobile-back { display: inline-flex; }
-    .page .editor-header { gap: 0.5rem; margin-bottom: 1rem; }
+    .page:not(.reading) .editor-header { gap: 0.5rem; padding-inline: 1rem; }
+    .page:not(.reading) > :global(.rich-editor),
+    .page:not(.reading) > .editor-loading { margin-inline: 2.5rem 1rem; }
   }
   @media (max-width: 600px) {
     /* Title gets its own full-width line under the controls. */
     .page .editor-header { flex-wrap: wrap; row-gap: 0.75rem; }
+    .page:not(.reading) .note-title { font-size: 1.5rem; }
     .page .note-title { order: 3; flex-basis: 100%; font-size: 1.8rem; }
     .page .header-actions { margin-left: auto; }
     .day-chip span { display: none; }

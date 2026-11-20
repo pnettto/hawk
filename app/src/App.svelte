@@ -254,7 +254,7 @@
   }
   .container.wide {
     max-width: 1400px;
-    padding: 2rem 1rem 0;
+    padding: 2rem 1rem 1rem;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
@@ -267,7 +267,7 @@
   }
   @media (max-width: 600px) {
     .container { padding: 1rem; }
-    .container.wide { padding: 1rem 0.5rem 0; }
+    .container.wide { padding: 1rem 0.5rem 0.5rem; }
     nav { margin-bottom: 1rem; }
   }
   .page-content {
@@ -281,7 +281,7 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     font-family: var(--font-ui, inherit);
   }
   .nav-logo-btn {

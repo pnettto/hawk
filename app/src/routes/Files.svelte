@@ -631,7 +631,7 @@
     flex-wrap: wrap;
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--border-subtle);
   }
   .title { display: flex; align-items: baseline; gap: 0.75rem; }
   h1 { margin: 0; font-family: var(--font-content); font-size: 1.5rem; font-weight: 700; }
@@ -941,7 +941,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.5rem 0.5rem 1rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-ui);
   }
   .lb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }

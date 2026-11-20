@@ -56,8 +56,8 @@
     flex-direction: column;
     gap: 0.6rem;
     padding: 0.5rem;
-    background: var(--panel);
-    border: 1px solid var(--line);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
     cursor: pointer;
     color: var(--text);
