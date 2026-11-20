@@ -2,6 +2,7 @@
   import { onDestroy, untrack } from 'svelte'
   import { notesStore, tagCounts, dayLabel } from '../../stores/notes'
   import { appStore } from '../../stores/app'
+  import { closeNote, linkTo } from '../../router/sync'
   import { authStore } from '../../stores/auth'
   import { revealedNote, reveal, conceal, isConcealed } from '../../stores/hidden'
   import { verifyPassword } from '../../api/auth'
@@ -10,7 +11,7 @@
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import ActionMenu from '../ui/ActionMenu.svelte'
   import MoreButton from '../ui/MoreButton.svelte'
-  import type { ActionMenuItem } from '../ui/menuItem'
+  import { LINK_ICON, type ActionMenuItem } from '../ui/menuItem'
   import { hiddenMenuItems, LOCK_ICON } from './hiddenMenu'
   import RichEditor from '../editor/RichEditor.svelte'
   import { bindSnapshotTriggers } from '../../utils/snapshotTriggers'
@@ -185,6 +186,7 @@
     ...(concealed
       ? []
       : [
+          { label: 'Copy link', icon: LINK_ICON, onSelect: () => void copyLink() },
           { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
           { label: 'Version history', icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'], onSelect: () => (showHistoryPopover = true) },
           ...hiddenMenuItems(note),
@@ -199,6 +201,18 @@
     showHistoryPopover = false
     showSharePopover = false
   })
+
+  // Opens the note in Hawk (login required). Public sharing has its own
+  // "Copy public link".
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(linkTo({ page: 'notes', nid }))
+      showToast('Link copied')
+    } catch (e) {
+      console.error('Failed to copy', e)
+      showError('Couldn’t copy to the clipboard.')
+    }
+  }
 
   async function copyNote() {
     await notesStore.loadBody(nid)
@@ -278,7 +292,7 @@
         type="button"
         class="mobile-back"
         aria-label="Back to notes"
-        onclick={() => notesStore.clearSelectedNote()}
+        onclick={closeNote}
       >
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8H3.5M7.5 4L3.5 8l4 4" /></svg>
       </button>

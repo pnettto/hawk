@@ -335,10 +335,12 @@ function createNotesStore() {
     return session
   }
 
-  function setFilter(filter: NotesFilter) {
+  // `remember: false` is for links: they show a view without making it the
+  // default for next time.
+  function setFilter(filter: NotesFilter, { remember = true }: { remember?: boolean } = {}) {
     const prev = get({ subscribe }).selectedNid
     if (prev) void sessions.get(prev)?.flush()
-    writeFilter(filter)
+    if (remember) writeFilter(filter)
     update((s) => ({ ...s, filter, selectedNid: null }))
   }
 

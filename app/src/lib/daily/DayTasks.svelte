@@ -10,7 +10,9 @@
   import HistoryPopover from '../ui/HistoryPopover.svelte'
   import ActionMenu from '../ui/ActionMenu.svelte'
   import MoreButton from '../ui/MoreButton.svelte'
-  import type { ActionMenuItem } from '../ui/menuItem'
+  import { LINK_ICON, type ActionMenuItem } from '../ui/menuItem'
+  import { linkTo } from '../../router/sync'
+  import { showError, showToast } from '../../stores/toast'
   import TimePicker from '../ui/TimePicker.svelte'
   import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
   import { preferencesStore } from '../../stores/preferences'
@@ -651,6 +653,11 @@
       })
     }
     items.push({
+      label: 'Copy link',
+      icon: LINK_ICON,
+      onSelect: () => void copyLink(task.id),
+    })
+    items.push({
       label: 'Delete task',
       icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5',
       danger: true,
@@ -691,11 +698,45 @@
 
   let showHistory = $state(false)
   let toolbarMenuOpen = $state(false)
-  const toolbarMenuItems: ActionMenuItem[] = [{
-    label: 'Version history',
-    icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'],
-    onSelect: () => (showHistory = true),
-  }]
+  const toolbarMenuItems: ActionMenuItem[] = [
+    { label: 'Copy link', icon: LINK_ICON, onSelect: () => void copyLink() },
+    {
+      label: 'Version history',
+      icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'],
+      onSelect: () => (showHistory = true),
+    },
+  ]
+
+  // Links to this day, or to one task on it (opens it and flashes the row).
+  async function copyLink(taskId?: string) {
+    try {
+      await navigator.clipboard.writeText(linkTo({ page: 'journal', date: dateStr, tab: 'tasks', task: taskId }))
+      showToast('Link copied')
+    } catch (e) {
+      console.error('Failed to copy', e)
+      showError('Couldn’t copy to the clipboard.')
+    }
+  }
+
+  // A deep link to a task: scroll it into view and flash it once its day has
+  // loaded. A task that isn't there is skipped quietly.
+  let flashId = $state<string | null>(null)
+  let flashTimer: ReturnType<typeof setTimeout> | undefined
+  $effect(() => {
+    const id = $appStore.highlightTaskId
+    if (!id || !loaded) return
+    const found = tasks.some((t) => t.id === id)
+    appStore.setHighlightTask(null)
+    if (!found) return
+    void tick().then(() => {
+      const el = listEl?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
+      if (!el) return
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      flashId = id
+      clearTimeout(flashTimer)
+      flashTimer = setTimeout(() => (flashId = null), 1600)
+    })
+  })
   let historyAnchorEl = $state<HTMLButtonElement | null>(null)
   let rootEl = $state<HTMLElement | null>(null)
 
@@ -716,6 +757,7 @@
 
   onDestroy(() => {
     clearInterval(ticker)
+    clearTimeout(flashTimer)
     stopAutoScroll()
     void logsStore.flushTasks(dateStr)
   })
@@ -813,6 +855,7 @@
           class:sub={!row.now && !row.addRow && row.depth > 0}
           class:has-comment={!row.now && !row.addRow && !!task.comment}
           class:dragging={!row.now && !row.addRow && dragId === task.id}
+          class:flash={!row.now && !row.addRow && flashId === task.id}
           class:following={!row.now && !row.addRow && isDraggedBlockRow(task.id)}
           data-task-id={row.now || row.addRow ? undefined : task.id}
           style:transform={!row.now && !row.addRow && shift ? `translateY(${shift}px)` : undefined}
@@ -1106,6 +1149,11 @@
   }
   .task:hover,
   .task:focus-within { background: var(--glass-dark); }
+  .task.flash { animation: taskFlash 1.6s var(--ease-out); }
+  @keyframes taskFlash {
+    0%, 30% { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+    100% { background: transparent; }
+  }
   .task.header .text { font-weight: 500; }
   .group-mark {
     flex-shrink: 0;

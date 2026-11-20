@@ -10,6 +10,7 @@
   import { syncStore } from './stores/sync'
   import { formatDate } from './utils/date'
   import { hasUnsavedWork } from './stores/saving'
+  import { startRouter } from './router/sync'
   import Auth from './lib/auth/Auth.svelte'
   import Toast from './lib/ui/Toast.svelte'
   import ZenMode from './lib/ui/ZenMode.svelte'
@@ -52,6 +53,8 @@
   })
 
   onMount(() => {
+    // Read the URL first, so the linked page is the one warmed and shown.
+    startRouter()
     authStore.checkSession()
     // Warm the initial route's chunk while the session check runs.
     void routeLoaders[get(appStore).currentPage as PageId]()

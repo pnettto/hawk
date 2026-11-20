@@ -12,6 +12,8 @@ interface AppState {
   // Overview range lives here (not in the route) so it survives navigation.
   overviewStart: Date
   overviewEnd: Date
+  // A task to scroll to and flash once, set by a deep link. DayTasks clears it.
+  highlightTaskId: string | null
 }
 
 const JOURNAL_TAB_KEY = 'hawk_journal_tab'
@@ -35,6 +37,7 @@ function createAppStore() {
       return d
     })(),
     overviewEnd: new Date(),
+    highlightTaskId: null,
   })
 
   return {
@@ -42,15 +45,20 @@ function createAppStore() {
     set,
     setSelectedDate: (date: Date) => update((s) => ({ ...s, selectedDate: date })),
     setCurrentPage: (page: Page) => update((s) => ({ ...s, currentPage: page })),
-    setJournalTab: (tab: JournalTab) =>
+    // `remember: false` is for links: they open a tab without making it the
+    // default for next time.
+    setJournalTab: (tab: JournalTab, { remember = true }: { remember?: boolean } = {}) =>
       update((s) => {
-        try {
-          localStorage.setItem(JOURNAL_TAB_KEY, tab)
-        } catch {
-          // ignore — private mode / quota
+        if (remember) {
+          try {
+            localStorage.setItem(JOURNAL_TAB_KEY, tab)
+          } catch {
+            // ignore — private mode / quota
+          }
         }
         return { ...s, journalTab: tab }
       }),
+    setHighlightTask: (id: string | null) => update((s) => ({ ...s, highlightTaskId: id })),
     setOverviewTab: (tab: OverviewTab) => update((s) => ({ ...s, overviewTab: tab })),
     // Keeps start ≤ end by swapping when the user picks them out of order.
     setOverviewRange: (start: Date, end: Date) =>

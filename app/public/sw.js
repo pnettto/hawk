@@ -36,7 +36,10 @@ self.addEventListener('notificationclick', (event) => {
 
       // No tab yet: open one. The query string tells the app to resume as it
       // boots, since a message to a freshly opened window can be missed.
-      await self.clients.openWindow(action === 'open' ? '/' : '/?pomodoro=resume')
+      // The day's Tasks tab is where the timer lives.
+      const d = new Date()
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      await self.clients.openWindow(action === 'open' ? `/journal/${day}` : `/journal/${day}?pomodoro=resume`)
     })(),
   )
 })
