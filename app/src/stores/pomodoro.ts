@@ -804,6 +804,12 @@ function createPomodoroStore() {
         completed: state.completed,
       })
     },
+    // Follow a task that moved to another day, keeping the clock as it is.
+    retarget(dateStr: string, id: string) {
+      const state = current()
+      if (state.dateStr === dateStr && state.taskId === id) return
+      commit({ ...state, dateStr, taskId: id })
+    },
     // Bring a parked phase (auto-start off) back to life, from the
     // notification's action or its click.
     resume() {
@@ -816,6 +822,14 @@ function createPomodoroStore() {
 }
 
 export const pomodoroStore = createPomodoroStore()
+
+// A task moved to another day keeps its id, so the timer just follows it.
+logsStore.onTasksMoved?.(({ from, to, ids }) => {
+  const state = get(pomodoroStore)
+  if (state.taskId && state.dateStr === from && ids.includes(state.taskId)) {
+    pomodoroStore.retarget(to, state.taskId)
+  }
+})
 
 // A notification click lands here. The "start" action only starts the block
 // that was waiting, leaving the app where it is; clicking the body brings you

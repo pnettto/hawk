@@ -39,3 +39,17 @@ export const restoreDayVersion = (dateStr: string, savedAt: number) =>
   api.post<{ success: boolean; tasks?: Task[] }>(
     `/api/day/versions/restore?${historyQuery(dateStr, { savedAt: String(savedAt) })}`,
   )
+
+// Move tasks (and their subtasks) to another day in one atomic write. Ids are
+// kept; `moved` lists them as they ended up (a clash on the target gets a new
+// id). `orders` pins top-level orders, for undo.
+export const moveTasks = (
+  from: string,
+  to: string,
+  ids: string[],
+  orders?: Record<string, number>,
+) =>
+  api.post<{ from: { tasks: Task[] }; to: { tasks: Task[] }; moved: string[] }>(
+    '/api/day/tasks/move',
+    { from, to, ids, orders },
+  )

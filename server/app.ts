@@ -12,6 +12,7 @@ import {
   getDayVersion,
   getRangeLog,
   listDayVersions,
+  moveDayTasks,
   patchDayTasks,
   restoreDayVersion,
   saveDayNote,
@@ -109,6 +110,7 @@ app.get("/api/day", getDayLog);
 app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
 app.post("/api/day/tasks", patchDayTasks);
+app.post("/api/day/tasks/move", moveDayTasks);
 app.post("/api/day/notes", saveDayNote);
 app.delete("/api/day/notes", deleteDayNote);
 

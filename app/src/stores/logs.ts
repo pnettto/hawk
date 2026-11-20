@@ -3,7 +3,8 @@ import * as logsApi from '../api/logs'
 import { savingStore } from './saving'
 import { showError, showToast } from './toast'
 import type { DayLog, LogsByDate, Task } from '../types/models'
-import { formatDate } from '../utils/date'
+import { formatDate, prettyDisplay } from '../utils/date'
+import { moveTasksBetween, withDescendantIds } from '../lib/daily/moveTasks'
 import type { SyncEvent } from './sync'
 
 interface LogsState {
@@ -221,29 +222,14 @@ function createLogsStore() {
     return task
   }
 
-  // Removing a task also removes its subtasks.
-  function withDescendants(tasks: Task[], id: string): Task[] {
-    const ids = new Set([id])
-    let grew = true
-    while (grew) {
-      grew = false
-      for (const t of tasks) {
-        if (t.parentId && ids.has(t.parentId) && !ids.has(t.id)) {
-          ids.add(t.id)
-          grew = true
-        }
-      }
-    }
-    return tasks.filter((t) => ids.has(t.id))
-  }
-
-  // `quiet` skips the undo toast, for a task the user only just started.
-  function removeTask(dateStr: string, id: string, opts: { quiet?: boolean } = {}) {
+  // Removing a task also removes its subtasks. `quiet` skips the undo toast,
+  // for a task the user only just started.
+  function removeTasks(dateStr: string, ids: string[], opts: { quiet?: boolean } = {}) {
     const all = dayOf(dateStr).tasks
-    const task = all.find((t) => t.id === id)
-    if (!task) return
-    const removed = withDescendants(all, id)
-    const removedIds = new Set(removed.map((t) => t.id))
+    const removedIds = withDescendantIds(all, ids)
+    if (!removedIds.size) return
+    const removed = all.filter((t) => removedIds.has(t.id))
+    const roots = removed.filter((t) => !t.parentId || !removedIds.has(t.parentId))
     setDay(dateStr, (d) => ({ ...d, tasks: d.tasks.filter((t) => !removedIds.has(t.id)) }))
     for (const rid of removedIds) {
       dirtyTasks.get(dateStr)?.delete(rid)
@@ -251,13 +237,23 @@ function createLogsStore() {
     }
     scheduleTaskWrite(dateStr, true)
     if (opts.quiet) return
-    showToast(task.text ? `Deleted “${task.text.slice(0, 40)}”` : 'Task deleted', {
+    const message =
+      roots.length === 1
+        ? roots[0].text
+          ? `Deleted “${roots[0].text.slice(0, 40)}”`
+          : 'Task deleted'
+        : `Deleted ${roots.length} tasks`
+    showToast(message, {
       action: 'Undo',
       duration: UNDO_MS,
       onAction: () => {
         for (const t of removed) upsertTask(dateStr, t, { immediate: true })
       },
     })
+  }
+
+  function removeTask(dateStr: string, id: string, opts: { quiet?: boolean } = {}) {
+    removeTasks(dateStr, [id], opts)
   }
 
   // Apply a new manual order to a day's tasks. `orderedIds` lists the tasks
@@ -284,34 +280,104 @@ function createLogsStore() {
     else scheduleTaskWrite(dateStr, true)
   }
 
-  // Copy a task (and its subtasks) to another day as new tasks.
-  function copyTaskTree(all: Task[], task: Task, toDate: string) {
-    const parent = addTask(toDate, { text: task.text, time: task.time, comment: task.comment })
-    for (const child of all.filter((t) => t.parentId === task.id)) {
-      addTask(toDate, {
-        text: child.text,
-        done: child.done,
-        comment: child.comment,
-        parentId: parent.id,
-      })
-    }
+  // Listeners told about moved tasks (the focus timer follows its task).
+  type MoveListener = (move: { from: string; to: string; ids: string[] }) => void
+  const moveListeners = new Set<MoveListener>()
+  function onTasksMoved(fn: MoveListener): () => void {
+    moveListeners.add(fn)
+    return () => moveListeners.delete(fn)
   }
 
-  // Copy unfinished tasks to another day (as new tasks).
-  function carryOver(fromDate: string, toDate: string, ids: string[]) {
-    const all = dayOf(fromDate).tasks
-    for (const t of all.filter((t) => ids.includes(t.id))) copyTaskTree(all, t, toDate)
+  // Move tasks (with their subtasks) to another day in one atomic server
+  // write. Ids are kept, so undo is the reverse move. `orders` pins the
+  // top-level orders on the target (used by undo to restore them exactly).
+  async function moveTasks(
+    from: string,
+    to: string,
+    ids: string[],
+    opts: { quiet?: boolean; orders?: Record<string, number> } = {},
+  ): Promise<boolean> {
+    if (from === to || !ids.length) return false
+    // Save pending edits first so the server moves the latest version.
+    await flushTasks(from)
+    if (taskTimers.has(to) || dirtyTasks.get(to)?.size || removedTasks.get(to)?.size) await flushTasks(to)
+    while (taskWrites.has(from)) await taskWrites.get(from)
+    while (taskWrites.has(to)) await taskWrites.get(to)
+
+    const source = dayOf(from).tasks
+    const picked = withDescendantIds(source, ids)
+    if (!picked.size) return false
+    const originals = source.filter((t) => picked.has(t.id))
+    const roots = originals.filter((t) => !t.parentId || !picked.has(t.parentId))
+    const rootIds = roots.map((t) => t.id)
+    const originalOrders = Object.fromEntries(roots.map((t) => [t.id, t.order]))
+    const toLoaded = !!get({ subscribe }).byDate[to]
+
+    // Optimistic update. A day that isn't loaded only gets the server's copy.
+    const local = moveTasksBetween(source, dayOf(to).tasks, rootIds, { orders: opts.orders })
+    for (const id of picked) {
+      dirtyTasks.get(from)?.delete(id)
+      removedTasks.get(from)?.delete(id)
+    }
+    setDay(from, (d) => ({ ...d, tasks: d.tasks.filter((t) => !picked.has(t.id)) }))
+    const added = new Set(local.moved)
+    if (toLoaded) {
+      const extra = local.to.filter((t) => added.has(t.id))
+      setDay(to, (d) => ({ ...d, tasks: [...d.tasks.filter((t) => !added.has(t.id)), ...extra] }))
+    }
+
+    let moved: string[] = []
+    let ok = false
+    const write = (async () => {
+      try {
+        const res = await savingStore.track(logsApi.moveTasks(from, to, rootIds, opts.orders))
+        for (const d of [from, to]) writeEpoch.set(d, (writeEpoch.get(d) ?? 0) + 1)
+        reconcile(from, res.from, true)
+        reconcile(to, res.to, true)
+        moved = res.moved
+        ok = true
+      } catch (e) {
+        console.error(`Failed to move tasks from ${from} to ${to}:`, e)
+        setDay(from, (d) => {
+          const have = new Set(d.tasks.map((t) => t.id))
+          return { ...d, tasks: [...d.tasks, ...originals.filter((t) => !have.has(t.id))] }
+        })
+        if (toLoaded) setDay(to, (d) => ({ ...d, tasks: d.tasks.filter((t) => !added.has(t.id)) }))
+        showError('Couldn’t move tasks.')
+      }
+    })()
+    taskWrites.set(from, write)
+    taskWrites.set(to, write)
+    await write
+    taskWrites.delete(from)
+    taskWrites.delete(to)
+    if (!ok) return false
+    if (!moved.length) return true
+
+    const kept = rootIds.filter((id) => moved.includes(id))
+    for (const fn of moveListeners) fn({ from, to, ids: moved })
+    if (opts.quiet) return true
+    const day = prettyDisplay(new Date(to + 'T12:00:00'))
+    const message =
+      roots.length === 1 && roots[0].text.trim()
+        ? `Moved “${roots[0].text.trim().slice(0, 40)}” to ${day}`
+        : `Moved ${roots.length} ${roots.length === 1 ? 'task' : 'tasks'} to ${day}`
+    showToast(message, {
+      action: 'Undo',
+      duration: UNDO_MS,
+      onAction: () => {
+        const orders = Object.fromEntries(kept.map((id) => [id, originalOrders[id]]))
+        void moveTasks(to, from, moved, { quiet: true, orders })
+      },
+    })
+    return true
   }
 
   // Move a single task onto the next day.
   function carryTaskOver(dateStr: string, id: string) {
-    const all = dayOf(dateStr).tasks
-    const task = all.find((t) => t.id === id)
-    if (!task) return
     const next = new Date(dateStr + 'T12:00:00')
     next.setDate(next.getDate() + 1)
-    copyTaskTree(all, task, formatDate(next))
-    removeTask(dateStr, id, { quiet: true })
+    return moveTasks(dateStr, formatDate(next), [id])
   }
 
   // Unsaved task edits (beforeunload guard, focus refresh).
@@ -360,8 +426,10 @@ function createLogsStore() {
     addTask,
     editTask,
     removeTask,
+    removeTasks,
+    moveTasks,
+    onTasksMoved,
     reorderTasks,
-    carryOver,
     carryTaskOver,
     flushTasks,
     hasUnsavedWork,

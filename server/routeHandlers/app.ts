@@ -16,6 +16,7 @@ import {
   isSubstantialTaskListChange,
   type LegacyHourEntry,
   legacyHourEntriesToTasks,
+  moveTasksBetween,
   normalizeDayLog,
   type Task,
   tasksPreview,
@@ -34,28 +35,42 @@ class ConflictError extends Error {
   }
 }
 
-// Read-modify-write the day blob under an optimistic versionstamp check, so a
-// tasks write and a notes write landing at the same moment both survive.
-async function updateDay<R>(
-  dateStr: string,
-  mutate: (log: DayLog) => R,
-): Promise<{ log: DayLog; prev: DayLog; result: R }> {
+// Read-modify-write one or more day blobs under optimistic versionstamp
+// checks, so a tasks write and a notes write landing at the same moment both
+// survive, and a write spanning several days changes all of them or none.
+async function updateDays<R>(
+  dates: string[],
+  mutate: (logs: DayLog[]) => R,
+): Promise<{ logs: DayLog[]; prevs: DayLog[]; result: R }> {
   for (let attempt = 0; attempt < 8; attempt++) {
-    const cur = await kv.get<string>(dayKey(dateStr));
-    const prev = normalizeDayLog(cur.value);
-    const log = structuredClone(prev);
-    const result = mutate(log);
-    const body = JSON.stringify(log);
-    if (body.length > MAX_DAY_BYTES) throw new DayTooLargeError();
-    const res = await kv.atomic().check(cur).set(dayKey(dateStr), body).commit();
-    if (res.ok) return { log, prev, result };
+    const curs = await Promise.all(dates.map((d) => kv.get<string>(dayKey(d))));
+    const prevs = curs.map((cur) => normalizeDayLog(cur.value));
+    const logs = prevs.map((p) => structuredClone(p));
+    const result = mutate(logs);
+    const bodies = logs.map((log) => JSON.stringify(log));
+    if (bodies.some((b) => b.length > MAX_DAY_BYTES)) throw new DayTooLargeError();
+    const op = kv.atomic();
+    for (const cur of curs) op.check(cur);
+    dates.forEach((d, i) => op.set(dayKey(d), bodies[i]));
+    const res = await op.commit();
+    if (res.ok) return { logs, prevs, result };
   }
   throw new Error("Day log write contention");
 }
 
+async function updateDay<R>(
+  dateStr: string,
+  mutate: (log: DayLog) => R,
+): Promise<{ log: DayLog; prev: DayLog; result: R }> {
+  const { logs, prevs, result } = await updateDays([dateStr], ([log]) => mutate(log));
+  return { log: logs[0], prev: prevs[0], result };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 function requireDate(c: Context): string | null {
   const d = c.req.query("date");
-  return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  return d && DATE_RE.test(d) ? d : null;
 }
 
 async function emitDaySaved(c: Context, dateStr: string) {
@@ -165,6 +180,57 @@ export async function patchDayTasks(c: Context) {
     }
     await emitDaySaved(c, dateStr);
     return c.json({ tasks: log.tasks });
+  } catch (e) {
+    if (e instanceof DayTooLargeError) return c.json({ error: "Day is too large" }, 413);
+    throw e;
+  }
+}
+
+// Body: { from, to, ids, orders? }. Moves tasks (with their subtasks) from
+// one day to another in a single atomic write, keeping their ids. `orders`
+// pins the order of specific top-level tasks, so undo can put them back
+// exactly where they were.
+export async function moveDayTasks(c: Context) {
+  const body = await c.req.json().catch(() => null) as
+    | { from?: unknown; to?: unknown; ids?: unknown; orders?: unknown }
+    | null;
+  const from = typeof body?.from === "string" && DATE_RE.test(body.from) ? body.from : null;
+  const to = typeof body?.to === "string" && DATE_RE.test(body.to) ? body.to : null;
+  if (!from || !to) return c.json({ error: "Missing date" }, 400);
+  if (from === to) return c.json({ error: "Pick a different day" }, 400);
+  const ids = Array.isArray(body!.ids)
+    ? body!.ids.filter((id): id is string => typeof id === "string" && !!id)
+    : [];
+  if (!ids.length) return c.json({ error: "No tasks to move" }, 400);
+  const orders: Record<string, number> = {};
+  if (body!.orders && typeof body!.orders === "object") {
+    for (const [id, v] of Object.entries(body!.orders as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isFinite(v)) orders[id] = v;
+    }
+  }
+
+  try {
+    const { logs, prevs, result: moved } = await updateDays([from, to], ([src, dst]) => {
+      const r = moveTasksBetween(src.tasks, dst.tasks, ids, { orders });
+      src.tasks = r.from;
+      dst.tasks = r.to;
+      return r.moved;
+    });
+    if (moved.length) {
+      // Keep each day's state from before the move, so history can undo it.
+      for (const [i, dateStr] of [from, to].entries()) {
+        await maybeSnapshot({
+          kind: "day-tasks",
+          id: dateStr,
+          next: { tasks: prevs[i].tasks },
+          preview: tasksPreview(prevs[i].tasks),
+          substantialChange: true,
+        });
+      }
+      await emitDaySaved(c, from);
+      await emitDaySaved(c, to);
+    }
+    return c.json({ from: { tasks: logs[0].tasks }, to: { tasks: logs[1].tasks }, moved });
   } catch (e) {
     if (e instanceof DayTooLargeError) return c.json({ error: "Day is too large" }, 413);
     throw e;

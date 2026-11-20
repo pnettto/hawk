@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from 'svelte'
+  import { onDestroy, onMount, tick, untrack } from 'svelte'
   import { safeFlip } from '../../utils/safeFlip'
-  import { fade, slide } from 'svelte/transition'
+  import { slide } from 'svelte/transition'
   import { appStore } from '../../stores/app'
   import { logsStore, sortTasks } from '../../stores/logs'
   import { formatDate } from '../../utils/date'
@@ -14,6 +14,7 @@
   import { linkTo } from '../../router/sync'
   import { showError, showToast } from '../../stores/toast'
   import TimePicker from '../ui/TimePicker.svelte'
+  import MoveToDatePopover from './MoveToDatePopover.svelte'
   import { formatClock, pomodoroStore, EXTENSION_ID } from '../../stores/pomodoro'
   import { preferencesStore } from '../../stores/preferences'
   import { extensionState } from '../extensions/registry'
@@ -53,24 +54,6 @@
     return out
   })
   let taskRows = $derived(baseRows.filter((r) => !r.addRow))
-
-  let prevDateStr = $derived.by(() => {
-    const d = new Date($appStore.selectedDate)
-    d.setDate(d.getDate() - 1)
-    return formatDate(d)
-  })
-  let carryable = $derived.by(() => {
-    const prev = $logsStore.byDate[prevDateStr]?.tasks ?? []
-    const parents = new Set(prev.filter((t) => t.parentId).map((t) => t.parentId!))
-    return prev.filter((t) => !t.parentId).filter((t) => {
-      // A group comes along while any of its children is unfinished.
-      if (parents.has(t.id)) return prev.some((c) => c.parentId === t.id && !c.done)
-      return !t.done && !!t.text.trim()
-    })
-  })
-  let prevDayName = $derived(
-    new Date(prevDateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }),
-  )
 
   // Minute ticker for the "now" marker.
   let nowMinutes = $state(minutesNow())
@@ -442,6 +425,7 @@
   function toggleReorder() {
     if (dragId) endDrag()
     reorderMode = !reorderMode
+    if (reorderMode) exitSelect()
   }
 
   function startDrag(e: PointerEvent, task: Task) {
@@ -572,9 +556,16 @@
   }
 
   function onReorderKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !dragId) return
-    e.preventDefault()
-    resetDrag()
+    if (e.key !== 'Escape' || e.defaultPrevented) return
+    if (dragId) {
+      e.preventDefault()
+      resetDrag()
+      return
+    }
+    if (selectMode && !anyPopoverOpen()) {
+      e.preventDefault()
+      exitSelect()
+    }
   }
 
   // Keyboard reordering: arrow keys on the handle move the row.
@@ -587,6 +578,120 @@
     if (i === -1 || j < 0 || j >= ids.length) return
     ;[ids[i], ids[j]] = [ids[j], ids[i]]
     logsStore.reorderTasks(dateStr, ids)
+  }
+
+  // ---- selection ----------------------------------------------------------
+
+  // Select mode works on top-level rows; a selected group takes its subtasks.
+  let selectMode = $state(false)
+  let selected = $state(new Set<string>())
+  // Where a Shift+click range starts.
+  let rangeAnchor: string | null = null
+  let selectableIds = $derived(taskRows.filter((r) => r.depth === 0).map((r) => r.task.id))
+  let unfinishedIds = $derived(
+    topLevel
+      .filter((t) => {
+        // A group counts while any of its subtasks is unfinished.
+        if (parentIds.has(t.id)) return tasks.some((c) => c.parentId === t.id && !c.done)
+        return !t.done && !!t.text.trim()
+      })
+      .map((t) => t.id),
+  )
+
+  // A task removed elsewhere (another device, undo) drops out of the selection.
+  $effect(() => {
+    const valid = new Set(selectableIds)
+    const cur = untrack(() => selected)
+    if ([...cur].some((id) => !valid.has(id))) selected = new Set([...cur].filter((id) => valid.has(id)))
+  })
+
+  function toggleSelectMode() {
+    if (selectMode) {
+      exitSelect()
+      return
+    }
+    resetDrag()
+    reorderMode = false
+    finishFresh()
+    menuTaskId = null
+    selectMode = true
+  }
+
+  function exitSelect() {
+    selectMode = false
+    selected = new Set()
+    rangeAnchor = null
+  }
+
+  function onSelectRowClick(e: MouseEvent, id: string) {
+    const next = new Set(selected)
+    if (e.shiftKey && rangeAnchor && selectableIds.includes(rangeAnchor)) {
+      const a = selectableIds.indexOf(rangeAnchor)
+      const b = selectableIds.indexOf(id)
+      for (const rid of selectableIds.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(rid)
+    } else {
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      rangeAnchor = id
+    }
+    selected = next
+  }
+
+  function focusSelectRow(id: string) {
+    listEl?.querySelector<HTMLElement>(`[data-select-row="${CSS.escape(id)}"]`)?.focus()
+  }
+
+  function onSelectRowKeydown(e: KeyboardEvent, id: string) {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault()
+      onSelectRowClick(e as unknown as MouseEvent, id)
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const i = selectableIds.indexOf(id) + (e.key === 'ArrowUp' ? -1 : 1)
+      if (i >= 0 && i < selectableIds.length) focusSelectRow(selectableIds[i])
+    }
+  }
+
+  function selectAll() {
+    selected = new Set(selectableIds)
+  }
+
+  function selectUnfinished() {
+    selected = new Set(unfinishedIds)
+  }
+
+  function deleteSelected() {
+    const ids = [...selected]
+    if (!ids.length) return
+    // Deleting a task takes its subtasks along, timer and all.
+    const focused = tasks.find((t) => t.id === focusedId)
+    if (focused && (ids.includes(focused.id) || (focused.parentId && ids.includes(focused.parentId)))) {
+      pomodoroStore.stop()
+    }
+    logsStore.removeTasks(dateStr, ids)
+    selected = new Set()
+  }
+
+  // ---- move to another day -------------------------------------------------
+
+  let moveState = $state<{ ids: string[]; anchor: HTMLElement | null; fromSelection: boolean; from: string } | null>(null)
+  let moveBarButton = $state<HTMLButtonElement | null>(null)
+
+  function openMove(ids: string[], anchor: HTMLElement | null, fromSelection: boolean) {
+    if (!ids.length) return
+    moveState = { ids, anchor, fromSelection, from: dateStr }
+  }
+
+  async function moveTo(to: string) {
+    const m = moveState
+    moveState = null
+    if (!m) return
+    const ok = await logsStore.moveTasks(m.from, to, m.ids)
+    if (ok && m.fromSelection && dateStr === m.from) exitSelect()
+  }
+
+  function anyPopoverOpen() {
+    return !!(moveState || menuTaskId || toolbarMenuOpen || showHistory)
   }
 
   // ---- row menu ------------------------------------------------------------
@@ -647,9 +752,9 @@
     }
     if (row.depth === 0) {
       items.push({
-        label: 'Carry over to tomorrow',
+        label: 'Move to…',
         icon: ['M2.5 8h9', 'M9 4.5 12.5 8 9 11.5'],
-        onSelect: () => logsStore.carryTaskOver(dateStr, task.id),
+        onSelect: () => openMove([task.id], menuAnchorEl, false),
       })
     }
     items.push({
@@ -685,27 +790,48 @@
   }
 
   function onRootKeydown(e: KeyboardEvent) {
+    if (
+      selectMode &&
+      e.key.toLowerCase() === 'a' &&
+      (e.metaKey || e.ctrlKey) &&
+      !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
+    ) {
+      e.preventDefault()
+      selectAll()
+      return
+    }
+    if (e.key === 'Escape' && selectMode && !e.defaultPrevented && !dragId && !anyPopoverOpen()) {
+      // Leave select mode before leaving full screen.
+      e.preventDefault()
+      exitSelect()
+      return
+    }
     if (!fullScreen || e.key !== 'Escape' || e.defaultPrevented) return
     if (dragId) {
       e.preventDefault()
       resetDrag()
       return
     }
-    if (toolbarMenuOpen || menuTaskId || showHistory) return
+    if (anyPopoverOpen()) return
     e.preventDefault()
     void toggleFullScreen()
   }
 
   let showHistory = $state(false)
   let toolbarMenuOpen = $state(false)
-  const toolbarMenuItems: ActionMenuItem[] = [
+  let toolbarMenuItems: ActionMenuItem[] = $derived([
+    ...(selectMode ? [] : [{
+      label: 'Select tasks',
+      icon: ['M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z', 'M5.5 8l1.8 1.8L10.5 6'],
+      onSelect: toggleSelectMode,
+    }]),
     { label: 'Copy link', icon: LINK_ICON, onSelect: () => void copyLink() },
     {
       label: 'Version history',
       icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'],
       onSelect: () => (showHistory = true),
     },
-  ]
+  ])
 
   // Links to this day, or to one task on it (opens it and flashes the row).
   async function copyLink(taskId?: string) {
@@ -753,6 +879,9 @@
     menuTaskId = null
     toolbarMenuOpen = false
     showHistory = false
+    moveState = null
+    selected = new Set()
+    rangeAnchor = null
   })
 
   onDestroy(() => {
@@ -776,11 +905,37 @@
   onkeydown={onRootKeydown}
 >
   <div class="toolbar">
-    <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
-      {#if leafTasks.length}
-        {doneCount} of {leafTasks.length} done
-      {/if}
-    </span>
+    {#if selectMode}
+      <div class="select-bar" role="toolbar" aria-label="Selected tasks">
+        <span class="select-count" aria-live="polite">
+          {selected.size ? `${selected.size} selected` : 'None selected'}
+        </span>
+        {#if selected.size}
+          <button
+            type="button"
+            class="btn-secondary bar-btn"
+            bind:this={moveBarButton}
+            aria-haspopup="dialog"
+            aria-expanded={!!moveState?.fromSelection}
+            onclick={() => openMove([...selected], moveBarButton, true)}
+          >Move to…</button>
+          <button type="button" class="btn-secondary bar-btn danger" onclick={deleteSelected}>Delete</button>
+        {/if}
+        {#if unfinishedIds.length && unfinishedIds.some((id) => !selected.has(id))}
+          <button type="button" class="btn-secondary bar-btn" onclick={selectUnfinished}>Select unfinished</button>
+        {/if}
+        {#if selected.size}
+          <button type="button" class="btn-secondary bar-btn ghost" onclick={() => (selected = new Set())}>Clear</button>
+        {/if}
+        <button type="button" class="btn-secondary bar-btn done-btn" onclick={exitSelect}>Done</button>
+      </div>
+    {:else}
+      <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
+        {#if leafTasks.length}
+          {doneCount} of {leafTasks.length} done
+        {/if}
+      </span>
+    {/if}
     <div class="tools">
       <button
         class="icon-btn reorder-toggle"
@@ -842,6 +997,7 @@
       class:loading={!loaded}
       class:reordering={!!dragId}
       class:reorder-mode={reorderMode}
+      class:select-mode={selectMode}
     >
       {#each rows as row (row.now ? `n:${dateStr}` : row.addRow ? `a:${row.task.id}` : `t:${row.task.id}`)}
         {@const task = row.task}
@@ -857,6 +1013,7 @@
           class:dragging={!row.now && !row.addRow && dragId === task.id}
           class:flash={!row.now && !row.addRow && flashId === task.id}
           class:following={!row.now && !row.addRow && isDraggedBlockRow(task.id)}
+          class:selected={selectMode && !row.now && !row.addRow && (selected.has(task.id) || (row.depth > 0 && !!task.parentId && selected.has(task.parentId)))}
           data-task-id={row.now || row.addRow ? undefined : task.id}
           style:transform={!row.now && !row.addRow && shift ? `translateY(${shift}px)` : undefined}
           animate:safeFlip={{ duration: 220 }}
@@ -889,6 +1046,44 @@
               />
             </div>
           </div>
+        {:else if selectMode}
+          {@const included = row.depth > 0 && !!task.parentId && selected.has(task.parentId)}
+          {@const on = row.depth === 0 ? selected.has(task.id) : included}
+          {@const name = task.text.trim() || (row.header ? 'Untitled group' : 'Untitled task')}
+          {#if row.depth === 0}
+            <div
+              class="row select-row"
+              role="checkbox"
+              tabindex="0"
+              aria-checked={on}
+              aria-label={`Select “${name}”`}
+              data-select-row={task.id}
+              onclick={(e) => onSelectRowClick(e, task.id)}
+              onkeydown={(e) => onSelectRowKeydown(e, task.id)}
+            >
+              <span class="select-mark" class:on aria-hidden="true">
+                <svg viewBox="0 0 16 16"><path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </span>
+              <span class="text select-text" class:placeholder={!task.text.trim()}>{task.text || (row.header ? 'Group' : 'Task')}</span>
+              {#if task.time}<span class="time-label">{task.time}</span>{/if}
+            </div>
+          {:else}
+            <div
+              class="row select-row included"
+              role="checkbox"
+              aria-checked={included}
+              aria-disabled="true"
+              aria-label={included ? `“${name}” moves with its group` : `“${name}” moves with its group when the group is selected`}
+            >
+              <span class="select-mark" class:on={included} aria-hidden="true">
+                <svg viewBox="0 0 16 16"><path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </span>
+              <span class="text select-text" class:placeholder={!task.text.trim()}>{task.text || 'Subtask'}</span>
+            </div>
+          {/if}
+          {#if task.comment}
+            <p class="comment select-comment">{task.comment}</p>
+          {/if}
         {:else}
           <div class="row">
             {#if desktopReorder || reorderMode}
@@ -1006,7 +1201,16 @@
     </ul>
   {/key}
 
-  <div class="add" class:has-draft={!!draft || !!draftTime || draftCommentOpen}>
+  {#if moveState}
+    <MoveToDatePopover
+      from={moveState.from}
+      anchor={moveState.anchor}
+      onPick={(to) => void moveTo(to)}
+      onClose={() => (moveState = null)}
+    />
+  {/if}
+
+  <div class="add" class:hidden={selectMode} inert={selectMode} class:has-draft={!!draft || !!draftTime || draftCommentOpen}>
     <div class="row">
       <button type="button" class="add-icon" aria-label="Add task" title="Add task" onclick={() => addInput?.focus()}>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
@@ -1059,16 +1263,6 @@
     {/if}
   </div>
 
-  {#if loaded && !tasks.length && carryable.length}
-    <button
-      type="button"
-      class="carry"
-      onclick={() => logsStore.carryOver(prevDateStr, dateStr, carryable.map((t) => t.id))}
-      transition:fade={{ duration: 150 }}
-    >
-      Bring over {carryable.length} unfinished {carryable.length === 1 ? 'task' : 'tasks'} from {prevDayName}
-    </button>
-  {/if}
 </section>
 
 <style>
@@ -1127,7 +1321,108 @@
   .list.reordering { cursor: grabbing; user-select: none; }
   .list.reordering .task:not(.dragging):not(.following) { transition: transform 170ms var(--ease-out); }
   /* Add rows would otherwise show up in the gap while groups move. */
-  .list.reorder-mode .group-add-row { display: none; }
+  .list.reorder-mode .group-add-row,
+  .list.select-mode .group-add-row { display: none; }
+  .add.hidden { display: none; }
+
+  /* Select mode: the row is the control. Selected rows lift with a quiet
+     background rather than an accent border. */
+  .select-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
+    margin-right: 0.5rem;
+  }
+  .select-count {
+    margin-right: 0.35rem;
+    font-family: var(--font-ui);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-btn { height: var(--h-sm); padding: 0 0.65rem; font-size: 0.75rem; }
+  .bar-btn.danger { color: var(--danger); }
+  .bar-btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+  .bar-btn.ghost { border-color: transparent; }
+  .bar-btn.done-btn { margin-left: auto; }
+  .select-row {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    border-radius: var(--r-md);
+  }
+  .select-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .select-row.included { cursor: default; opacity: 0.55; }
+  .select-text {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .select-text.placeholder { color: var(--muted); }
+  .time-label {
+    flex-shrink: 0;
+    padding: 0 0.4rem;
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .select-mark {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--on-accent);
+  }
+  .select-mark::before {
+    content: '';
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 1.5px solid color-mix(in srgb, var(--muted) 55%, transparent);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .select-mark svg {
+    position: relative;
+    width: 0.8rem;
+    height: 0.8rem;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-spring);
+  }
+  .select-mark.on::before { background: var(--accent); border-color: var(--accent); }
+  .select-mark.on svg { opacity: 1; transform: none; }
+  .select-row:hover .select-mark:not(.on)::before { border-color: var(--accent); }
+  .task.selected,
+  .task.selected:hover { background: color-mix(in srgb, var(--accent) 12%, var(--glass-dark)); }
+  .select-comment { margin-top: -0.35rem; white-space: pre-wrap; pointer-events: none; }
+  @media (max-width: 600px) {
+    /* On phones the bar sits at the bottom, under the thumb. */
+    .select-bar {
+      position: fixed;
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: calc(0.75rem + env(safe-area-inset-bottom));
+      z-index: calc(var(--z-popover) - 2);
+      padding: 0.5rem 0.6rem;
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      background: var(--panel);
+      box-shadow: var(--shadow-pop);
+    }
+    .tasks:has(.select-bar) { padding-bottom: 5rem; }
+  }
   /* Desktop handles are always available: preserve the geometry captured at
      pointer-down while hiding group inputs during the gesture. */
   .desktop-reorder .list.reordering .group-add-row { visibility: hidden; }
@@ -1211,6 +1506,7 @@
   .desktop-reorder .row { position: relative; padding-left: 0; }
   /* Align the visible circle, not the padded button, with the heading. */
   .desktop-reorder .row > .check,
+  .desktop-reorder .row > .select-mark,
   .desktop-reorder .row > .group-mark,
   .desktop-reorder .row > .add-icon { margin-left: -0.375rem; }
   .desktop-reorder .handle {
@@ -1440,21 +1736,4 @@
   .add-input:hover,
   .add-input:focus { background: transparent; }
 
-  .carry {
-    display: block;
-    margin: 1rem 0 0 2.6rem;
-    padding: 0.45rem 0.8rem;
-    border: 1px dashed var(--line);
-    border-radius: var(--r-sm);
-    background: none;
-    color: var(--muted);
-    font-family: var(--font-ui);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition:
-      color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out),
-      background-color var(--dur-fast) var(--ease-out);
-  }
-  .carry:hover { color: var(--text); border-color: var(--accent); background: var(--glass-dark); }
 </style>

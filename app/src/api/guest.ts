@@ -10,6 +10,7 @@ import { parseTags } from '../lib/notes/tags'
 import { buildPreview } from '../stores/notes'
 import { formatDate } from '../utils/date'
 import { parseQuery, searchNotes, searchTasks } from '../lib/search/match'
+import { moveTasksBetween } from '../lib/daily/moveTasks'
 import type { DayLog, Note, NoteMetadata, Task } from '../types/models'
 
 const STORE_KEY = 'hawk_guest_data'
@@ -82,6 +83,20 @@ function handle(method: string, path: string, body: Record<string, unknown> = {}
     log.tasks = [...byId.values()]
     persist()
     return { tasks: log.tasks }
+  }
+  // Mirrors server/routeHandlers/app.ts moveDayTasks.
+  if (p === '/api/day/tasks/move' && method === 'POST') {
+    const from = body.from as string
+    const to = body.to as string
+    const ids = (body.ids as string[]) ?? []
+    if (!from || !to || from === to || !ids.length) throw new ApiError(400, 'Bad request')
+    const src = (data.days[from] ??= { tasks: [] })
+    const dst = (data.days[to] ??= { tasks: [] })
+    const r = moveTasksBetween(src.tasks, dst.tasks, ids, { orders: body.orders as Record<string, number> | undefined })
+    src.tasks = r.from
+    dst.tasks = r.to
+    persist()
+    return { from: { tasks: src.tasks }, to: { tasks: dst.tasks }, moved: r.moved }
   }
   if (p.startsWith('/api/day/versions')) return method === 'GET' && p === '/api/day/versions' ? [] : notFound()
 

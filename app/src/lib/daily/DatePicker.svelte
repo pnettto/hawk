@@ -2,6 +2,7 @@
   import { tick, untrack } from 'svelte'
   import { appStore } from '../../stores/app'
   import { formatDate, prettyDisplay, shortDisplay } from '../../utils/date'
+  import CalendarGrid from '../ui/CalendarGrid.svelte'
 
   interface Props {
     value?: Date
@@ -57,55 +58,13 @@
     }
   }
 
-  // Arrow keys move through the grid (and across months).
-  async function onGridKey(e: KeyboardEvent, d: Date) {
-    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key]
-    if (!step) return
-    e.preventDefault()
-    const next = new Date(d)
-    next.setDate(next.getDate() + step)
-    if (next.getMonth() !== calendarViewDate.getMonth()) calendarViewDate = new Date(next)
-    await tick()
-    modalEl?.querySelector<HTMLElement>(`[data-day="${formatDate(next)}"]`)?.focus()
-  }
-
-  const weekdays = Array.from({ length: 7 }, (_, i) =>
-    new Date(2024, 0, 7 + i).toLocaleDateString(undefined, { weekday: 'narrow' }),
-  )
   const todayStr = formatDate(new Date())
-  function changeMonth(offset: number) {
-    const d = new Date(calendarViewDate)
-    d.setMonth(d.getMonth() + offset)
-    calendarViewDate = d
-  }
   function selectDate(d: Date) {
     commit(d)
     showCalendar = false
     triggerEl?.focus()
   }
 
-  let days = $derived.by(() => {
-    const year = calendarViewDate.getFullYear()
-    const month = calendarViewDate.getMonth()
-    const firstDay = new Date(year, month, 1)
-    const start = new Date(firstDay)
-    start.setDate(start.getDate() - firstDay.getDay())
-    const out: Date[] = []
-    const curr = new Date(start)
-    for (let i = 0; i < 42; i++) {
-      out.push(new Date(curr))
-      curr.setDate(curr.getDate() + 1)
-    }
-    return out
-  })
-
-  let viewMonth = $derived(calendarViewDate.getMonth())
-  let monthLabel = $derived(
-    calendarViewDate.toLocaleDateString(undefined, {
-      month: 'long',
-      year: 'numeric',
-    }),
-  )
   let selectedStr = $derived(formatDate(currentDate))
   let isToday = $derived(selectedStr === todayStr)
 </script>
@@ -134,30 +93,7 @@
       aria-label="Choose date"
       inert={!showCalendar}
     >
-      <div class="calendar-header">
-        <button class="cal-arrow" aria-label="Previous month" onclick={() => changeMonth(-1)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
-        <div class="cal-month">{monthLabel}</div>
-        <button class="cal-arrow" aria-label="Next month" onclick={() => changeMonth(1)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
-      </div>
-      <div class="cal-weekdays" aria-hidden="true">
-        {#each weekdays as w, i (i)}<span>{w}</span>{/each}
-      </div>
-      <div class="cal-days">
-        {#each days as d (formatDate(d))}
-          <button
-            class="cal-day"
-            data-day={formatDate(d)}
-            class:other-month={d.getMonth() !== viewMonth}
-            class:selected={formatDate(d) === selectedStr}
-            class:today={formatDate(d) === todayStr}
-            aria-current={formatDate(d) === todayStr ? 'date' : undefined}
-            onclick={() => selectDate(new Date(d))}
-            onkeydown={(e) => onGridKey(e, d)}
-          >
-            {d.getDate()}
-          </button>
-        {/each}
-      </div>
+      <CalendarGrid bind:viewDate={calendarViewDate} selected={selectedStr} onSelect={selectDate} />
       <button type="button" class="cal-today" onclick={goToday}>Today</button>
     </div>
   </div>
@@ -235,17 +171,6 @@
     transform: translateX(-50%) translateY(0) scale(1);
     pointer-events: auto;
   }
-  .calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .cal-month {
-    font-size: 1rem;
-    color: var(--accent);
-    flex: 1;
-    text-align: center;
-  }
   .cal-arrow {
     appearance: none;
     border: 0;
@@ -263,48 +188,6 @@
   }
   .cal-arrow svg { width: 15px; height: 15px; }
   .cal-arrow:hover { background: var(--glass-dark); }
-  .cal-weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin: 0.6rem 0 0.25rem;
-    text-align: center;
-    font-family: var(--font-ui);
-    font-size: 0.6875rem;
-    color: var(--muted);
-    opacity: 0.6;
-  }
-  .cal-days {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-  }
-  .cal-day {
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    padding: 8px;
-    border-radius: var(--r-sm);
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-variant-numeric: tabular-nums;
-    transition: background-color var(--dur-fast) var(--ease-out);
-  }
-  .cal-day:hover {
-    background-color: var(--glass);
-  }
-  .cal-day.today { box-shadow: inset 0 0 0 1px var(--accent); }
-  .cal-day.other-month {
-    color: var(--muted);
-    opacity: 0.4;
-  }
-  .cal-day.selected {
-    background: var(--accent);
-    color: var(--on-accent);
-    border: 0;
-    font-weight: bold;
-  }
   .cal-today {
     appearance: none;
     border: 0;
