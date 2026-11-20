@@ -93,7 +93,7 @@
     'M5.5 2.5h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z',
     'M2.5 5.5v7a2 2 0 0 0 2 2h6',
   ]
-  const HISTORY_ICON = ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5', 'M12 7v5l3 2']
+  const HISTORY_ICON = ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33']
   const DELETE_ICON = 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5'
 
   let barMenuItems: ActionMenuItem[] = $derived.by(() => {

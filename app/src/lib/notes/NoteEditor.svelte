@@ -132,7 +132,7 @@
 
   let menuItems: ActionMenuItem[] = $derived([
     { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
-    { label: 'Version history', icon: ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5'], onSelect: () => (showHistoryPopover = true) },
+    { label: 'Version history', icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'], onSelect: () => (showHistoryPopover = true) },
     ...(onDelete ? [{ label: 'Delete note', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: onDelete }] : []),
   ])
 

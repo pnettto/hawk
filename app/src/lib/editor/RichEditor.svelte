@@ -1458,7 +1458,7 @@
     padding: 0;
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
-    background: var(--glass-dark);
+    background: var(--panel);
     color: var(--muted);
     cursor: pointer;
     animation: fadeIn var(--dur-fast) var(--ease-out);

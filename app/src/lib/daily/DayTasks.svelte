@@ -522,9 +522,15 @@
         dy = Math.ceil((lastPointerY - (window.innerHeight - margin)) / 4)
       }
       if (dy) {
-        const before = window.scrollY
-        window.scrollBy(0, dy)
-        if (window.scrollY !== before) updateDrag(lastPointerY)
+        if (fullScreen && rootEl) {
+          const before = rootEl.scrollTop
+          rootEl.scrollTop += dy
+          if (rootEl.scrollTop !== before) updateDrag(lastPointerY)
+        } else {
+          const before = window.scrollY
+          window.scrollBy(0, dy)
+          if (window.scrollY !== before) updateDrag(lastPointerY)
+        }
       }
       autoScrollFrame = requestAnimationFrame(step)
     }
@@ -655,7 +661,41 @@
 
   // ---- history / checkpoints -----------------------------------------------
 
+  let fullScreen = $state(false)
+  let fullScreenButton = $state<HTMLButtonElement | null>(null)
+
+  async function toggleFullScreen() {
+    resetDrag()
+    fullScreen = !fullScreen
+    await tick()
+    // The content width changes, so refit wrapped tasks and comments.
+    rootEl?.querySelectorAll('textarea').forEach((el) => {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    })
+    if (fullScreen) rootEl?.focus({ preventScroll: true })
+    else fullScreenButton?.focus({ preventScroll: true })
+  }
+
+  function onRootKeydown(e: KeyboardEvent) {
+    if (!fullScreen || e.key !== 'Escape' || e.defaultPrevented) return
+    if (dragId) {
+      e.preventDefault()
+      resetDrag()
+      return
+    }
+    if (toolbarMenuOpen || menuTaskId || showHistory) return
+    e.preventDefault()
+    void toggleFullScreen()
+  }
+
   let showHistory = $state(false)
+  let toolbarMenuOpen = $state(false)
+  const toolbarMenuItems: ActionMenuItem[] = [{
+    label: 'Version history',
+    icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'],
+    onSelect: () => (showHistory = true),
+  }]
   let historyAnchorEl = $state<HTMLButtonElement | null>(null)
   let rootEl = $state<HTMLElement | null>(null)
 
@@ -666,10 +706,12 @@
     return bindSnapshotTriggers(el, () => void logsStore.flushTasks(ds, { snapshot: true }))
   })
 
-  // A row menu belongs to one day's list.
+  // Menus and history belong to one day's list.
   $effect(() => {
     void dateStr
     menuTaskId = null
+    toolbarMenuOpen = false
+    showHistory = false
   })
 
   onDestroy(() => {
@@ -681,7 +723,16 @@
 
 <svelte:window onkeydown={onReorderKeydown} />
 
-<section class="tasks" class:desktop-reorder={desktopReorder} bind:this={rootEl} aria-label="Tasks">
+<section
+  class="tasks"
+  class:full-screen={fullScreen}
+  class:desktop-reorder={desktopReorder}
+  bind:this={rootEl}
+  role={fullScreen ? 'dialog' : 'region'}
+  aria-label="Tasks"
+  tabindex="-1"
+  onkeydown={onRootKeydown}
+>
   <div class="toolbar">
     <span class="progress" class:all-done={leafTasks.length > 0 && doneCount === leafTasks.length}>
       {#if leafTasks.length}
@@ -702,30 +753,43 @@
           <path d="M16 19V5M16 19l-3-3M16 19l3-3" />
         </svg>
       </button>
-      <div class="history-wrap">
-        <button
-          class="icon-btn history-toggle"
-          title="Version history"
-          aria-label="Version history"
-          bind:this={historyAnchorEl}
-          onclick={() => (showHistory = !showHistory)}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-            <path d="M3 3v5h5" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-        </button>
-        {#if showHistory}
-          <HistoryPopover
-            kind="day-tasks"
-            entityId={dateStr}
-            anchor={historyAnchorEl}
-            prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
-            onClose={() => (showHistory = false)}
-          />
+      <button
+        type="button"
+        class="icon-btn ghost full-screen-button"
+        bind:this={fullScreenButton}
+        title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}
+        aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}
+        aria-pressed={fullScreen}
+        onclick={toggleFullScreen}
+      >
+        {#if fullScreen}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5V6H2.5M10 2.5V6h3.5M6 13.5V10H2.5M10 13.5V10h3.5" /></svg>
+        {:else}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" /></svg>
         {/if}
-      </div>
+      </button>
+      <MoreButton
+        expanded={toolbarMenuOpen}
+        bind:anchor={historyAnchorEl}
+        onclick={() => (toolbarMenuOpen = !toolbarMenuOpen)}
+      />
+      {#if toolbarMenuOpen}
+        <ActionMenu
+          anchor={historyAnchorEl}
+          items={toolbarMenuItems}
+          label="Tasks actions"
+          onClose={() => (toolbarMenuOpen = false)}
+        />
+      {/if}
+      {#if showHistory}
+        <HistoryPopover
+          kind="day-tasks"
+          entityId={dateStr}
+          anchor={historyAnchorEl}
+          prepare={() => logsStore.flushTasks(dateStr, { snapshot: true })}
+          onClose={() => (showHistory = false)}
+        />
+      {/if}
     </div>
   </div>
 
@@ -969,6 +1033,22 @@
     --row-h: 2.5rem;
     margin-bottom: 3rem;
   }
+  .tasks.full-screen {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-popover) - 1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 3rem 1.5rem;
+    background: var(--bg);
+    outline: none;
+  }
+  .tasks.full-screen > * { max-width: 70ch; margin-inline: auto; }
+  .icon-btn.full-screen-button { width: 32px; height: 32px; }
+  @media (pointer: coarse) {
+    .icon-btn.full-screen-button { width: 40px; height: 40px; }
+  }
   .toolbar {
     display: flex;
     align-items: center;
@@ -990,7 +1070,6 @@
   .tools { display: flex; align-items: center; gap: 0.35rem; }
   .reorder-toggle.active { color: var(--accent); border-color: var(--accent); }
   .desktop-reorder .reorder-toggle { display: none; }
-  .history-wrap { position: relative; }
 
   .list {
     list-style: none;
