@@ -17,7 +17,7 @@ export function tagDecorations(doc: Node): DecorationSet {
       const tag = text.toLowerCase()
       const from = pos + match.index! + match[1].length
       decorations.push(Decoration.inline(from, from + text.length + 1, {
-        class: 'hawk-tag', 'data-tag': tag, role: 'link', tabindex: '0',
+        class: 'hawk-tag tag-badge', 'data-tag': tag, role: 'link', tabindex: '0',
         'aria-label': `Open #${tag} collection`, title: `Open #${tag} collection (Alt-click to edit)`,
       }))
     }

@@ -1371,15 +1371,10 @@
   }
 
   :global(.rich-editor .tiptap .hawk-tag) {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border-radius: var(--r-xs);
-    padding: 0 0.15em;
-    margin: 0 -0.15em;
-    cursor: pointer;
+    margin: 0 0.12em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
-  :global(.rich-editor .tiptap .hawk-tag:hover) { text-decoration: underline; }
-  :global(.rich-editor .tiptap .hawk-tag:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   :global(.rich-editor .tiptap hr) {
     border: none;
     border-top: 1px solid var(--line);

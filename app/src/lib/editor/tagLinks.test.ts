@@ -17,6 +17,7 @@ describe('tag links', () => {
     const { editor } = setup('#Work/Ideas/ #123 page#fragment `#code` [#link](https://test.com)\n\n```\n#fenced\n```')
     const tags = editor.view.dom.querySelectorAll('[data-tag]')
     expect(tags).toHaveLength(1)
+    expect(tags[0]).toHaveClass('tag-badge')
     expect(tags[0].getAttribute('data-tag')).toBe('work/ideas')
     expect(tags[0].textContent).toBe('#Work/Ideas')
   })
