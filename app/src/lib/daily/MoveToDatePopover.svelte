@@ -9,8 +9,11 @@
     anchor: HTMLElement | null
     onPick: (dateStr: string) => void
     onClose: () => void
+    label?: string
+    // Above modal overlays (the search dialog) instead of the page.
+    raised?: boolean
   }
-  let { from, anchor, onPick, onClose }: Props = $props()
+  let { from, anchor, onPick, onClose, label = 'Move to', raised = false }: Props = $props()
 
   let el = $state<HTMLDivElement | null>(null)
   let pos = $state<{ top: number; left: number } | null>(null)
@@ -97,13 +100,14 @@
 <div
   class="move-popover"
   role="dialog"
-  aria-label="Move to"
+  aria-label={label}
   tabindex="-1"
   bind:this={el}
   use:portal
   onkeydown={onKeydown}
   style:top={pos ? `${pos.top}px` : '-9999px'}
   style:left={pos ? `${pos.left}px` : '-9999px'}
+  style:z-index={raised ? 'calc(var(--z-overlay) + 1)' : undefined}
 >
   <div class="shortcuts">
     {#each visibleShortcuts as s (s.label)}

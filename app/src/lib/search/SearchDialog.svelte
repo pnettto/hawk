@@ -2,7 +2,8 @@
   import { tick } from 'svelte'
   import { fade, scale } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
-  import { searchStore, loadRecent, rememberQuery } from '../../stores/search'
+  import { searchStore, loadRecent, rememberQuery, createItems, type CreateItem } from '../../stores/search'
+  import MoveToDatePopover from '../daily/MoveToDatePopover.svelte'
   import { notesStore } from '../../stores/notes'
   import { logsStore } from '../../stores/logs'
   import { appStore } from '../../stores/app'
@@ -38,6 +39,15 @@
     ...tasks.map((hit): Item => ({ type: 'task', hit })),
   ])
   let typed = $derived(s.query.trim() !== '')
+  // Create rows come after the results, so results never jump around.
+  let creates: CreateItem[] = $derived($createItems)
+  let total = $derived(items.length + creates.length)
+  let calOpen = $state(false)
+  let calAnchor = $state<HTMLButtonElement | null>(null)
+  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+  const MOD = mac ? '⌘' : 'Ctrl+'
+  const SHIFT = mac ? '⇧' : 'Shift+'
+  const ENTER = mac ? '↵' : 'Enter'
 
   // Opening: save pending edits so they're searchable, focus the input, and
   // put focus back where it was on close.
@@ -46,6 +56,7 @@
     const opener = document.activeElement as HTMLElement | null
     recent = loadRecent()
     active = 0
+    calOpen = false
     logsStore.flushOnHide()
     void notesStore.flushSaves().finally(() => searchStore.refresh())
     void tick().then(() => inputEl?.select())
@@ -62,17 +73,31 @@
     return () => clearTimeout(t)
   })
 
-  // New results: start at the top.
+  // New results: start at the top. With none, that's "Add task".
   $effect(() => {
     void results
     active = 0
+  })
+
+  // Rows hidden by the Notes/Tasks switch: stay in range.
+  $effect(() => {
+    if (active >= total) active = Math.max(0, total - 1)
   })
 
   function close() {
     searchStore.close()
   }
 
-  function open(item: Item, { dayOnly = false } = {}) {
+  function create(kind: CreateItem['kind'] | undefined, opts: { stayOpen?: boolean } = {}) {
+    const item = kind ? creates.find((c) => c.kind === kind) : creates[active - items.length]
+    if (!item) return
+    calOpen = false
+    void item.run(opts).then(() => {
+      if (opts.stayOpen) inputEl?.focus()
+    })
+  }
+
+  function open(item: Item) {
     rememberQuery(s.query)
     close()
     if (item.type === 'note') {
@@ -85,13 +110,13 @@
       }
     } else {
       const h = item.hit
-      navigate({ page: 'journal', date: h.date, tab: 'tasks', ...(dayOnly ? {} : { task: h.id }) })
+      navigate({ page: 'journal', date: h.date, tab: 'tasks', task: h.id })
     }
   }
 
   async function move(delta: number) {
-    if (!items.length) return
-    active = (active + delta + items.length) % items.length
+    if (!total) return
+    active = (active + delta + total) % total
     await tick()
     listEl?.querySelector(`#search-opt-${active}`)?.scrollIntoView({ block: 'nearest' })
   }
@@ -99,7 +124,8 @@
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault()
-      close()
+      if (calOpen) closeCalendar()
+      else close()
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       void move(1)
@@ -107,11 +133,20 @@
       e.preventDefault()
       void move(-1)
     } else if (e.key === 'Enter' && !e.isComposing) {
-      const item = items[active]
-      if (!item) return
+      if (!typed) return
       e.preventDefault()
-      open(item, { dayOnly: e.metaKey || e.ctrlKey })
+      // ⌘Enter adds a task (⌥ keeps the dialog open), ⌘⇧Enter makes a note,
+      // whichever row is active.
+      if (e.metaKey || e.ctrlKey) create(e.shiftKey ? 'note' : 'task', { stayOpen: !e.shiftKey && e.altKey })
+      else if (active < items.length) open(items[active])
+      else create(undefined)
     }
+  }
+
+  function closeCalendar() {
+    calOpen = false
+    // After the popover hands focus back to its button.
+    queueMicrotask(() => inputEl?.focus())
   }
 
   function useRecent(q: string) {
@@ -171,9 +206,9 @@
           placeholder="Search notes and tasks"
           aria-label="Search notes and tasks"
           role="combobox"
-          aria-expanded={items.length > 0}
+          aria-expanded={typed && total > 0}
           aria-controls="search-results"
-          aria-activedescendant={items.length ? `search-opt-${active}` : undefined}
+          aria-activedescendant={typed && total ? `search-opt-${active}` : undefined}
           autocomplete="off"
           spellcheck="false"
           value={s.query}
@@ -207,74 +242,128 @@
             </ul>
           {/if}
           <p class="hint">Use #tag to filter by tag and "quotes" for an exact phrase.</p>
-        {:else if s.error}
-          <p class="state">Couldn’t search right now.</p>
-        {:else if s.results && !items.length}
-          <p class="state">Nothing matches “{s.query.trim()}”</p>
-        {:else if s.results}
+        {:else}
+          {#if s.error}
+            <p class="state">Couldn’t search right now.</p>
+          {:else if s.results && !items.length}
+            <p class="state">Nothing matches “{s.query.trim()}”</p>
+          {/if}
           <div id="search-results" role="listbox" aria-label="Results">
-            {#if notes.length}
-              <div class="group-label" role="presentation">Notes</div>
-            {/if}
-            {#each items as item, i (item.type + (item.type === 'task' ? item.hit.date : '') + item.hit.id)}
-              {#if item.type === 'task' && i === notes.length}
-                <div class="group-label" role="presentation">Tasks</div>
+            {#if s.results && !s.error}
+              {#if notes.length}
+                <div class="group-label" role="presentation">Notes</div>
               {/if}
+              {#each items as item, i (item.type + (item.type === 'task' ? item.hit.date : '') + item.hit.id)}
+                {#if item.type === 'task' && i === notes.length}
+                  <div class="group-label" role="presentation">Tasks</div>
+                {/if}
+                <div
+                  id="search-opt-{i}"
+                  role="option"
+                  tabindex="-1"
+                  aria-selected={i === active}
+                  class="row"
+                  class:active={i === active}
+                  onpointermove={() => (active = i)}
+                  onclick={() => open(item)}
+                  onkeydown={() => {}}
+                >
+                  {#if item.type === 'note'}
+                    {@const h = item.hit}
+                    <div class="line">
+                      {#if h.hidden}
+                        <svg class="lock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden">
+                          {#each LOCK_ICON as d (d)}<path {d} />{/each}
+                        </svg>
+                      {/if}
+                      <span class="title">
+                        {#if h.title.trim()}{@render marked(h.title, h.titleMatches)}{:else}Untitled{/if}
+                      </span>
+                      {#if h.day}<span class="meta">Day note · {dayLabel(h.day)}</span>{/if}
+                    </div>
+                    {#if h.snippet}
+                      <div class="snippet">{@render marked(h.snippet, h.snippetMatches)}</div>
+                    {/if}
+                    {#if h.tags.length}
+                      <div class="tags">
+                        {#each h.tags.slice(0, 3) as t (t)}<span class="tag">#{t}</span>{/each}
+                      </div>
+                    {/if}
+                  {:else}
+                    {@const h = item.hit}
+                    <div class="line">
+                      <span class="check" class:done={h.done} aria-label={h.done ? 'Done' : 'Open'}></span>
+                      <span class="title" class:done-text={h.done}>{@render marked(h.text, h.textMatches)}</span>
+                    </div>
+                    <div class="meta task-meta">
+                      {taskMeta(h)}
+                    </div>
+                    {#if h.comment}
+                      <div class="snippet">{@render marked(h.comment, h.commentMatches)}</div>
+                    {/if}
+                  {/if}
+                </div>
+              {/each}
+            {/if}
+            {#each creates as c, j (c.kind)}
+              {@const i = items.length + j}
               <div
                 id="search-opt-{i}"
                 role="option"
                 tabindex="-1"
                 aria-selected={i === active}
-                class="row"
+                class="row create"
+                class:first-create={j === 0 && items.length > 0}
                 class:active={i === active}
                 onpointermove={() => (active = i)}
-                onclick={(e) => open(item, { dayOnly: e.metaKey || e.ctrlKey })}
+                onclick={() => create(c.kind)}
                 onkeydown={() => {}}
               >
-                {#if item.type === 'note'}
-                  {@const h = item.hit}
-                  <div class="line">
-                    {#if h.hidden}
-                      <svg class="lock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden">
-                        {#each LOCK_ICON as d (d)}<path {d} />{/each}
-                      </svg>
-                    {/if}
-                    <span class="title">
-                      {#if h.title.trim()}{@render marked(h.title, h.titleMatches)}{:else}Untitled{/if}
-                    </span>
-                    {#if h.day}<span class="meta">Day note · {dayLabel(h.day)}</span>{/if}
-                  </div>
-                  {#if h.snippet}
-                    <div class="snippet">{@render marked(h.snippet, h.snippetMatches)}</div>
+                <div class="line">
+                  <span class="plus" aria-hidden="true">+</span>
+                  <span class="title">{c.label}</span>
+                  {#if c.kind === 'task'}
+                    <button
+                      type="button"
+                      class="create-date"
+                      aria-label="Change date, {c.detail}"
+                      aria-expanded={calOpen}
+                      onclick={(e) => {
+                        e.stopPropagation()
+                        calAnchor = e.currentTarget
+                        calOpen = !calOpen
+                      }}>{c.detail}</button
+                    >
+                  {:else if c.detail}
+                    <span class="meta create-detail">{c.detail}</span>
                   {/if}
-                  {#if h.tags.length}
-                    <div class="tags">
-                      {#each h.tags.slice(0, 3) as t (t)}<span class="tag">#{t}</span>{/each}
-                    </div>
+                  {#if c.kind !== 'day-note'}
+                    <kbd>{MOD}{c.kind === 'note' ? SHIFT : ''}{ENTER}</kbd>
                   {/if}
-                {:else}
-                  {@const h = item.hit}
-                  <div class="line">
-                    <span class="check" class:done={h.done} aria-label={h.done ? 'Done' : 'Open'}></span>
-                    <span class="title" class:done-text={h.done}>{@render marked(h.text, h.textMatches)}</span>
-                  </div>
-                  <div class="meta task-meta">
-                    {taskMeta(h)}
-                  </div>
-                  {#if h.comment}
-                    <div class="snippet">{@render marked(h.comment, h.commentMatches)}</div>
-                  {/if}
-                {/if}
+                </div>
               </div>
             {/each}
           </div>
-          {#if s.results.truncated}
+          {#if s.results?.truncated && !s.error}
             <p class="hint">Showing the best matches. Add a word to narrow it down.</p>
           {/if}
         {/if}
       </div>
     </div>
   </div>
+  {#if calOpen}
+    {@const task = creates.find((c) => c.kind === 'task')}
+    {#if task?.date}
+      <MoveToDatePopover
+        from={task.date}
+        anchor={calAnchor}
+        label="Add to"
+        raised
+        onPick={(d) => searchStore.setCreateDate(d)}
+        onClose={closeCalendar}
+      />
+    {/if}
+  {/if}
 {/if}
 
 <style>
@@ -444,6 +533,55 @@
     color: inherit;
     border-radius: 2px;
   }
+  .create.first-create {
+    margin-top: 0.35rem;
+    position: relative;
+  }
+  .create.first-create::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    top: -0.2rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .plus {
+    width: 12px;
+    flex-shrink: 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+  .create .title { flex: 0 1 auto; }
+  .create-detail { overflow: hidden; text-overflow: ellipsis; }
+  .create-date {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.72rem;
+    padding: 0.1rem 0.45rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .create-date:hover { color: var(--text); border-color: var(--accent); }
+  .create-date:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  kbd {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-family: inherit;
+    font-size: 0.68rem;
+    color: var(--muted);
+    background: var(--glass-dark);
+    border-radius: var(--r-xs);
+    padding: 0.05rem 0.35rem;
+  }
   .recent { list-style: none; margin: 0; padding: 0; }
   .recent button {
     display: block;
@@ -481,5 +619,7 @@
   @media (pointer: coarse) {
     .row { padding: 0.65rem 0.5rem; }
     .recent button { min-height: 40px; }
+    .create-date { min-height: 32px; }
+    kbd { display: none; }
   }
 </style>

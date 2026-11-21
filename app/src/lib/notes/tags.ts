@@ -27,3 +27,14 @@ export function parseTags(markdown: string | undefined): string[] {
   }
   return [...out].sort()
 }
+
+// One line of typed text split into a title and its #tags:
+// "Trip ideas #travel" -> { title: "Trip ideas", tags: ["travel"] }.
+export function splitTitleTags(text: string): { title: string; tags: string[] } {
+  const tags = parseTags(text)
+  const title = text
+    .replace(TAG_RE, (m, pre: string, tag: string) => (/\p{L}/u.test(tag) ? pre : m))
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { title, tags }
+}

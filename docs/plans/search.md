@@ -74,7 +74,7 @@ Response:
   - Debounce 150 ms. Abort the previous request with `AbortController`.
   - Show a quiet loading state only after 300 ms, so fast results don't flicker.
   - Keep the previous results visible while the next request is in flight.
-- **Keyboard:** ↑/↓ moves the active row (`aria-activedescendant`, listbox pattern). Enter opens the result. ⌘/Ctrl+Enter on a task opens the day instead of only highlighting. Esc closes and restores focus to whatever had it.
+- **Keyboard:** ↑/↓ moves the active row (`aria-activedescendant`, listbox pattern). Enter opens the result. (⌘/Ctrl+Enter and ⌘/Ctrl+Shift+Enter are reserved for quick create; see `quick-create.md`.) Esc closes and restores focus to whatever had it.
 - **Opening a result:**
   - Note → `/notes/<nid>` (selects the note; trashed notes aren't returned).
   - Day note → Journal's Day Notes tab for that date.

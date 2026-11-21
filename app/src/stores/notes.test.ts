@@ -86,3 +86,38 @@ describe('day note ordering', () => {
     ])
   })
 })
+
+describe('createNote', () => {
+  async function setup() {
+    const api = await import('../api/notes')
+    vi.spyOn(api, 'getNotesIndex').mockResolvedValue([])
+    const save = vi.spyOn(api, 'saveNoteChecked').mockResolvedValue({ ok: true, data: { success: true, rev: 1, updatedAt: 1 } })
+    const notes = await store()
+    await notes.load()
+    return { notes, save }
+  }
+
+  it('saves a title and a tag line once', async () => {
+    const { notes, save } = await setup()
+    const nid = notes.createNote({ title: ' Trip ideas ', tags: ['travel', 'summer'] })
+    const note = get(notes).allNotes.find((n) => n.id === nid) as import('../types/models').Note
+    expect(note.title).toBe('Trip ideas')
+    expect(note.content).toBe('&nbsp;\n\n#travel #summer')
+    expect(note.tags).toEqual(['summer', 'travel'])
+    expect(get(notes).selectedNid).toBe(nid)
+    await notes.flushSaves()
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][0]).toMatchObject({ id: nid, title: 'Trip ideas', content: '&nbsp;\n\n#travel #summer' })
+  })
+
+  it('merges a tag with tags and keeps day notes unselected', async () => {
+    const { notes, save } = await setup()
+    const nid = notes.createNote({ tag: 'work', tags: ['work', 'home'], day: '2026-05-14', dayOrder: 2, select: false })
+    const note = get(notes).allNotes.find((n) => n.id === nid) as import('../types/models').Note
+    expect(note.content).toBe('&nbsp;\n\n#work #home')
+    expect(note).toMatchObject({ day: '2026-05-14', dayOrder: 2, title: '' })
+    expect(get(notes).selectedNid).not.toBe(nid)
+    await notes.flushSaves()
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+})

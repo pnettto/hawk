@@ -380,11 +380,15 @@ function createNotesStore() {
     }
   }
 
-  // New note, saved right away. A tag lands on the note's last line; `day`
-  // makes it a journal note for that date.
-  function createNote(opts: { tag?: string; day?: string; dayOrder?: number; select?: boolean } = {}): string {
+  // New note, saved right away. Tags land on the note's last line; `day`
+  // makes it a journal note for that date. A title goes through the session,
+  // so it's saved and merged like a typed one.
+  function createNote(
+    opts: { tag?: string; tags?: string[]; title?: string; day?: string; dayOrder?: number; select?: boolean } = {},
+  ): string {
     const nid = crypto.randomUUID()
-    const content = opts.tag ? `&nbsp;\n\n#${opts.tag}` : ''
+    const tags = [...new Set([...(opts.tag ? [opts.tag] : []), ...(opts.tags ?? [])])]
+    const content = tags.length ? `&nbsp;\n\n${tags.map((t) => `#${t}`).join(' ')}` : ''
     const note: Note = {
       id: nid,
       title: '',
@@ -403,7 +407,11 @@ function createNotesStore() {
       allNotes: [note, ...s.allNotes],
       selectedNid: opts.select === false ? s.selectedNid : nid,
     }))
-    sessionFor(nid)?.touch()
+    // Open the session before setting the title, so it counts as an edit.
+    const session = sessionFor(nid)
+    const title = opts.title?.trim()
+    if (title) setTitle(nid, title)
+    else session?.touch()
     return nid
   }
 

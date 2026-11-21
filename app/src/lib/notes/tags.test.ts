@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTags, TAG_TYPING_RE } from './tags'
+import { parseTags, splitTitleTags, TAG_TYPING_RE } from './tags'
 
 describe('parseTags', () => {
   it('finds tags at line starts, after spaces and parens', () => {
@@ -21,5 +21,14 @@ describe('TAG_TYPING_RE', () => {
     expect(TAG_TYPING_RE.exec('#')?.[1]).toBe('')
     expect(TAG_TYPING_RE.exec('a#b')).toBeNull()
     expect(TAG_TYPING_RE.exec('#done ')).toBeNull()
+  })
+})
+
+describe('splitTitleTags', () => {
+  it('moves tags out of the title', () => {
+    expect(splitTitleTags('Trip ideas #travel')).toEqual({ title: 'Trip ideas', tags: ['travel'] })
+    expect(splitTitleTags('#work Plan  Q3 #Ideas')).toEqual({ title: 'Plan Q3', tags: ['ideas', 'work'] })
+    expect(splitTitleTags('Issue #1 and page#top')).toEqual({ title: 'Issue #1 and page#top', tags: [] })
+    expect(splitTitleTags('#travel')).toEqual({ title: '', tags: ['travel'] })
   })
 })

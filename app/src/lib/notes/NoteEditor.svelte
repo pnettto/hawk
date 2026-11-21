@@ -112,6 +112,15 @@
     richEditor.focusBody()
   }
 
+  // Created from quick create: the title is written, so start in the body.
+  // After a beat, so the closing search dialog has given focus back first.
+  $effect(() => {
+    if ($appStore.focusNoteBodyId !== nid || variant !== 'page' || !richEditor || !session) return
+    appStore.setFocusNoteBody(null)
+    const ed = richEditor
+    setTimeout(() => ed.focusBody(), 30)
+  })
+
   function openTag(tag: string) {
     reading = false
     notesStore.setFilter({ kind: 'tag', tag })
