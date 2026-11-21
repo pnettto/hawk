@@ -1,13 +1,17 @@
 // Day log model. Stored as a JSON string at ["logs", dateStr].
 //
 // Current shape:
-//   { tasks: Task[], notes: DayNote[] }
+//   { tasks: Task[] }
 //
 // Legacy shape (still readable — normalized on every read):
-//   { notesMarkdown?: string, "9": HourEntry, "10-30": HourEntry, ... }
-// Hour slots become timed tasks; notesMarkdown becomes the note with id
-// LEGACY_NOTE_ID. The first write through the new endpoints persists the
-// normalized form and drops the legacy keys.
+//   { "9": HourEntry, "10-30": HourEntry, ... }
+// Hour slots become timed tasks. The first write through the new endpoints
+// persists the normalized form and drops the legacy keys.
+//
+// Day blobs used to carry notes too (`notes: DayNote[]`, before that a single
+// `notesMarkdown`). Those became regular notes in the notes schema-2
+// migration (notesStore.ts), which reads them with its own reader; the logs
+// sweep (ensureLogsSwept) then strips them from every stored day.
 
 export interface Task {
   id: string;
@@ -23,20 +27,8 @@ export interface Task {
   updatedAt?: number;
 }
 
-export interface DayNote {
-  id: string;
-  title: string;
-  markdown: string;
-  order: number;
-  // Bumped on every write — clients send it back as baseRev so the server can
-  // detect a concurrent edit from another device instead of clobbering it.
-  rev: number;
-  updatedAt: number;
-}
-
 export interface DayLog {
   tasks: Task[];
-  notes: DayNote[];
 }
 
 export interface LegacyHourEntry {
@@ -45,8 +37,8 @@ export interface LegacyHourEntry {
   comment: string;
 }
 
-// The note migrated from the single legacy notesMarkdown field. Its version
-// history keeps living under the bare dateStr id (see dayNoteHistoryId).
+// The id the single legacy notesMarkdown field had as a day note. Its version
+// history lives under the bare dateStr id (see dayNoteHistoryId).
 export const LEGACY_NOTE_ID = "main";
 
 const HOUR_KEY = /^\d{1,2}(?:-\d{1,2})?$/;
@@ -100,7 +92,7 @@ export function legacyHourEntriesToTasks(
   return out;
 }
 
-function parseRaw(raw: unknown): Record<string, unknown> {
+export function parseDayRaw(raw: unknown): Record<string, unknown> {
   if (raw === undefined || raw === null) return {};
   if (typeof raw === "string") {
     try {
@@ -114,9 +106,8 @@ function parseRaw(raw: unknown): Record<string, unknown> {
 }
 
 export function normalizeDayLog(raw: unknown): DayLog {
-  const obj = parseRaw(raw);
+  const obj = parseDayRaw(raw);
   let tasks: Task[] = Array.isArray(obj.tasks) ? (obj.tasks as Task[]) : [];
-  let notes: DayNote[] = Array.isArray(obj.notes) ? (obj.notes as DayNote[]) : [];
 
   if (!Array.isArray(obj.tasks)) {
     const hours: Record<string, LegacyHourEntry> = {};
@@ -128,21 +119,7 @@ export function normalizeDayLog(raw: unknown): DayLog {
     tasks = legacyHourEntriesToTasks(hours);
   }
 
-  if (!Array.isArray(obj.notes)) {
-    const md = typeof obj.notesMarkdown === "string" ? obj.notesMarkdown : "";
-    notes = md.trim()
-      ? [{
-        id: LEGACY_NOTE_ID,
-        title: "",
-        markdown: md,
-        order: 0,
-        rev: 1,
-        updatedAt: 0,
-      }]
-      : [];
-  }
-
-  return { tasks, notes };
+  return { tasks };
 }
 
 // Version-history ids. Day tasks are one entity per day; day notes are one
@@ -179,7 +156,7 @@ export function isSubstantialTaskListChange(prev: Task[], next: Task[]): boolean
 
 // Same order the client lists tasks in: timed first by time, then untimed by
 // manual order.
-function compareTasks(a: Task, b: Task): number {
+export function compareTasks(a: Task, b: Task): number {
   if (a.time && b.time) return a.time.localeCompare(b.time) || a.order - b.order;
   if (a.time) return -1;
   if (b.time) return 1;

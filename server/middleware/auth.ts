@@ -28,6 +28,24 @@ export function sessionToken(): Promise<string> {
   return sha256Hex(`hawk-session:${getApiKey()}`);
 }
 
+// A token that can only call the read API (docs/api.md). Derived like the
+// session token, so changing API_KEY revokes it too.
+export function readToken(): Promise<string> {
+  return sha256Hex(`hawk-read:${getApiKey()}`);
+}
+
+// What a read-only token may call: GET/HEAD on the read API and search.
+const READ_ONLY_PATH = /^\/api\/(?:notes(?:\/[^/]+)?|tasks|reports\/[^/]+|search)$/;
+
+export function readOnlyAllows(method: string, path: string): boolean {
+  return (method === "GET" || method === "HEAD") && READ_ONLY_PATH.test(path);
+}
+
+export async function isValidReadToken(token: string | undefined | null): Promise<boolean> {
+  if (!getApiKey() || !token) return false;
+  return safeEqual(token, await readToken());
+}
+
 export async function isValidPassword(password: string): Promise<boolean> {
   const API_KEY = getApiKey();
   if (!API_KEY || !password) return false;
@@ -59,9 +77,11 @@ export const auth = async (c: Context, next: Next) => {
     );
   }
 
-  if (await isValidToken(tokenFromRequest(c))) {
-    return await next();
-  } else {
-    return c.json({ error: "Unauthorized" }, 401);
+  const token = tokenFromRequest(c);
+  if (await isValidToken(token)) return await next();
+  if (await isValidReadToken(token)) {
+    if (readOnlyAllows(c.req.method, c.req.path)) return await next();
+    return c.json({ error: "Read-only token" }, 403);
   }
+  return c.json({ error: "Unauthorized" }, 401);
 };

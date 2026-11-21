@@ -11,6 +11,7 @@ import {
 } from "../utils/versioning.ts";
 import {
   ensureNotesMigrated,
+  listMeta,
   metaKey,
   metaOf,
   type NoteMetadata,
@@ -114,16 +115,10 @@ export async function getSharedNotePage(c: Context) {
 const MAX_NOTE_BYTES = 63 * 1024;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SOURCE_RE = /^[a-z0-9-]{1,32}$/;
 
 async function emitNote(c: Context, type: SyncEventType, ref: string) {
   await emitSyncEvent({ type, ref, originClientId: getClientIdFromCtx(c) });
-}
-
-async function listMeta(): Promise<NoteMetadata[]> {
-  await ensureNotesMigrated();
-  const out: NoteMetadata[] = [];
-  for await (const e of kv.list<NoteMetadata>({ prefix: ["notes", "meta"] })) out.push(e.value);
-  return out;
 }
 
 // Every note's list row, trashed ones included.
@@ -161,7 +156,8 @@ export async function getDayNotes(c: Context) {
 }
 
 // Body: { id, title?, content?, createdAt?, isPublic?, hidden?, day?, dayOrder?,
-// baseRev?, snapshot? }. Omitted fields keep their stored value, so a
+// source?, baseRev?, snapshot? }. `day` and `source` are only read when the note
+// is created. Omitted fields keep their stored value, so a
 // metadata-only save (share or hide toggle) never touches the body. Tags are always
 // re-derived from the body.
 export async function saveNote(c: Context) {
@@ -207,6 +203,11 @@ export async function saveNote(c: Context) {
   if (day) note.day = day;
   const dayOrder = typeof body.dayOrder === "number" ? body.dayOrder : existing?.dayOrder;
   if (day && typeof dayOrder === "number") note.dayOrder = dayOrder;
+  // Where the note was created; later edits from anywhere never change it.
+  const source = existing
+    ? existing.source
+    : (typeof body.source === "string" && SOURCE_RE.test(body.source) ? body.source : undefined);
+  if (source) note.source = source;
 
   if (JSON.stringify(note).length > MAX_NOTE_BYTES) {
     return c.json({ error: "Note is too large" }, 413);

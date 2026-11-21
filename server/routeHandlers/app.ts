@@ -1,23 +1,17 @@
 import { Context } from "hono";
 import { kv } from "../utils/kvConn.ts";
 import { emitSyncEvent, getClientIdFromCtx } from "../utils/syncEvents.ts";
-import {
-  getVersion,
-  isSubstantialTextChange,
-  listVersions,
-  makePreview,
-  maybeSnapshot,
-  type SnapshotKind,
-} from "../utils/versioning.ts";
+import { getVersion, listVersions, maybeSnapshot, type SnapshotKind } from "../utils/versioning.ts";
+import { ensureNotesMigrated } from "../utils/notesStore.ts";
 import {
   type DayLog,
-  type DayNote,
   dayNoteHistoryId,
   isSubstantialTaskListChange,
   type LegacyHourEntry,
   legacyHourEntriesToTasks,
   moveTasksBetween,
   normalizeDayLog,
+  parseDayRaw,
   type Task,
   tasksPreview,
 } from "../utils/dayLog.ts";
@@ -27,17 +21,59 @@ import {
 const MAX_DAY_BYTES = 63 * 1024;
 
 const dayKey = (dateStr: string) => ["logs", dateStr];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 class DayTooLargeError extends Error {}
-class ConflictError extends Error {
-  constructor(public current: DayNote) {
-    super("conflict");
+
+// ---- Legacy day-notes sweep ------------------------------------------------
+
+const LOGS_SCHEMA_KEY = ["logs", "schema"];
+const LOGS_SCHEMA_VERSION = 2;
+let sweeping: Promise<void> | null = null;
+
+// Strips the legacy `notes` array and `notesMarkdown` from every stored day,
+// once (flag ["logs", "schema"] = 2). The notes migration runs first, so a
+// database that still has blob notes gets them copied out as regular notes
+// before they're removed. Same promise guard as ensureNotesMigrated.
+export function ensureLogsSwept(): Promise<void> {
+  sweeping ??= sweepLogs().catch((e) => {
+    sweeping = null;
+    throw e;
+  });
+  return sweeping;
+}
+
+// Tests reset the store between cases.
+export function resetLogsSweepForTests() {
+  sweeping = null;
+}
+
+async function sweepLogs() {
+  const cur = await kv.get<number>(LOGS_SCHEMA_KEY);
+  if ((cur.value ?? 0) >= LOGS_SCHEMA_VERSION) return;
+  await ensureNotesMigrated();
+  let stripped = 0;
+  // Dates sort before "schema" and "version_*" rows, so the range skips them.
+  for await (const entry of kv.list<unknown>({ start: ["logs", "0"], end: ["logs", ":"] })) {
+    const dateStr = entry.key[1];
+    if (entry.key.length !== 2 || typeof dateStr !== "string" || !DATE_RE.test(dateStr)) continue;
+    const obj = parseDayRaw(entry.value);
+    if (!("notes" in obj) && !("notesMarkdown" in obj)) continue;
+    const { notes: _n, notesMarkdown: _m, ...rest } = obj;
+    // A concurrent write already stores the day without them.
+    await kv.atomic().check(entry).set(entry.key, JSON.stringify(rest)).commit();
+    stripped++;
   }
+  await kv.set(LOGS_SCHEMA_KEY, LOGS_SCHEMA_VERSION);
+  console.log(`[logs] stripped legacy notes from ${stripped} days`);
+}
+
+export function retiredDayNotes(c: Context) {
+  return c.json({ error: "Day notes moved to /api/notes/notes" }, 410);
 }
 
 // Read-modify-write one or more day blobs under optimistic versionstamp
-// checks, so a tasks write and a notes write landing at the same moment both
-// survive, and a write spanning several days changes all of them or none.
+// checks, so two task writes landing at the same moment both survive, and a write spanning several days changes all of them or none.
 async function updateDays<R>(
   dates: string[],
   mutate: (logs: DayLog[]) => R,
@@ -65,8 +101,6 @@ async function updateDay<R>(
   const { logs, prevs, result } = await updateDays([dateStr], ([log]) => mutate(log));
   return { log: logs[0], prev: prevs[0], result };
 }
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function requireDate(c: Context): string | null {
   const d = c.req.query("date");
@@ -115,10 +149,16 @@ export async function getRangeLog(c: Context) {
 export async function setDayLog(c: Context) {
   const dateStr = requireDate(c);
   if (!dateStr) return c.json({ error: "Missing date parameter" }, 400);
-  const body = await c.req.text();
-  if (!body) return c.text("Empty body", 400);
-  if (body.length > MAX_DAY_BYTES) return c.json({ error: "Day is too large" }, 413);
-  await kv.set(dayKey(dateStr), body);
+  const raw = await c.req.text();
+  if (!raw) return c.text("Empty body", 400);
+  if (raw.length > MAX_DAY_BYTES) return c.json({ error: "Day is too large" }, 413);
+  try {
+    JSON.parse(raw);
+  } catch {
+    return c.json({ error: "Bad body" }, 400);
+  }
+  // Stored in the current shape, so an old client can't bring back day notes.
+  await kv.set(dayKey(dateStr), JSON.stringify(normalizeDayLog(raw)));
   await emitDaySaved(c, dateStr);
   return c.text("Day log saved", 200);
 }
@@ -237,87 +277,6 @@ export async function moveDayTasks(c: Context) {
   }
 }
 
-// ---- Day notes -----------------------------------------------------------
-
-// Body: { note: { id, title, markdown, order? }, baseRev?: number }.
-// When baseRev is given and doesn't match the stored rev, nothing is written
-// and the current note is returned with 409 so the client can merge.
-export async function saveDayNote(c: Context) {
-  const dateStr = requireDate(c);
-  if (!dateStr) return c.json({ error: "Missing date" }, 400);
-  const snapshot = c.req.query("snapshot") === "true";
-  const body = await c.req.json().catch(() => null) as
-    | { note?: Partial<DayNote>; baseRev?: number }
-    | null;
-  const input = body?.note;
-  if (!input || typeof input.id !== "string" || !input.id) {
-    return c.json({ error: "Bad body" }, 400);
-  }
-
-  try {
-    const { log, prev } = await updateDay(dateStr, (log) => {
-      const idx = log.notes.findIndex((n) => n.id === input.id);
-      const existing = idx > -1 ? log.notes[idx] : null;
-      if (existing && typeof body!.baseRev === "number" && existing.rev !== body!.baseRev) {
-        throw new ConflictError(existing);
-      }
-      const next: DayNote = {
-        id: input.id!,
-        title: typeof input.title === "string" ? input.title : existing?.title ?? "",
-        markdown: typeof input.markdown === "string"
-          ? input.markdown
-          : existing?.markdown ?? "",
-        order: typeof input.order === "number"
-          ? input.order
-          : existing?.order ?? Date.now(),
-        rev: (existing?.rev ?? 0) + 1,
-        updatedAt: Date.now(),
-      };
-      if (idx > -1) log.notes[idx] = next;
-      else log.notes.push(next);
-    });
-    const saved = log.notes.find((n) => n.id === input.id)!;
-    if (snapshot) {
-      const before = prev.notes.find((n) => n.id === input.id);
-      await maybeSnapshot({
-        kind: "day-notes",
-        id: dayNoteHistoryId(dateStr, saved.id),
-        next: { title: saved.title, markdown: saved.markdown },
-        preview: makePreview(saved.markdown),
-        substantialChange: isSubstantialTextChange(before?.markdown, saved.markdown),
-      });
-    }
-    await emitDaySaved(c, dateStr);
-    return c.json({ note: saved });
-  } catch (e) {
-    if (e instanceof ConflictError) return c.json({ note: e.current }, 409);
-    if (e instanceof DayTooLargeError) return c.json({ error: "Day is too large" }, 413);
-    throw e;
-  }
-}
-
-export async function deleteDayNote(c: Context) {
-  const dateStr = requireDate(c);
-  const id = c.req.query("id");
-  if (!dateStr || !id) return c.json({ error: "Missing parameter" }, 400);
-  const { prev } = await updateDay(dateStr, (log) => {
-    log.notes = log.notes.filter((n) => n.id !== id);
-  });
-  // Keep a recoverable copy in the note's history.
-  const gone = prev.notes.find((n) => n.id === id);
-  if (gone && gone.markdown.trim()) {
-    await maybeSnapshot({
-      kind: "day-notes",
-      id: dayNoteHistoryId(dateStr, id),
-      next: { title: gone.title, markdown: gone.markdown },
-      preview: makePreview(gone.markdown),
-      substantialChange: true,
-    });
-  }
-  await emitDaySaved(c, dateStr);
-  return c.json({ success: true });
-}
-
 // ---- Version history -----------------------------------------------------
 
 type DayVersionContent = {
@@ -377,51 +336,23 @@ export async function restoreDayVersion(c: Context) {
   if (!dateStr || !target || !Number.isFinite(savedAt)) {
     return c.json({ error: "Bad parameters" }, 400);
   }
+  // Day notes are regular notes now, restored through note history.
+  if (target.kind !== "day-tasks") return retiredDayNotes(c);
   const v = await getVersion<DayVersionContent>(target.kind, target.id, savedAt);
   if (!v) return c.json({ error: "Version not found" }, 404);
   const restored = upgradeVersion(v.content);
 
-  if (target.kind === "day-tasks") {
-    const { log, prev } = await updateDay(dateStr, (log) => {
-      log.tasks = restored.tasks ?? [];
-    });
-    // Snapshot the pre-restore state so the restore itself is reversible.
-    await maybeSnapshot({
-      kind: "day-tasks",
-      id: dateStr,
-      next: { tasks: prev.tasks },
-      preview: tasksPreview(prev.tasks),
-      substantialChange: true,
-    });
-    await emitDaySaved(c, dateStr);
-    return c.json({ success: true, tasks: log.tasks });
-  }
-
-  const noteId = c.req.query("note")!;
   const { log, prev } = await updateDay(dateStr, (log) => {
-    const idx = log.notes.findIndex((n) => n.id === noteId);
-    const existing = idx > -1 ? log.notes[idx] : null;
-    const next: DayNote = {
-      id: noteId,
-      title: restored.title ?? existing?.title ?? "",
-      markdown: restored.markdown ?? "",
-      order: existing?.order ?? Date.now(),
-      rev: (existing?.rev ?? 0) + 1,
-      updatedAt: Date.now(),
-    };
-    if (idx > -1) log.notes[idx] = next;
-    else log.notes.push(next);
+    log.tasks = restored.tasks ?? [];
   });
-  const before = prev.notes.find((n) => n.id === noteId);
-  if (before) {
-    await maybeSnapshot({
-      kind: "day-notes",
-      id: target.id,
-      next: { title: before.title, markdown: before.markdown },
-      preview: makePreview(before.markdown),
-      substantialChange: true,
-    });
-  }
+  // Snapshot the pre-restore state so the restore itself is reversible.
+  await maybeSnapshot({
+    kind: "day-tasks",
+    id: dateStr,
+    next: { tasks: prev.tasks },
+    preview: tasksPreview(prev.tasks),
+    substantialChange: true,
+  });
   await emitDaySaved(c, dateStr);
-  return c.json({ success: true, note: log.notes.find((n) => n.id === noteId) });
+  return c.json({ success: true, tasks: log.tasks });
 }

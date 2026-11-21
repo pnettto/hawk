@@ -312,6 +312,8 @@ function createNotesStore() {
             createdAt: cur.createdAt,
             day: cur.day,
             dayOrder: cur.dayOrder,
+            // Only read by the server when this save creates the note.
+            source: cur.source,
           },
           baseRev,
           { snapshot: opts.snapshot, keepalive: opts.keepalive },
@@ -396,6 +398,7 @@ function createNotesStore() {
       tags: parseTags(content),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      source: 'web',
       local: true,
     }
     if (opts.day) {
@@ -425,7 +428,7 @@ function createNotesStore() {
     const taken = s.allNotes.some((n) => n.id === dayNoteId(dateStr))
     const id = taken ? `${dayNoteId(dateStr)}-${crypto.randomUUID().slice(0, 8)}` : dayNoteId(dateStr)
     const now = Date.now()
-    const draft: Note = { id, title: '', content: '', tags: [], day: dateStr, dayOrder: 0, createdAt: now, updatedAt: now, local: true }
+    const draft: Note = { id, title: '', content: '', tags: [], day: dateStr, dayOrder: 0, createdAt: now, updatedAt: now, source: 'web', local: true }
     update((st) => ({ ...st, allNotes: [...st.allNotes, draft] }))
   }
 

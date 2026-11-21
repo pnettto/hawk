@@ -16,6 +16,8 @@ export interface NoteMetadata {
   day?: string;
   // Order among the same day's notes.
   dayOrder?: number;
+  // Where the note was created ("web", "pi", …). Set once on create.
+  source?: string;
   // Client-only: created here and not saved yet.
   local?: boolean;
 }

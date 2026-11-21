@@ -223,6 +223,11 @@ function matchNote(doc: NoteDoc, q: SearchQuery): NoteCandidate | null {
   return { doc, field };
 }
 
+// Whether a note matches at all, without ranking or snippets (read API).
+export function noteMatches(doc: NoteDoc, q: SearchQuery): boolean {
+  return matchNote(doc, q) !== null;
+}
+
 function noteHit({ doc, field }: NoteCandidate, q: SearchQuery): NoteHit {
   const hit: NoteHit = {
     id: doc.id,

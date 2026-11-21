@@ -3,14 +3,22 @@ import { setCookie } from "hono/cookie";
 import {
   isValidPassword,
   isValidToken,
+  readToken,
   sessionToken,
   tokenFromRequest,
 } from "../middleware/auth.ts";
 
 export async function login(c: Context) {
-  const { password } = await c.req.json().catch(() => ({}));
+  const { password, scope } = await c.req.json().catch(() => ({}));
   if (!password) return c.json({ error: "Missing password" }, 400);
+  if (scope !== undefined && scope !== "full" && scope !== "read") {
+    return c.json({ error: "Unknown scope" }, 400);
+  }
 
+  if (scope === "read" && await isValidPassword(password)) {
+    // For agents: returned only, never set as the browser cookie.
+    return c.json({ success: true, token: await readToken(), scope: "read" });
+  }
   if (await isValidPassword(password)) {
     const tokenValue = await sessionToken();
     // Set cookie for browser-based access if needed, but return token for extensions

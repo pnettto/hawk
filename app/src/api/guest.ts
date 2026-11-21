@@ -206,6 +206,7 @@ function saveNote(data: GuestData, body: Record<string, unknown>) {
     tags: parseTags(content),
   }
   if (!prev && typeof body.day === 'string') note.day = body.day
+  if (!prev && typeof body.source === 'string' && /^[a-z0-9-]{1,32}$/.test(body.source)) note.source = body.source
   if (note.day && typeof body.dayOrder === 'number') note.dayOrder = body.dayOrder
   if (typeof body.isPublic === 'boolean') note.isPublic = body.isPublic
   if (typeof body.hidden === 'boolean') {

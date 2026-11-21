@@ -1,13 +1,13 @@
 // The Hono app. It runs inside the Durable Object (hawkDO.ts); the Worker in
 // worker.ts only forwards /api/* and /shared/* to it and serves the SPA.
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { auth } from "./middleware/auth.ts";
 import { loginRateLimit, rateLimit, unlockRateLimit } from "./middleware/rateLimit.ts";
 
 import {
-  deleteDayNote,
+  ensureLogsSwept,
   getDayLog,
   getDayVersion,
   getRangeLog,
@@ -15,7 +15,7 @@ import {
   moveDayTasks,
   patchDayTasks,
   restoreDayVersion,
-  saveDayNote,
+  retiredDayNotes,
   setDayLog,
 } from "./routeHandlers/app.ts";
 import {
@@ -54,12 +54,14 @@ import {
 import { getPomodoro, savePomodoro } from "./routeHandlers/pomodoro.ts";
 import { exportEntries, importEntries } from "./routeHandlers/admin.ts";
 import { search } from "./routeHandlers/search.ts";
+import { getNoteResource, getReport, listNoteResources, listTasks } from "./routeHandlers/readApi.ts";
 
 export const app = new Hono();
 
+// The stack stays in the logs; clients only get the message.
 app.onError((err, c) => {
-  console.error(`[CRASH] ${err.message}`);
-  return c.json({ error: err.message, stack: err.stack }, 500);
+  console.error(`[CRASH] ${err.message}\n${err.stack ?? ""}`);
+  return c.json({ error: err.message }, 500);
 });
 
 app.use(
@@ -105,14 +107,24 @@ app.use(
   },
 );
 
+// Strip the legacy day-blob notes once, before any day route reads or writes.
+const sweepLogs: MiddlewareHandler = async (_c, next) => {
+  await ensureLogsSwept();
+  await next();
+};
+app.use("/api/day", sweepLogs);
+app.use("/api/day/*", sweepLogs);
+app.use("/api/range", sweepLogs);
+
 // Per-day API (new)
 app.get("/api/day", getDayLog);
 app.get("/api/range", getRangeLog);
 app.post("/api/day", setDayLog);
 app.post("/api/day/tasks", patchDayTasks);
 app.post("/api/day/tasks/move", moveDayTasks);
-app.post("/api/day/notes", saveDayNote);
-app.delete("/api/day/notes", deleteDayNote);
+// Day notes are regular notes now (POST /api/notes/notes with `day`).
+app.post("/api/day/notes", retiredDayNotes);
+app.delete("/api/day/notes", retiredDayNotes);
 
 // Day log version history
 app.get("/api/day/versions", listDayVersions);
@@ -131,6 +143,13 @@ app.get("/api/notes/days", getDayNotes);
 app.post("/api/notes/notes", saveNote);
 app.get("/api/notes/notes/:nid", getNote);
 app.delete("/api/notes/notes/:nid", permanentlyDeleteNote);
+
+// Read API for agents (docs/api.md). Registered after the routes above so
+// "index", "days" and "notes" keep matching first.
+app.get("/api/notes", listNoteResources);
+app.get("/api/notes/:id", getNoteResource);
+app.get("/api/tasks", listTasks);
+app.get("/api/reports/:date", getReport);
 
 // Search across notes and tasks (read-only)
 app.get("/api/search", search);
@@ -177,4 +196,6 @@ app.post("/api/pomodoro", savePomodoro);
 app.get("/api/admin/export", exportEntries);
 app.post("/api/admin/import", importEntries);
 
-app.notFound((c) => c.text("Not found", 404));
+app.notFound((c) =>
+  c.req.path.startsWith("/api/") ? c.json({ error: "Not found" }, 404) : c.text("Not found", 404)
+);

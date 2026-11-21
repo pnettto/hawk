@@ -10,11 +10,12 @@
 // Schema 1 (legacy, left in place after migrating so nothing is lost):
 //   ["notes", "collections"]      -> { id, name, isPublic? }[]
 //   ["notes", "collection", cid]  -> NoteMetadata[] (with cid)
-//   ["logs", dateStr].notes       -> day notes inside the day blob
+//   ["logs", dateStr].notes       -> day notes inside the day blob (stripped
+//                                    afterwards by the logs sweep)
 import { kv } from "./kvConn.ts";
 import { parseTags, slugifyTag, TAG_LINE_RE } from "./tags.ts";
 import { keysFor, type SnapshotMeta } from "./versioning.ts";
-import { dayNoteHistoryId, normalizeDayLog } from "./dayLog.ts";
+import { dayNoteHistoryId, LEGACY_NOTE_ID, parseDayRaw } from "./dayLog.ts";
 
 export interface NoteMetadata {
   id: string;
@@ -32,6 +33,9 @@ export interface NoteMetadata {
   day?: string;
   // Order among the same day's notes.
   dayOrder?: number;
+  // Where the note was created ("web", "pi", …). Set once on create; absent
+  // on notes from before it was recorded.
+  source?: string;
 }
 
 export interface StoredNote extends Omit<NoteMetadata, "preview"> {
@@ -86,7 +90,16 @@ export function metaOf(note: StoredNote): NoteMetadata {
   if (note.hidden) meta.hidden = true;
   if (note.day) meta.day = note.day;
   if (typeof note.dayOrder === "number") meta.dayOrder = note.dayOrder;
+  if (note.source) meta.source = note.source;
   return meta;
+}
+
+// Every note's list row, trashed ones included.
+export async function listMeta(): Promise<NoteMetadata[]> {
+  await ensureNotesMigrated();
+  const out: NoteMetadata[] = [];
+  for await (const e of kv.list<NoteMetadata>({ prefix: ["notes", "meta"] })) out.push(e.value);
+  return out;
 }
 
 // The note id a day note gets. The day's first note has a fixed id so two
@@ -96,6 +109,34 @@ export function dayNoteId(dateStr: string, legacyId = "main"): string {
 }
 
 // ---- migration to schema 2 -------------------------------------------------
+
+export interface LegacyDayNote {
+  id: string;
+  title: string;
+  markdown: string;
+  order: number;
+  updatedAt: number;
+}
+
+// The notes a day blob carried before schema 2: a `notes` array, or before
+// that a single `notesMarkdown` field. normalizeDayLog no longer reads them,
+// so the migration has its own reader.
+export function legacyDayNotes(raw: unknown): LegacyDayNote[] {
+  const obj = parseDayRaw(raw);
+  if (Array.isArray(obj.notes)) {
+    return obj.notes
+      .filter((n): n is Record<string, unknown> => !!n && typeof n === "object" && typeof n.id === "string")
+      .map((n) => ({
+        id: n.id as string,
+        title: typeof n.title === "string" ? n.title : "",
+        markdown: typeof n.markdown === "string" ? n.markdown : "",
+        order: typeof n.order === "number" ? n.order : 0,
+        updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : 0,
+      }));
+  }
+  const md = typeof obj.notesMarkdown === "string" ? obj.notesMarkdown : "";
+  return md.trim() ? [{ id: LEGACY_NOTE_ID, title: "", markdown: md, order: 0, updatedAt: 0 }] : [];
+}
 
 let migrating: Promise<void> | null = null;
 
@@ -166,7 +207,7 @@ async function migrate() {
     if (entry.key.length !== 2 || typeof dateStr !== "string") continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
     const noon = Date.parse(`${dateStr}T12:00:00Z`);
-    for (const dn of normalizeDayLog(entry.value).notes) {
+    for (const dn of legacyDayNotes(entry.value)) {
       if (!dn.markdown.trim() && !dn.title.trim()) continue;
       const nid = dayNoteId(dateStr, dn.id);
       if ((await kv.get(metaKey(nid))).value) continue;
