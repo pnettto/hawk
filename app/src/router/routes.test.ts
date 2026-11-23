@@ -9,7 +9,6 @@ describe('parseRoute / formatRoute', () => {
     ['/journal/2026-05-14', { page: 'journal', date: '2026-05-14', tab: 'tasks' }],
     ['/journal/2026-05-14/notes', { page: 'journal', date: '2026-05-14', tab: 'notes' }],
     ['/journal/2026-05-14?task=abc', { page: 'journal', date: '2026-05-14', tab: 'tasks', task: 'abc' }],
-    ['/journal/overview?from=2026-05-01&to=2026-05-14&view=tasks', { page: 'overview', from: '2026-05-01', to: '2026-05-14', view: 'tasks' }],
     ['/notes', { page: 'notes' }],
     ['/notes/all', { page: 'notes', filter: { kind: 'all' } }],
     ['/notes/notepad', { page: 'notes', filter: { kind: 'notepad' } }],
@@ -48,6 +47,7 @@ describe('parseRoute / formatRoute', () => {
     '/journal/2026-5-14',
     '/journal/yesterday',
     '/journal/2026-05-14/overview',
+    '/journal/overview',
     '/notes/tag/',
     '/notes/tag',
     '/notes/a/b',
@@ -61,7 +61,6 @@ describe('parseRoute / formatRoute', () => {
 
   it('ignores unknown and invalid query params', () => {
     expect(parseRoute('/?pomodoro=resume')).toEqual({ page: 'journal' })
-    expect(parseRoute('/journal/overview?from=bad&view=x')).toEqual({ page: 'overview' })
     expect(parseRoute('/journal/2026-05-14/notes?task=a')).toEqual({ page: 'journal', date: '2026-05-14', tab: 'notes' })
   })
 })
@@ -70,10 +69,7 @@ describe('routeFromNav', () => {
   const base: NavState = {
     currentPage: 'app',
     journalTab: 'tasks',
-    overviewTab: 'notes',
     selectedDate: '2026-05-14',
-    overviewStart: '2026-05-01',
-    overviewEnd: '2026-05-07',
     highlightTaskId: null,
     notesFilter: { kind: 'notepad' },
     selectedNid: null,
@@ -82,7 +78,6 @@ describe('routeFromNav', () => {
   it('maps each page', () => {
     expect(routeFromNav(base)).toEqual({ page: 'journal', date: '2026-05-14', tab: 'tasks' })
     expect(routeFromNav({ ...base, highlightTaskId: 't' })).toEqual({ page: 'journal', date: '2026-05-14', tab: 'tasks', task: 't' })
-    expect(routeFromNav({ ...base, journalTab: 'overview' })).toEqual({ page: 'overview', from: '2026-05-01', to: '2026-05-07', view: 'notes' })
     expect(routeFromNav({ ...base, currentPage: 'notes' })).toEqual({ page: 'notes', filter: { kind: 'notepad' } })
     expect(routeFromNav({ ...base, currentPage: 'notes', selectedNid: 'n1' })).toEqual({ page: 'notes', nid: 'n1' })
     expect(routeFromNav({ ...base, currentPage: 'admin' })).toEqual({ page: 'settings' })
@@ -95,7 +90,6 @@ describe('historyMode', () => {
   it('pushes places and replaces small steps', () => {
     expect(historyMode(day('2026-05-01'), day('2026-05-02'))).toBe('replace')
     expect(historyMode(day('2026-05-01'), { page: 'journal', date: '2026-05-01', tab: 'notes' })).toBe('replace')
-    expect(historyMode(day('2026-05-01'), { page: 'overview' })).toBe('replace')
     expect(historyMode(day('2026-05-01'), { page: 'notes' })).toBe('push')
     expect(historyMode({ page: 'notes', filter: { kind: 'all' } }, { page: 'notes', nid: 'a' })).toBe('push')
     expect(historyMode({ page: 'notes', nid: 'a' }, { page: 'notes', nid: 'b' })).toBe('push')
