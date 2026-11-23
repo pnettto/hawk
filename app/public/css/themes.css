@@ -100,12 +100,12 @@
     --input-placeholder: rgba(251, 238, 210, 0.55);
 }
 
-/* 6. Catppuccin Mocha — soft lavender-grey, mauve accent. */
+/* 6. Catppuccin Mocha — soft lavender-grey, muted sage accent. */
 :root[data-theme="catppuccin-mocha"] {
     --bg: #1e1e2e;
     --panel: #313244;
     --muted: #c9d2ef;
-    --accent: #cba6f7;
+    --accent: #a6d189;
     --line: #45475a;
     --glass: rgba(205, 214, 244, 0.14);
     --glass-dark: rgba(205, 214, 244, 0.06);
