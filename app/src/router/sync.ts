@@ -25,10 +25,7 @@ export function currentRoute(): Route {
   return routeFromNav({
     currentPage: app.currentPage,
     journalTab: app.journalTab,
-    overviewTab: app.overviewTab,
     selectedDate: formatDate(app.selectedDate),
-    overviewStart: formatDate(app.overviewStart),
-    overviewEnd: formatDate(app.overviewEnd),
     highlightTaskId: app.highlightTaskId,
     notesFilter: notes.filter,
     selectedNid: notes.selectedNid,
@@ -86,7 +83,7 @@ function applyRoute(route: Route, { boot }: { boot: boolean }) {
   pendingNote = false
   const remember = !boot
   const app = get(appStore)
-  const page = route.page === 'journal' || route.page === 'overview' ? 'app' : route.page === 'settings' ? 'admin' : route.page
+  const page = route.page === 'journal' ? 'app' : route.page === 'settings' ? 'admin' : route.page
   if (app.currentPage !== page) appStore.setCurrentPage(page)
 
   switch (route.page) {
@@ -97,17 +94,6 @@ function applyRoute(route: Route, { boot }: { boot: boolean }) {
       const tab = route.tab ?? (boot ? undefined : 'tasks')
       if (tab && app.journalTab !== tab) appStore.setJournalTab(tab, { remember })
       if (app.highlightTaskId !== (route.task ?? null)) appStore.setHighlightTask(route.task ?? null)
-      break
-    }
-    case 'overview': {
-      if (app.journalTab !== 'overview') appStore.setJournalTab('overview', { remember })
-      if (route.from || route.to) {
-        appStore.setOverviewRange(
-          route.from ? toDate(route.from) : app.overviewStart,
-          route.to ? toDate(route.to) : app.overviewEnd,
-        )
-      }
-      if (route.view && app.overviewTab !== route.view) appStore.setOverviewTab(route.view)
       break
     }
     case 'notes': {
@@ -218,9 +204,6 @@ function titleFor(route: Route): string {
   switch (route.page) {
     case 'journal':
       part = toDate(route.date ?? today()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-      break
-    case 'overview':
-      part = 'Overview'
       break
     case 'notes': {
       if (route.nid) {

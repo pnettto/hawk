@@ -74,7 +74,6 @@ Go straight to these instead of exploring. Frontend paths are under `app/src/`.
 | Extensions (optional features) | `lib/extensions/registry.ts` (list, defaults, sanitising), `routes/Extensions.svelte` (toggles + settings), saved under the `extensions` key of the preferences blob. New features get a registry entry and an `extensionState($preferencesStore.extensions, id).enabled` check where they render |
 | Search (⌘K palette over notes and tasks) | `server/routeHandlers/search.ts` (KV scan), `server/utils/search.ts` (matcher, mirrored for guest mode in `app/src/lib/search/match.ts`), `lib/search/SearchDialog.svelte`, `stores/search.ts`, `api/search.ts`; results open through `navigate()` in `router/sync.ts` |
 | Read API for agents (Pi `hawk` tool), read-only tokens | `server/routeHandlers/readApi.ts`, `server/utils/readModel.ts`, `server/middleware/auth.ts` (`readToken`, `readOnlyAllows`); reference in `docs/api.md` |
-| Overview (date-range roll-up) | `routes/Overview.svelte` |
 | Notepad: list, filter menu, editor, sharing | `routes/Notes.svelte`, `lib/notes/` (`NotesColumn`, `NotesFilter`, `NoteEditor`, `NoteSharePopover`, `tags.ts`), `stores/notes.ts` |
 | Rich text editor (Tiptap) | `lib/editor/` (`RichEditor`, `schema.ts`, `blocks.ts` for the +/"/" menu, `paste.ts`) |
 | Editing sync and merging | `sync/docSession.ts`, `sync/merge.ts`, `stores/sync.ts` |
