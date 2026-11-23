@@ -9,6 +9,7 @@ export type ThemeId =
   | 'dracula'
   | 'nord'
   | 'gruvbox-dark'
+  | 'catppuccin-mocha'
   | 'paper'
   | 'solarized-light'
   | 'latte'
@@ -37,6 +38,8 @@ export const THEMES: ThemeMeta[] = [
     swatch: { bg: '#2e3440', panel: '#3b4252', text: '#eceff4', accent: '#88c0d0' } },
   { id: 'gruvbox-dark', name: 'Gruvbox', mode: 'dark',
     swatch: { bg: '#282828', panel: '#3c3836', text: '#ebdbb2', accent: '#fabd2f' } },
+  { id: 'catppuccin-mocha', name: 'Catppuccin', mode: 'dark',
+    swatch: { bg: '#1e1e2e', panel: '#313244', text: '#eef1fb', accent: '#a6d189' } },
   { id: 'paper', name: 'Paper', mode: 'light',
     swatch: { bg: '#ece7d9', panel: '#f4f0e6', text: '#15140f', accent: '#b03a2e' } },
   { id: 'solarized-light', name: 'Solarized', mode: 'light',

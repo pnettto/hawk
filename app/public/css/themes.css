@@ -100,6 +100,25 @@
     --input-placeholder: rgba(251, 238, 210, 0.55);
 }
 
+/* 6. Catppuccin Mocha — soft lavender-grey, muted sage accent. */
+:root[data-theme="catppuccin-mocha"] {
+    --bg: #1e1e2e;
+    --panel: #313244;
+    --muted: #c9d2ef;
+    --accent: #a6d189;
+    --line: #45475a;
+    --glass: rgba(205, 214, 244, 0.14);
+    --glass-dark: rgba(205, 214, 244, 0.06);
+    --text: #eef1fb;
+    --on-accent: #1e1e2e;
+    --logo-color: #e1b65a;
+    --danger: #f38ba8;
+    --danger-bg: rgba(243, 139, 168, 0.12);
+    --input-bg: rgba(205, 214, 244, 0.06);
+    --input-bg-strong: rgba(205, 214, 244, 0.1);
+    --input-placeholder: rgba(230, 234, 250, 0.5);
+}
+
 /* ---- LIGHT THEMES ----------------------------------------------------
    Light themes need different treatment than dark themes:
    - Hover/divider tints have to use the *text* color (dark) at low alpha,
@@ -110,7 +129,7 @@
    - `--logo-color` flips to near-black so the amber bird isn't invisible.
 */
 
-/* 6. Paper — softer ivory, ink text, red accent. */
+/* 7. Paper — softer ivory, ink text, red accent. */
 :root[data-theme="paper"] {
     color-scheme: light;
     --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
@@ -132,7 +151,7 @@
     --input-placeholder: rgba(21, 20, 15, 0.55);
 }
 
-/* 7. Solarized Light — dim cream + teal accent, base03 text. */
+/* 8. Solarized Light — dim cream + teal accent, base03 text. */
 :root[data-theme="solarized-light"] {
     color-scheme: light;
     --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
@@ -154,7 +173,7 @@
     --input-placeholder: rgba(0, 43, 54, 0.6);
 }
 
-/* 8. Latte — Catppuccin, dimmer base + crust panel. */
+/* 9. Latte — Catppuccin, dimmer base + crust panel. */
 :root[data-theme="latte"] {
     color-scheme: light;
     --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
@@ -176,7 +195,7 @@
     --input-placeholder: rgba(30, 32, 50, 0.55);
 }
 
-/* 9. Rosé Pine Dawn — toned-down rose, deeper highlight text. */
+/* 10. Rosé Pine Dawn — toned-down rose, deeper highlight text. */
 :root[data-theme="rose-pine-dawn"] {
     color-scheme: light;
     --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
@@ -198,7 +217,7 @@
     --input-placeholder: rgba(31, 27, 60, 0.55);
 }
 
-/* 10. GitHub Light — off-white surface, deeper muted, blue accent. */
+/* 11. GitHub Light — off-white surface, deeper muted, blue accent. */
 :root[data-theme="github-light"] {
     color-scheme: light;
     --shadow-pop: 0 1px 2px rgb(20 20 20 / 0.06), 0 8px 24px -8px rgb(20 20 20 / 0.18);
