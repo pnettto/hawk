@@ -3,12 +3,10 @@
   import DatePicker from '../lib/daily/DatePicker.svelte'
   import DayTasks from '../lib/daily/DayTasks.svelte'
   import DayNotes from '../lib/daily/DayNotes.svelte'
-  import Overview from './Overview.svelte'
 
   // ←/→ change day, T jumps to today — only when not typing somewhere.
   function onKey(e: KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return
-    if ($appStore.journalTab === 'overview') return
     const t = e.target as HTMLElement | null
     if (t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
     const shift = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
@@ -28,31 +26,15 @@
 <div class="journal-workspace">
   <header class="app-header">
     <div class="header-left">
-      {#if $appStore.journalTab === 'overview'}
-        <div class="range">
-          <DatePicker
-            value={$appStore.overviewStart}
-            onSelect={(d) => appStore.setOverviewRange(d, $appStore.overviewEnd)}
-            hideArrows
-          />
-          <span class="range-sep" aria-hidden="true">→</span>
-          <DatePicker
-            value={$appStore.overviewEnd}
-            onSelect={(d) => appStore.setOverviewRange($appStore.overviewStart, d)}
-            hideArrows
-          />
-        </div>
-      {:else}
-        <DatePicker />
-      {/if}
+      <DatePicker />
     </div>
     <div class="journal-tabs" role="tablist" aria-label="Journal">
-      {#each [['tasks', 'Tasks'], ['notes', 'Day Notes'], ['overview', 'Overview']] as [id, label] (id)}
+      {#each [['tasks', 'Tasks'], ['notes', 'Day Notes']] as [id, label] (id)}
         <button
           role="tab"
           aria-selected={$appStore.journalTab === id}
           class:active={$appStore.journalTab === id}
-          onclick={() => appStore.setJournalTab(id as 'notes' | 'tasks' | 'overview')}>{label}</button
+          onclick={() => appStore.setJournalTab(id as 'notes' | 'tasks')}>{label}</button
         >
       {/each}
     </div>
@@ -61,8 +43,6 @@
   <div class="journal-body">
     {#if $appStore.journalTab === 'tasks'}
       <DayTasks />
-    {:else if $appStore.journalTab === 'overview'}
-      <Overview />
     {:else}
       <DayNotes />
     {/if}
@@ -108,18 +88,6 @@
     display: flex;
     align-items: center;
     gap: 1.5rem;
-  }
-  .range {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    flex-wrap: wrap;
-  }
-  .range-sep {
-    color: var(--muted);
-    opacity: 0.6;
-    font-size: 0.9rem;
-    padding: 0 0.25rem;
   }
   .journal-tabs {
     display: flex;

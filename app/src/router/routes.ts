@@ -1,11 +1,10 @@
 // URL <-> navigation state. Pure: no DOM, no stores. `sync.ts` wires it up.
-import type { JournalTab, OverviewTab, Page } from '../stores/app'
+import type { JournalTab, Page } from '../stores/app'
 import type { NotesFilter } from '../stores/notes'
 import type { NoteMetadata } from '../types/models'
 
 export type Route =
-  | { page: 'journal'; date?: string; tab?: Exclude<JournalTab, 'overview'>; task?: string }
-  | { page: 'overview'; from?: string; to?: string; view?: OverviewTab }
+  | { page: 'journal'; date?: string; tab?: JournalTab; task?: string }
   | { page: 'notes'; filter?: NotesFilter; nid?: string }
   | { page: 'files' | 'extensions' | 'settings' }
 
@@ -43,17 +42,6 @@ export function parseRoute(pathAndQuery: string): Route {
   switch (seg[0]) {
     case 'journal': {
       if (seg.length === 1) return JOURNAL
-      if (seg[1] === 'overview') {
-        if (seg.length > 2) return JOURNAL
-        const route: Route = { page: 'overview' }
-        const from = params.get('from')
-        const to = params.get('to')
-        const view = params.get('view')
-        if (isDateStr(from)) route.from = from
-        if (isDateStr(to)) route.to = to
-        if (view === 'notes' || view === 'tasks') route.view = view
-        return route
-      }
       if (!isDateStr(seg[1])) return JOURNAL
       if (seg.length > 3) return JOURNAL
       let tab: 'tasks' | 'notes' = 'tasks'
@@ -100,14 +88,6 @@ export function formatRoute(route: Route, today: string | null): string {
       const base = `/journal/${date}${tab === 'notes' ? '/notes' : ''}`
       return route.task ? `${base}?task=${enc(route.task)}` : base
     }
-    case 'overview': {
-      const params = new URLSearchParams()
-      if (route.from) params.set('from', route.from)
-      if (route.to) params.set('to', route.to)
-      if (route.view) params.set('view', route.view)
-      const q = params.toString()
-      return `/journal/overview${q ? `?${q}` : ''}`
-    }
     case 'notes': {
       if (route.nid) return `/notes/${enc(route.nid)}`
       const f = route.filter
@@ -124,10 +104,7 @@ export function formatRoute(route: Route, today: string | null): string {
 export interface NavState {
   currentPage: Page
   journalTab: JournalTab
-  overviewTab: OverviewTab
   selectedDate: string
-  overviewStart: string
-  overviewEnd: string
   highlightTaskId: string | null
   notesFilter: NotesFilter
   selectedNid: string | null
@@ -136,9 +113,6 @@ export interface NavState {
 export function routeFromNav(s: NavState): Route {
   switch (s.currentPage) {
     case 'app':
-      if (s.journalTab === 'overview') {
-        return { page: 'overview', from: s.overviewStart, to: s.overviewEnd, view: s.overviewTab }
-      }
       return {
         page: 'journal',
         date: s.selectedDate,
@@ -154,13 +128,13 @@ export function routeFromNav(s: NavState): Route {
   }
 }
 
-// Which top-level place a route belongs to. Overview is a Journal tab.
-const placeOf = (r: Route) => (r.page === 'overview' ? 'journal' : r.page)
+// Which top-level place a route belongs to.
+const placeOf = (r: Route) => r.page
 
 const filterKey = (f?: NotesFilter) => (f ? (f.kind === 'tag' ? `tag:${f.tag}` : f.kind) : '')
 
 // Push for "places" (page, note, notes filter); replace for small steps
-// (dates, journal tabs, overview range) so they don't fill the Back stack.
+// (dates, journal tabs) so they don't fill the Back stack.
 export function historyMode(prev: Route | null, next: Route): 'push' | 'replace' {
   if (!prev) return 'replace'
   if (placeOf(prev) !== placeOf(next)) return 'push'
