@@ -93,26 +93,52 @@
   <body>
     <main class="lost">
       <svg class="bird" viewBox="0 0 160 160" aria-hidden="true">
-        <!-- perch -->
-        <path d="M24 140h112" stroke="var(--line)" stroke-width="4" stroke-linecap="round" />
         <!-- tail -->
-        <path d="M112 100 138 116l-7 10-23-14z" fill="var(--accent)" opacity="0.55" />
+        <path d="M64 104 16 122l4 12 44-18z" fill="var(--accent)"/>
+        <path d="M64 108 20 138l6 12 40-28z" fill="var(--accent)" opacity="0.9"/>
+        <path d="M64 112 32 150l10 6 26-34z" fill="var(--accent)" opacity="0.8"/>
+        <g fill="var(--on-accent)" opacity="0.16">
+          <path d="M18 124l3 9 8-3-3-9z"/>
+          <path d="M23 140l4 8 8-5-5-8z"/>
+          <path d="M35 150l7 4 5-7-8-3z"/>
+        </g>
+
+        <!-- perch -->
+        <path d="M14 148h132" stroke="var(--line)" stroke-width="5" stroke-linecap="round"/>
+
         <!-- body -->
-        <path d="M80 26c25 0 45 21 45 48s-20 48-45 48-45-21-45-48 20-48 45-48z" fill="var(--accent)" />
-        <!-- tufts -->
-        <path d="m48 40-5-18 20 9z" fill="var(--accent)" />
-        <path d="m112 40 5-18-20 9z" fill="var(--accent)" />
-        <!-- face -->
-        <circle cx="63" cy="76" r="12" fill="var(--bg)" opacity="0.88" />
-        <circle cx="97" cy="76" r="12" fill="var(--bg)" opacity="0.88" />
-        <circle cx="65" cy="78" r="4.5" fill="var(--accent)" />
-        <circle cx="95" cy="78" r="4.5" fill="var(--accent)" />
-        <circle cx="63.5" cy="76.5" r="1.6" fill="var(--text)" />
-        <circle cx="93.5" cy="76.5" r="1.6" fill="var(--text)" />
-        <!-- beak -->
-        <path d="m80 88-7 7 7 5 7-5z" fill="var(--bg)" opacity="0.75" />
-        <!-- feet -->
-        <path d="M70 122v10m20-10v10" stroke="var(--muted)" stroke-width="3" stroke-linecap="round" opacity="0.7" />
+        <ellipse cx="82" cy="92" rx="28" ry="40" transform="rotate(-6 82 92)" fill="var(--accent)"/>
+        <path d="M104 84c6 13 0 27-13 33-11 5-23 1-28-8 12 0 30-10 41-25z" fill="var(--on-accent)" opacity="0.1"/>
+
+        <!-- wing -->
+        <path d="M101 64c10 12 8 31-4 45-12 14-30 20-44 20-4 0-5-4-1-6 16-6 30-18 38-32 4-8 7-18 11-27z" fill="var(--on-accent)" opacity="0.16"/>
+        <g stroke="var(--on-accent)" stroke-width="2" stroke-linecap="round" opacity="0.28" fill="none">
+          <path d="M97 78c2 11-3 21-13 28"/>
+          <path d="M87 82c2 10-3 19-12 25"/>
+          <path d="M75 90c1 7-3 13-9 17"/>
+        </g>
+
+        <!-- head -->
+        <ellipse cx="97" cy="44" rx="19.5" ry="19" fill="var(--accent)"/>
+
+        <!-- eye and brow -->
+        <circle cx="104" cy="42" r="5.5" fill="var(--text)"/>
+        <circle cx="105.5" cy="43" r="2.8" fill="var(--bg)"/>
+        <circle cx="104.3" cy="41.6" r="0.9" fill="var(--text)"/>
+        <path d="M90 30l18 6" stroke="var(--on-accent)" stroke-width="3.5" stroke-linecap="round" opacity="0.75"/>
+
+        <!-- hooked beak -->
+        <path d="M110 40c7 0 13 3 14 8 0 5-4 8-9 9l-1-4c3-1 5-2 5-4 0-2-3-3-7-3z" fill="var(--on-accent)"/>
+        <path d="M111 51c3 1 6 1 9 0l-1 3c-3 1-6 1-9 0z" fill="var(--on-accent)" opacity="0.6"/>
+        <circle cx="112" cy="43" r="1" fill="var(--bg)" opacity="0.45"/>
+
+        <!-- legs and talons -->
+        <g stroke="var(--text)" stroke-width="4.5" stroke-linecap="round" fill="none" opacity="0.8">
+          <path d="M72 126v20"/>
+          <path d="M90 126v20"/>
+          <path d="M72 146c-4 0-7 1-9 3m9-3c3 0 6 1 8 3m-8-3v4"/>
+          <path d="M90 146c-4 0-7 1-9 3m9-3c3 0 6 1 8 3m-8-3v4"/>
+        </g>
       </svg>
 
       <p class="code">404</p>
