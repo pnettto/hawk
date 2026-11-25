@@ -465,6 +465,9 @@
   /* A shared header edge makes the list and editor one workspace. Reading
      mode remains a separate, centred document rather than a framed pane. */
   .page:not(.reading) .editor-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
     width: 100%;
     min-height: var(--workspace-header-height);
     max-width: none;
@@ -472,6 +475,7 @@
     gap: 0.75rem;
     margin-bottom: 1.25rem;
     border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg);
   }
   .page:not(.reading) .note-title { font-size: 1.25rem; line-height: 1.4; }
   .page:not(.reading) > :global(.rich-editor),
