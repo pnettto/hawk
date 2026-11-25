@@ -1,6 +1,7 @@
 <script lang="ts">
   import { authStore } from '../../stores/auth'
   import { showError } from '../../stores/toast'
+  import HawkLogo from '../ui/HawkLogo.svelte'
 
   let password = $state('')
   let submitting = $state(false)
@@ -32,7 +33,7 @@
 <div class="auth-container">
   <form class="auth-form" onsubmit={handleSubmit}>
     <div>
-      <span class="logo" role="img" aria-label="Hawk"></span>
+      <span class="logo" role="img" aria-label="Hawk"><HawkLogo /></span>
     </div>
     <input
       name="password"
@@ -73,12 +74,9 @@
   }
   .auth-form .logo {
     display: inline-block;
-    width: 3rem;
-    height: 3rem;
+    width: 6rem;
+    height: 6rem;
     margin-bottom: 2rem;
-    background-color: var(--logo-color);
-    -webkit-mask: url(/logo.svg) center / contain no-repeat;
-            mask: url(/logo.svg) center / contain no-repeat;
   }
   .auth-form > :global(*) {
     display: block;

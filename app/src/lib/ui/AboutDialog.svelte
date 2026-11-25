@@ -4,6 +4,8 @@
   }
   let { onClose }: Props = $props()
 
+  import HawkLogo from './HawkLogo.svelte'
+
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose()
   }
@@ -69,7 +71,7 @@
     aria-labelledby="about-title"
   >
     <div class="header">
-      <span class="logo" aria-hidden="true"></span>
+      <span class="logo" aria-hidden="true"><HawkLogo /></span>
       <h2 id="about-title">Hawk</h2>
     </div>
 
@@ -128,12 +130,9 @@
   }
   .logo {
     display: inline-block;
-    width: 2rem;
-    height: 2rem;
+    width: 4rem;
+    height: 4rem;
     opacity: 0.85;
-    background-color: var(--logo-color);
-    -webkit-mask: url(/logo.svg) center / contain no-repeat;
-            mask: url(/logo.svg) center / contain no-repeat;
   }
   h2 {
     margin: 0;

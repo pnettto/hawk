@@ -55,6 +55,7 @@ import { getPomodoro, savePomodoro } from "./routeHandlers/pomodoro.ts";
 import { exportEntries, importEntries } from "./routeHandlers/admin.ts";
 import { search } from "./routeHandlers/search.ts";
 import { getNoteResource, getReport, listNoteResources, listTasks } from "./routeHandlers/readApi.ts";
+import notFoundTemplate from "./404_template.html";
 
 export const app = new Hono();
 
@@ -197,5 +198,7 @@ app.get("/api/admin/export", exportEntries);
 app.post("/api/admin/import", importEntries);
 
 app.notFound((c) =>
-  c.req.path.startsWith("/api/") ? c.json({ error: "Not found" }, 404) : c.text("Not found", 404)
+  c.req.path.startsWith("/api/")
+    ? c.json({ error: "Not found" }, 404)
+    : c.html(notFoundTemplate, 404)
 );

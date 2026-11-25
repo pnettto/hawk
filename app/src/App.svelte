@@ -12,6 +12,7 @@
   import { hasUnsavedWork } from './stores/saving'
   import { startRouter } from './router/sync'
   import Auth from './lib/auth/Auth.svelte'
+  import HawkLogo from './lib/ui/HawkLogo.svelte'
   import Toast from './lib/ui/Toast.svelte'
   import ZenMode from './lib/ui/ZenMode.svelte'
   import PomodoroWidget from './lib/daily/PomodoroWidget.svelte'
@@ -172,7 +173,7 @@
 
 {#if $authStore.isCheckingAuth}
   <div class="boot-screen">
-    <span class="logo-pulse" aria-hidden="true"></span>
+    <span class="logo-pulse" aria-hidden="true"><HawkLogo /></span>
   </div>
 {:else if !$authStore.isAuth}
   <Auth />
@@ -186,7 +187,7 @@
         aria-label="About Hawk"
         title="About Hawk"
       >
-        <span class="nav-logo" aria-hidden="true"></span>
+        <span class="nav-logo" aria-hidden="true"><HawkLogo /></span>
       </button>
       <div class="nav-pages">
         <button
@@ -325,6 +326,7 @@
     border: 0;
     padding: 0;
     margin-right: 0.7rem;
+    transform: translateY(-0.4rem);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -333,16 +335,14 @@
     border-radius: var(--r-sm);
     transition: opacity var(--dur-fast) var(--ease-out);
   }
+  .nav-logo :global(svg) { width: 100%; height: 100%; display: block; }
   .nav-logo-btn:hover .nav-logo { opacity: 1; }
   .nav-logo {
     display: inline-block;
-    width: 1.6rem;
-    height: 1.6rem;
+    width: 3.2rem;
+    height: 3.2rem;
     opacity: 0.8;
     flex-shrink: 0;
-    background-color: var(--logo-color);
-    -webkit-mask: url(/logo.svg) center / contain no-repeat;
-            mask: url(/logo.svg) center / contain no-repeat;
     transition: opacity var(--dur-fast) var(--ease-out);
   }
   .nav-pages {
@@ -423,14 +423,12 @@
   }
   .logo-pulse {
     display: inline-block;
-    width: 2.4rem;
-    height: 2.4rem;
+    width: 4.8rem;
+    height: 4.8rem;
     opacity: 0.8;
     animation: bootPulse 1.4s ease-in-out infinite;
-    background-color: var(--logo-color);
-    -webkit-mask: url(/logo.svg) center / contain no-repeat;
-            mask: url(/logo.svg) center / contain no-repeat;
   }
+  .logo-pulse :global(svg) { width: 100%; height: 100%; display: block; }
   @keyframes bootPulse {
     0%, 100% { opacity: 0.4; transform: scale(0.96); }
     50% { opacity: 1; transform: scale(1.04); }
