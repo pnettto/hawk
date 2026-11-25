@@ -9,6 +9,7 @@ import { metaKey, metaOf, noteKey, type StoredNote } from "../utils/notesStore.t
 // Text modules bundled by wrangler; not needed here.
 vi.mock("../share_template.html", () => ({ default: "" }));
 vi.mock("../shared_collection_template.html", () => ({ default: "" }));
+vi.mock("../share_404.html", () => ({ default: "" }));
 
 const { app } = await import("../app.ts");
 

@@ -23,6 +23,7 @@ import { parseTags } from "../utils/tags.ts";
 // Bundled as text modules (see "rules" in wrangler.jsonc).
 import shareTemplate from "../share_template.html";
 import shareCollectionTemplate from "../shared_collection_template.html";
+import shareNotFoundTemplate from "../share_404.html";
 
 interface Collection {
   id: string;
@@ -60,13 +61,13 @@ export async function getPublicNote(c: Context) {
 
 export async function getSharedNotePage(c: Context) {
   const nid = c.req.param("nid");
-  if (!nid) return c.text("Note not found", 404);
+  if (!nid) return c.html(shareNotFoundTemplate, 404);
 
   const noteRes = await kv.get<
     { isPublic?: boolean; title: string; content: string; createdAt: number }
   >(["notes", "note", nid]);
   if (!noteRes.value || noteRes.value.isPublic !== true) {
-    return c.text("Note not found or private", 404);
+    return c.html(shareNotFoundTemplate, 404);
   }
 
   const note = noteRes.value;
@@ -376,14 +377,14 @@ export async function restoreNoteVersion(c: Context) {
 
 export async function getSharedCollectionPage(c: Context) {
   const cid = c.req.param("cid");
-  if (!cid) return c.text("Collection not found", 404);
+  if (!cid) return c.html(shareNotFoundTemplate, 404);
 
   const collectionsRes = await kv.get<Collection[]>(["notes", "collections"]);
   const collections = collectionsRes.value || [];
   const collection = collections.find((col) => col.id === cid);
 
   if (!collection || collection.isPublic !== true) {
-    return c.text("Collection not found or private", 404);
+    return c.html(shareNotFoundTemplate, 404);
   }
 
   // Return the static template - the client will fetch the data via API
