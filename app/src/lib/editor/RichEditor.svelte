@@ -83,10 +83,19 @@
     },
   })
 
+  // Typing "-> " gives the arrow character. Markdown has no arrow syntax, so
+  // the character itself is what gets saved.
+  const arrowInputRule = new InputRule({
+    find: /->\s$/,
+    handler: ({ state, range }) => {
+      state.tr.replaceWith(range.from, range.to, state.schema.text('→ '))
+    },
+  })
+
   const CustomInputRules = Extension.create({
     name: 'customInputRules',
     addInputRules() {
-      return [markdownLinkInputRule, youtubeInputRule, imageInputRule]
+      return [markdownLinkInputRule, youtubeInputRule, imageInputRule, arrowInputRule]
     },
   })
 
