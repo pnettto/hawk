@@ -203,9 +203,15 @@
     ...(onDelete ? [{ label: 'Delete note', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: onDelete }] : []),
   ])
 
-  // Do not carry transient menus over when another note is selected.
+  // Do not carry transient menus over when another note is selected. Compare
+  // the id rather than rely on effect cleanup: any note update (enabling
+  // sharing, a save elsewhere) re-runs this effect, and closing the open menu
+  // or share popover there would hide the thing the click just opened.
+  let menuNid = untrack(() => nid)
   $effect(() => {
-    void nid
+    const id = nid
+    if (id === menuNid) return
+    menuNid = id
     menuOpen = false
     showHistoryPopover = false
     showSharePopover = false
@@ -437,7 +443,7 @@
     inset: 0;
     z-index: calc(var(--z-popover) - 1);
     overflow-y: auto;
-    padding: 3rem 1.5rem 0;
+    padding: 0 1.5rem;
     background: var(--bg);
     outline: none;
   }
@@ -447,6 +453,15 @@
     width: 100%;
     max-width: var(--note-content-width);
     margin-inline: auto;
+  }
+  /* Keep the title and its actions in place while the note scrolls. The top
+     padding lives here so the header stays opaque above it. */
+  .reading > .editor-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    padding-top: 3rem;
+    background: var(--bg);
   }
   .reading .mobile-back { display: none !important; }
   .icon-btn.full-screen-button,
