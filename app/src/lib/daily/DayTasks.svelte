@@ -361,11 +361,28 @@
 
   interface DragRow {
     id: string
+    parentId: string | null
+    header: boolean
+    timed: boolean
+    // Position in the rendered list and its top/height in list coordinates.
+    index: number
+    top: number
+    height: number
+  }
+
+  interface DragBlock {
     // Every row in the block that moves together — a group header takes its
     // subtasks along.
     ids: string[]
-    // Position among the draggable siblings and its top/height in the list.
-    index: number
+    startIndex: number
+    endIndex: number
+  }
+
+  // A top-level row, with the full height of its group, used when a group
+  // itself is being dragged (groups stay top-level).
+  interface DragTopTarget {
+    id: string
+    timed: boolean
     top: number
     height: number
   }
@@ -391,7 +408,11 @@
   let dropIndex = $state<number | null>(null)
 
   let dragRows: DragRow[] = []
-  let dragFrom = -1
+  let dragBlock: DragBlock | null = null
+  let dragTopTargets: DragTopTarget[] = []
+  // Where the drop will land, independent of the gap animation.
+  let dropParentId: string | null = null
+  let dropSiblingIndex = 0
   let dragHeight = 0
   let dragPointer: number | null = null
   let dragStartListY = 0
@@ -399,14 +420,17 @@
   let dragMoved = false
   let autoScrollFrame = 0
 
-  // Siblings share a parent (top-level tasks have none). Reordering keeps
-  // groups intact: a header moves with its subtasks, and subtasks move only
-  // within their own group.
+  // Siblings share a parent (top-level tasks have none). A group header
+  // moves with its subtasks; a single task can move between a group and the
+  // top level.
   const siblingsOf = (task: Task): Task[] => {
     const parentId = task.parentId ?? null
     return tasks.filter((t) => (t.parentId ?? null) === parentId)
   }
   const untimedSiblings = (task: Task): Task[] => siblingsOf(task).filter((t) => !t.time)
+  const untimedIdsForParent = (parentId: string | null): string[] =>
+    tasks.filter((t) => (t.parentId ?? null) === parentId && !t.time).map((t) => t.id)
+  const topLevelUntimedIds = (): string[] => topLevel.filter((t) => !t.time).map((t) => t.id)
   const blockIds = (task: Task): string[] =>
     task.parentId
       ? [task.id]
@@ -432,19 +456,47 @@
     if ((!desktopReorder && !reorderMode) || task.time || e.button !== 0 || !listEl) return
     e.preventDefault()
     const listRect = listEl.getBoundingClientRect()
-    dragRows = untimedSiblings(task).map((t, index) => {
+    // Keep every rendered row's geometry for the whole gesture. Add rows and
+    // the now marker aren't targets; everything else is.
+    dragRows = rows
+      .filter((row) => !row.now && !row.addRow)
+      .map((row, index) => {
+        const rect = listEl?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(row.task.id)}"]`)?.getBoundingClientRect()
+        return {
+          id: row.task.id,
+          parentId: row.task.parentId ?? null,
+          header: row.header,
+          timed: !!row.task.time,
+          index,
+          top: rect ? rect.top - listRect.top : 0,
+          height: rect?.height ?? 0,
+        }
+      })
+    const ids = blockIds(task)
+    const block = dragRows.filter((row) => ids.includes(row.id))
+    if (!block.length) return
+    const startIndex = block[0].index
+    const endIndex = block[block.length - 1].index
+    const last = block[block.length - 1]
+    const top = block[0].top
+    dragBlock = { ids, startIndex, endIndex }
+    dragTopTargets = topLevel.map((t) => {
       const rect = blockRect(t, listRect)
-      return { id: t.id, ids: blockIds(t), index, top: rect.top, height: rect.height }
+      return {
+        id: t.id,
+        timed: !!t.time,
+        top: rect.top,
+        height: rect.height,
+      }
     })
-    const source = dragRows.find((r) => r.id === task.id)
-    if (!source) return
     dragId = task.id
     dragPointer = e.pointerId
-    dragFrom = source.index
-    dragHeight = source.height + 2
+    dragHeight = last.top + last.height - top + 2
     dragStartListY = e.clientY - listRect.top
     dragOffset = 0
-    dropIndex = dragFrom
+    dropIndex = startIndex
+    dropParentId = task.parentId ?? null
+    dropSiblingIndex = Math.max(0, untimedSiblings(task).findIndex((t) => t.id === task.id))
     lastPointerY = e.clientY
     dragMoved = false
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -454,16 +506,93 @@
   // Rows keep their original geometry for the whole drag, so the insertion
   // point stays stable while the other rows slide around to make room.
   function updateDrag(clientY: number) {
-    if (!dragId || !listEl) return
+    if (!dragId || !listEl || !dragBlock) return
     const listRect = listEl.getBoundingClientRect()
     const pointerY = clientY - listRect.top
     dragOffset = pointerY - dragStartListY
+    if (dragBlock.ids.length > 1) updateGroupDrag(pointerY)
+    else updateTaskDrag(pointerY)
+  }
+
+  // A group moves as one block and stays top-level, so it only targets the
+  // gaps between top-level blocks.
+  function updateGroupDrag(pointerY: number) {
+    const targets = dragTopTargets.filter((t) => t.id !== dragId)
     let at = 0
-    for (const row of dragRows) {
-      if (row.id === dragId) continue
-      if (pointerY > row.top + row.height / 2) at++
+    for (const t of targets) if (pointerY > t.top + t.height / 2) at++
+    dropParentId = null
+    const ids = topLevelUntimedIds().filter((id) => id !== dragId)
+    const nextUntimed = targets.slice(at).find((t) => !t.timed)
+    dropSiblingIndex = nextUntimed ? ids.indexOf(nextUntimed.id) : ids.length
+    if (dropSiblingIndex < 0) dropSiblingIndex = ids.length
+    dropIndex = dropDisplayIndex(dropParentId, dropSiblingIndex)
+  }
+
+  // A single task can land in any group or at the top level. The half of the
+  // row under the pointer decides whether it goes before or after it; the
+  // lower half of a group header means the start of that group.
+  function updateTaskDrag(pointerY: number) {
+    // Include the source row: while the pointer is still over it, the drop
+    // shouldn't jump to the next row and pull the task out of its group.
+    const targets = dragRows
+    if (!targets.length) {
+      dropParentId = null
+      dropSiblingIndex = 0
+      dropIndex = dragRows.length
+      return
     }
-    dropIndex = at
+    let i = targets.findIndex((row) => pointerY < row.top + row.height)
+    let anchor: DragRow
+    let after: boolean
+    if (i === -1) {
+      anchor = targets[targets.length - 1]
+      after = true
+    } else {
+      anchor = targets[i]
+      after = pointerY > anchor.top + anchor.height / 2
+    }
+    if (anchor.id === dragId) {
+      dropParentId = anchor.parentId
+      const ids = anchor.parentId ? untimedIdsForParent(anchor.parentId) : topLevelUntimedIds()
+      dropSiblingIndex = Math.max(0, ids.indexOf(dragId))
+    } else if (anchor.parentId) {
+      dropParentId = anchor.parentId
+      dropSiblingIndex = insertionIndex(untimedIdsForParent(anchor.parentId), anchor, after)
+    } else if (anchor.header && after) {
+      dropParentId = anchor.id
+      dropSiblingIndex = 0
+    } else {
+      dropParentId = null
+      dropSiblingIndex = insertionIndex(topLevelUntimedIds(), anchor, after)
+    }
+    dropIndex = dropDisplayIndex(dropParentId, dropSiblingIndex)
+  }
+
+  // The row before which the gap should open, from the destination sibling
+  // index. Timed rows sort first and aren't in that list, so this keeps the
+  // gap after them rather than in the middle of the timed block.
+  function dropDisplayIndex(parentId: string | null, index: number): number {
+    const siblings = parentId ? tasks.filter((t) => t.parentId === parentId) : topLevel
+    const next = siblings.filter((t) => t.id !== dragId && !t.time)[index]
+    if (next) {
+      const row = dragRows.find((r) => r.id === next.id)
+      if (row) return row.index
+    }
+    if (parentId) {
+      const children = dragRows.filter((r) => r.parentId === parentId)
+      if (children.length) return children[children.length - 1].index + 1
+      const header = dragRows.find((r) => r.id === parentId)
+      if (header) return header.index + 1
+    }
+    return dragRows.length
+  }
+
+  function insertionIndex(ids: string[], anchor: DragRow, after: boolean): number {
+    const list = ids.filter((id) => id !== dragId)
+    const i = list.indexOf(anchor.id)
+    // A timed row isn't in the untimed list; untimed rows always follow it.
+    if (i === -1) return 0
+    return i + (after ? 1 : 0)
   }
 
   function onDragMove(e: PointerEvent) {
@@ -475,18 +604,21 @@
 
   // Rows moving with the dragged block shouldn't animate behind the pointer.
   function isDraggedBlockRow(id: string): boolean {
-    if (!dragId) return false
-    return !!dragRows.find((r) => r.id === dragId)?.ids.includes(id)
+    if (!dragId || !dragBlock) return false
+    return dragBlock.ids.includes(id)
   }
 
   // How far a row moves to open the gap, in list coordinates.
   function shiftFor(id: string): number {
-    if (!dragId || dropIndex === null) return 0
-    const row = dragRows.find((r) => r.ids.includes(id))
+    if (!dragId || dropIndex === null || !dragBlock) return 0
+    if (dragBlock.ids.includes(id)) return dragOffset
+    const row = dragRows.find((r) => r.id === id)
     if (!row) return 0
-    if (row.id === dragId) return dragOffset
-    if (dropIndex > dragFrom && row.index > dragFrom && row.index <= dropIndex) return -dragHeight
-    if (dropIndex < dragFrom && row.index >= dropIndex && row.index < dragFrom) return dragHeight
+    if (dropIndex > dragBlock.endIndex) {
+      if (row.index > dragBlock.endIndex && row.index < dropIndex) return -dragHeight
+    } else if (dropIndex < dragBlock.startIndex) {
+      if (row.index >= dropIndex && row.index < dragBlock.startIndex) return dragHeight
+    }
     return 0
   }
 
@@ -534,7 +666,10 @@
     dragOffset = 0
     dropIndex = null
     dragRows = []
-    dragFrom = -1
+    dragBlock = null
+    dragTopTargets = []
+    dropParentId = null
+    dropSiblingIndex = 0
     dragHeight = 0
     dragMoved = false
     stopAutoScroll()
@@ -543,14 +678,19 @@
   function endDrag(e?: PointerEvent) {
     if (e && dragPointer !== null && e.pointerId !== dragPointer) return
     const sourceId = dragId
-    const to = dropIndex
-    const from = dragFrom
+    const parentId = dropParentId
+    const to = dropSiblingIndex
+    const moved = dragMoved
     const source = sourceId ? tasks.find((t) => t.id === sourceId) : undefined
     resetDrag()
-    if (!source || !sourceId || to === null || to === from) return
+    if (!source || !sourceId || !moved) return
     if (!tasks.some((t) => t.id === sourceId)) return
-    const ids = untimedSiblings(source).filter((t) => t.id !== sourceId).map((t) => t.id)
-    ids.splice(Math.min(to, ids.length), 0, sourceId)
+    const siblings = parentId ? tasks.filter((t) => t.parentId === parentId) : topLevel
+    const ids = siblings.filter((t) => t.id !== sourceId && !t.time).map((t) => t.id)
+    ids.splice(Math.max(0, Math.min(to, ids.length)), 0, sourceId)
+    if ((source.parentId ?? null) !== parentId) {
+      logsStore.editTask(dateStr, sourceId, { parentId: parentId ?? undefined })
+    }
     logsStore.reorderTasks(dateStr, ids, { defer: true })
     void logsStore.flushTasks(dateStr)
   }
