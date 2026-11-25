@@ -203,9 +203,15 @@
     ...(onDelete ? [{ label: 'Delete note', icon: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5', danger: true, onSelect: onDelete }] : []),
   ])
 
-  // Do not carry transient menus over when another note is selected.
+  // Do not carry transient menus over when another note is selected. Compare
+  // the id rather than rely on effect cleanup: any note update (enabling
+  // sharing, a save elsewhere) re-runs this effect, and closing the open menu
+  // or share popover there would hide the thing the click just opened.
+  let menuNid = untrack(() => nid)
   $effect(() => {
-    void nid
+    const id = nid
+    if (id === menuNid) return
+    menuNid = id
     menuOpen = false
     showHistoryPopover = false
     showSharePopover = false
