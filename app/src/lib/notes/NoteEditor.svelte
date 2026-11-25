@@ -437,7 +437,7 @@
     inset: 0;
     z-index: calc(var(--z-popover) - 1);
     overflow-y: auto;
-    padding: 3rem 1.5rem 0;
+    padding: 0 1.5rem;
     background: var(--bg);
     outline: none;
   }
@@ -447,6 +447,15 @@
     width: 100%;
     max-width: var(--note-content-width);
     margin-inline: auto;
+  }
+  /* Keep the title and its actions in place while the note scrolls. The top
+     padding lives here so the header stays opaque above it. */
+  .reading > .editor-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    padding-top: 3rem;
+    background: var(--bg);
   }
   .reading .mobile-back { display: none !important; }
   .icon-btn.full-screen-button,
