@@ -2,7 +2,7 @@
   import { tick } from 'svelte'
   import { notesStore, tagCounts, isDayDraft, type NotesFilter, type NotesSort } from '../../stores/notes'
 
-  // The Notepad list's view picker: the Pinned cover, Notepad notes, All
+  // The Notepad list's view picker: the Pinned notes cover, Notepad notes, All
   // notes, Journal notes, untagged notes, one #tag, or Trash, plus the sort
   // order for views that are listed by date.
 
@@ -45,7 +45,7 @@
 
   let items = $derived.by<Item[]>(() => {
     const fixed: Item[] = [
-      { filter: { kind: 'pinned' }, label: 'Pinned', count: counts.pinned, key: 'pinned' },
+      { filter: { kind: 'pinned' }, label: 'Pinned notes', count: counts.pinned, key: 'pinned' },
       { filter: { kind: 'notepad' }, label: 'Notepad notes', count: counts.notepad, key: 'notepad' },
       { filter: { kind: 'all' }, label: 'All notes', count: counts.all, key: 'all' },
       { filter: { kind: 'day' }, label: 'Journal notes', count: counts.day, key: 'day' },
@@ -75,7 +75,7 @@
   let current = $derived.by(() => {
     const f = $notesStore.filter
     if (f.kind === 'tag') return { label: `#${f.tag}`, count: counts.tags.find(([t]) => t === f.tag)?.[1] ?? 0 }
-    if (f.kind === 'pinned') return { label: 'Pinned', count: counts.pinned }
+    if (f.kind === 'pinned') return { label: 'Pinned notes', count: counts.pinned }
     if (f.kind === 'notepad') return { label: 'Notepad notes', count: counts.notepad }
     if (f.kind === 'untagged') return { label: 'Not tagged', count: counts.untagged }
     if (f.kind === 'day') return { label: 'Journal notes', count: counts.day }

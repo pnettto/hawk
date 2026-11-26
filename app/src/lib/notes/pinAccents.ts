@@ -1,13 +1,13 @@
-// Card accents for pinned notes on the Notepad cover. Confident but still
-// grounded: a colour for the card edge, a light tint behind it. The hues lean
-// on the theme accents already used across Hawk (amber, blue, green, rose,
-// violet). Mirrored by ACCENTS in server/routeHandlers/notes.ts.
+// Card accents for pinned notes on the Notepad cover. Each colour is mixed
+// with the active theme's accent, so the palette shifts with the theme
+// instead of sitting apart from it. Mirrored by ACCENTS in
+// server/routeHandlers/notes.ts.
 export const NOTE_ACCENTS = [
-  { id: 'sand', label: 'Sand', color: '#e0a83f' },
-  { id: 'sage', label: 'Sage', color: '#7cb37b' },
-  { id: 'clay', label: 'Clay', color: '#d97a63' },
-  { id: 'slate', label: 'Slate', color: '#639bd6' },
-  { id: 'mauve', label: 'Mauve', color: '#a885d6' },
+  { id: 'sand', label: 'Sand', color: 'color-mix(in srgb, var(--accent) 35%, #c9a24a)' },
+  { id: 'sage', label: 'Sage', color: 'color-mix(in srgb, var(--accent) 35%, #7d9a6e)' },
+  { id: 'clay', label: 'Clay', color: 'color-mix(in srgb, var(--accent) 35%, #bf7a65)' },
+  { id: 'slate', label: 'Slate', color: 'color-mix(in srgb, var(--accent) 35%, #6f8ea8)' },
+  { id: 'mauve', label: 'Mauve', color: 'color-mix(in srgb, var(--accent) 35%, #98829a)' },
 ] as const
 
 export type NoteAccent = (typeof NOTE_ACCENTS)[number]['id']

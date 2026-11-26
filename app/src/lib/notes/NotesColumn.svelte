@@ -510,7 +510,7 @@
             role="button"
             tabindex="0"
             aria-pressed={selecting ? picked.has(n.id) : undefined}
-            style:--pin-accent={accent ?? 'var(--border-subtle)'}
+            style:--pin-accent={accent ?? 'var(--line)'}
             style:transform={pinShift(n.id)}
             animate:safeFlip={{ duration: 180 }}
             onclick={(e) => onPinCardClick(e, n.id)}
@@ -782,11 +782,12 @@
     gap: 4px;
     min-width: 0;
     min-height: 98px;
-    padding: 0.65rem 0.6rem 0.5rem 0.75rem;
-    border: 1px solid color-mix(in srgb, var(--pin-accent) 38%, var(--border-subtle));
-    border-left: 4px solid var(--pin-accent);
+    padding: 0.65rem 0.75rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--pin-accent) 20%, var(--border-subtle));
     border-radius: var(--r-md);
-    background: color-mix(in srgb, var(--pin-accent) 12%, var(--bg));
+    /* Solid panel, lightly warmed by the chosen accent: the card reads as a
+       surface of the app rather than a tinted tile floating over it. */
+    background: color-mix(in srgb, var(--pin-accent) 18%, var(--panel));
     cursor: pointer;
     user-select: none;
     /* Drag the card itself; a vertical swipe still scrolls the cover. */
@@ -796,18 +797,18 @@
       background-color var(--dur-fast) var(--ease-out),
       border-color var(--dur-fast) var(--ease-out);
   }
-  .pin-card:hover { background: color-mix(in srgb, var(--pin-accent) 18%, var(--bg)); }
+  .pin-card:hover { background: color-mix(in srgb, var(--pin-accent) 26%, var(--panel)); }
   .pin-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .pin-card.active,
   .pin-card.picked {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--pin-accent));
-    background: color-mix(in srgb, var(--pin-accent) 22%, var(--bg));
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+    background: color-mix(in srgb, var(--pin-accent) 30%, var(--panel));
   }
   .pin-card.dragging {
     z-index: 2;
     cursor: grabbing;
     box-shadow: var(--shadow-pop);
-    background: color-mix(in srgb, var(--pin-accent) 26%, var(--panel));
+    background: color-mix(in srgb, var(--pin-accent) 34%, var(--panel));
   }
   .selecting .pin-card { user-select: none; }
 
