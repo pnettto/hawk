@@ -1450,11 +1450,13 @@
               {#if row.task.time}<span class="time-label">{row.task.time}</span>{/if}
               <button
                 type="button"
-                class="restore-btn"
+                class="icon-btn ghost restore-btn"
                 title="Restore task"
                 aria-label={row.task.text.trim() ? `Restore “${row.task.text.trim()}”` : 'Restore task'}
                 onclick={() => setCancelled(row.task, false)}
-              >Restore</button>
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5L3 6M3 3v3h3" /></svg>
+              </button>
             </div>
             {#if row.task.comment}
               <p class="cancelled-comment">{row.task.comment}</p>
@@ -2000,26 +2002,13 @@
     line-height: 1.5;
     white-space: pre-wrap;
   }
-  .restore-btn {
+  .icon-btn.restore-btn {
     flex-shrink: 0;
-    height: var(--h-sm);
-    padding: 0 0.65rem;
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition:
-      color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out),
-      background-color var(--dur-fast) var(--ease-out);
+    width: 32px;
+    height: 32px;
   }
-  .restore-btn:hover { color: var(--text); border-color: var(--accent); background: var(--glass-dark); }
-  .restore-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (pointer: coarse) {
-    .restore-btn { height: 34px; padding: 0 0.8rem; }
+    .icon-btn.restore-btn { width: 40px; height: 40px; }
   }
 
 </style>
