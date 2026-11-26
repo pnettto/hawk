@@ -192,6 +192,7 @@ export function closeNote() {
 }
 
 const FILTER_TITLES: Record<Exclude<NotesFilter['kind'], 'tag'>, string> = {
+  pinned: 'Pinned',
   notepad: 'Notepad',
   all: 'All notes',
   day: 'Journal notes',

@@ -14,7 +14,7 @@ export const isDateStr = (s: string | null | undefined): s is string => !!s && D
 
 // Filter names that sit where a note id would. Note ids are UUIDs or
 // `day-YYYY-MM-DD`, so they never collide.
-const FILTER_NAMES = ['all', 'notepad', 'day', 'untagged', 'trash'] as const
+const FILTER_NAMES = ['pinned', 'all', 'notepad', 'day', 'untagged', 'trash'] as const
 type NamedFilter = (typeof FILTER_NAMES)[number]
 const isNamedFilter = (s: string): s is NamedFilter => (FILTER_NAMES as readonly string[]).includes(s)
 
@@ -151,6 +151,8 @@ export function filterIncludes(filter: NotesFilter, n: NoteMetadata): boolean {
   if (filter.kind === 'trash') return !!n.deletedAt
   if (n.deletedAt) return false
   switch (filter.kind) {
+    case 'pinned':
+      return !!n.pinned
     case 'all':
       return true
     case 'notepad':
