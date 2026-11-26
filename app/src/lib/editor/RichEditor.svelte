@@ -289,7 +289,7 @@
   // menu; a text selection gets the format bar; a table gets its own tools.
 
   type MenuState = { mode: 'slash' | 'gutter'; pos: number; query: string; sel: number; anchor: AnchorRect }
-  type Marks = { bold: boolean; italic: boolean; link: boolean; h3: boolean }
+  type Marks = { bold: boolean; italic: boolean; strike: boolean; link: boolean; h3: boolean }
 
   let menu = $state<MenuState | null>(null)
   let menuItems = $derived(menu ? filterBlocks(menu.query) : [])
@@ -352,6 +352,7 @@
     return {
       bold: e.isActive('bold'),
       italic: e.isActive('italic'),
+      strike: e.isActive('strike'),
       link: e.isActive('link'),
       h3: e.isActive('heading', { level: 3 }),
     }
@@ -1052,6 +1053,7 @@
     {linkHref}
     onBold={() => editor?.chain().focus().toggleBold().run()}
     onItalic={() => editor?.chain().focus().toggleItalic().run()}
+    onStrike={() => editor?.chain().focus().toggleStrike().run()}
     onHeading={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
     onLink={openLink}
     onLinkApply={applyLink}

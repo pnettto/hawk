@@ -57,6 +57,13 @@ describe('body markdown round-trip', () => {
     expect(doc.content?.[1].type).toBe('paragraph')
   })
 
+  it('keeps strikethrough across a reload', () => {
+    const { first, second, editor } = roundTrip('Keep ~~this~~ off the list')
+    expect(first.trim()).toBe('Keep ~~this~~ off the list')
+    expect(second).toBe(first)
+    expect(editor.getJSON().content?.[0].content?.[1].marks?.[0].type).toBe('strike')
+  })
+
   it('keeps uploaded videos', () => {
     const { second, editor } = roundTrip('Before\n\n<video src="https://x.test/v.mp4"></video>\n\nAfter')
     expect(second).toContain('<video')
