@@ -31,7 +31,7 @@ export interface NoteResource extends Omit<NoteListItem, "preview"> {
 export interface TaskResource {
   id: string;
   text: string;
-  status: "open" | "done";
+  status: "open" | "done" | "cancelled";
   time: string | null;
   comment: string | null;
   parentId: string | null;
@@ -84,7 +84,7 @@ export function toTaskResource(task: Task): TaskResource {
   return {
     id: task.id,
     text: task.text ?? "",
-    status: task.done ? "done" : "open",
+    status: task.cancelled ? "cancelled" : task.done ? "done" : "open",
     time: task.time ?? null,
     comment: task.comment ?? null,
     parentId: task.parentId ?? null,

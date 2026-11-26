@@ -74,6 +74,8 @@ describe("toTaskResource", () => {
     });
     expect(toTaskResource({ id: "s", text: "", done: false, order: 1, time: "09:30", comment: "c", parentId: "t", updatedAt: 0 }))
       .toMatchObject({ status: "open", time: "09:30", comment: "c", parentId: "t", updatedAt: "1970-01-01T00:00:00.000Z" });
+    expect(toTaskResource({ id: "c", text: "Dropped", done: false, order: 2, cancelled: true }))
+      .toMatchObject({ status: "cancelled" });
   });
 });
 

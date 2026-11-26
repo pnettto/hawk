@@ -23,11 +23,14 @@
   let dateStr = $derived(formatDate($appStore.selectedDate))
   let loaded = $derived(dateStr in $logsStore.byDate)
   let tasks = $derived(sortTasks($logsStore.byDate[dateStr]?.tasks ?? []))
+  // Cancelled tasks stay on the day, greyed out below the list.
+  let activeTasks = $derived(tasks.filter((t) => !t.cancelled))
+  let cancelledTasks = $derived(tasks.filter((t) => t.cancelled))
 
   // A task with subtasks becomes a group header: it no longer counts as a
   // completable task, its children do.
-  let parentIds = $derived(new Set(tasks.filter((t) => t.parentId).map((t) => t.parentId!)))
-  let leafTasks = $derived(tasks.filter((t) => !parentIds.has(t.id)))
+  let parentIds = $derived(new Set(activeTasks.filter((t) => t.parentId).map((t) => t.parentId!)))
+  let leafTasks = $derived(activeTasks.filter((t) => !parentIds.has(t.id)))
   let doneCount = $derived(leafTasks.filter((t) => t.done).length)
 
   // Subtasks live in the same list, linked by parentId. Render parents with
@@ -36,14 +39,14 @@
   // Placeholder for the "now" divider, which needs a row but isn't a task.
   const NOW_TASK: Task = { id: '__now__', text: '', done: false, order: 0 }
   let topLevel = $derived.by(() => {
-    const ids = new Set(tasks.map((t) => t.id))
-    return tasks.filter((t) => !t.parentId || !ids.has(t.parentId))
+    const ids = new Set(activeTasks.map((t) => t.id))
+    return activeTasks.filter((t) => !t.parentId || !ids.has(t.parentId))
   })
   let baseRows = $derived.by(() => {
     const out: Row[] = []
     let index = 0
     for (const parent of topLevel) {
-      const children = sortTasks(tasks.filter((t) => t.parentId === parent.id))
+      const children = sortTasks(activeTasks.filter((t) => t.parentId === parent.id))
       const header = children.length > 0
       out.push({ task: parent, depth: 0, header, index: index++ })
       for (const child of children) {
@@ -54,6 +57,20 @@
     return out
   })
   let taskRows = $derived(baseRows.filter((r) => !r.addRow))
+
+  // The cancelled section lists cancelled tasks flat, keeping subtasks
+  // indented under a cancelled parent.
+  let cancelledRows = $derived.by(() => {
+    const ids = new Set(cancelledTasks.map((t) => t.id))
+    const out: { task: Task; depth: number }[] = []
+    for (const parent of cancelledTasks.filter((t) => !t.parentId || !ids.has(t.parentId))) {
+      out.push({ task: parent, depth: 0 })
+      for (const child of sortTasks(cancelledTasks.filter((t) => t.parentId === parent.id))) {
+        out.push({ task: child, depth: 1 })
+      }
+    }
+    return out
+  })
 
   // Minute ticker for the "now" marker.
   let nowMinutes = $state(minutesNow())
@@ -425,16 +442,16 @@
   // top level.
   const siblingsOf = (task: Task): Task[] => {
     const parentId = task.parentId ?? null
-    return tasks.filter((t) => (t.parentId ?? null) === parentId)
+    return activeTasks.filter((t) => (t.parentId ?? null) === parentId)
   }
   const untimedSiblings = (task: Task): Task[] => siblingsOf(task).filter((t) => !t.time)
   const untimedIdsForParent = (parentId: string | null): string[] =>
-    tasks.filter((t) => (t.parentId ?? null) === parentId && !t.time).map((t) => t.id)
+    activeTasks.filter((t) => (t.parentId ?? null) === parentId && !t.time).map((t) => t.id)
   const topLevelUntimedIds = (): string[] => topLevel.filter((t) => !t.time).map((t) => t.id)
   const blockIds = (task: Task): string[] =>
     task.parentId
       ? [task.id]
-      : [task.id, ...tasks.filter((t) => t.parentId === task.id).map((t) => t.id)]
+      : [task.id, ...activeTasks.filter((t) => t.parentId === task.id).map((t) => t.id)]
 
   function blockRect(task: Task, listRect: DOMRect) {
     const rects = blockIds(task)
@@ -572,7 +589,7 @@
   // index. Timed rows sort first and aren't in that list, so this keeps the
   // gap after them rather than in the middle of the timed block.
   function dropDisplayIndex(parentId: string | null, index: number): number {
-    const siblings = parentId ? tasks.filter((t) => t.parentId === parentId) : topLevel
+    const siblings = parentId ? activeTasks.filter((t) => t.parentId === parentId) : topLevel
     const next = siblings.filter((t) => t.id !== dragId && !t.time)[index]
     if (next) {
       const row = dragRows.find((r) => r.id === next.id)
@@ -685,7 +702,7 @@
     resetDrag()
     if (!source || !sourceId || !moved) return
     if (!tasks.some((t) => t.id === sourceId)) return
-    const siblings = parentId ? tasks.filter((t) => t.parentId === parentId) : topLevel
+    const siblings = parentId ? activeTasks.filter((t) => t.parentId === parentId) : topLevel
     const ids = siblings.filter((t) => t.id !== sourceId && !t.time).map((t) => t.id)
     ids.splice(Math.max(0, Math.min(to, ids.length)), 0, sourceId)
     if ((source.parentId ?? null) !== parentId) {
@@ -732,7 +749,7 @@
     topLevel
       .filter((t) => {
         // A group counts while any of its subtasks is unfinished.
-        if (parentIds.has(t.id)) return tasks.some((c) => c.parentId === t.id && !c.done)
+        if (parentIds.has(t.id)) return activeTasks.some((c) => c.parentId === t.id && !c.done)
         return !t.done && !!t.text.trim()
       })
       .map((t) => t.id),
@@ -855,6 +872,14 @@
     logsStore.removeTask(dateStr, task.id)
   }
 
+  // Cancelling keeps the task on the day but takes it out of the list; the
+  // cancelled section below the add row puts it back.
+  function setCancelled(task: Task, cancelled: boolean) {
+    if (menuTaskId === task.id) menuTaskId = null
+    if (cancelled && focusedId === task.id) pomodoroStore.stop()
+    logsStore.editTask(dateStr, task.id, { cancelled: cancelled || undefined }, { immediate: true })
+  }
+
   const TIMER_ICON = [
     'M6 5.1C3.9 5.3 2.5 6.9 2.5 9.4 2.5 12.4 5 14.3 8 14.3s5.5-1.9 5.5-4.9c0-2.5-1.4-4.1-3.5-4.3',
     'M8 5.6 5.4 4.3M8 5.6l2.6-1.3M8 5.6 8 3.4c0-.6.3-1 .9-1.2',
@@ -901,6 +926,11 @@
       label: 'Copy link',
       icon: LINK_ICON,
       onSelect: () => void copyLink(task.id),
+    })
+    items.push({
+      label: 'Cancel task',
+      icon: ['M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z', 'M3.5 12.5 12.5 3.5'],
+      onSelect: () => setCancelled(task, true),
     })
     items.push({
       label: 'Delete task',
@@ -1304,6 +1334,18 @@
                 onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
               />
             {/if}
+            <button
+              type="button"
+              class="icon-btn ghost cancel-btn"
+              title="Cancel task"
+              aria-label={task.text.trim() ? `Cancel “${task.text.trim()}”` : 'Cancel task'}
+              onclick={() => setCancelled(task, true)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                <circle cx="8" cy="8" r="5.5" />
+                <path d="M4.2 11.8 11.8 4.2" />
+              </svg>
+            </button>
             <MoreButton
               expanded={menuTaskId === task.id}
               onclick={(e) => toggleRowMenu(task.id, e.currentTarget as HTMLButtonElement)}
@@ -1402,6 +1444,38 @@
       ></textarea>
     {/if}
   </div>
+
+  {#if cancelledRows.length}
+    <section class="cancelled" aria-label="Cancelled tasks">
+      <h3 class="cancelled-heading">Cancelled</h3>
+      <ul class="cancelled-list">
+        {#each cancelledRows as row (row.task.id)}
+          <li class="cancelled-task" class:sub={row.depth > 0}>
+            <div class="row">
+              <span class="cancelled-mark" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                  <circle cx="8" cy="8" r="5.5" />
+                  <path d="M4.2 11.8 11.8 4.2" />
+                </svg>
+              </span>
+              <span class="cancelled-text">{row.task.text || 'Task'}</span>
+              {#if row.task.time}<span class="time-label">{row.task.time}</span>{/if}
+              <button
+                type="button"
+                class="restore-btn"
+                title="Restore task"
+                aria-label={row.task.text.trim() ? `Restore “${row.task.text.trim()}”` : 'Restore task'}
+                onclick={() => setCancelled(row.task, false)}
+              >Restore</button>
+            </div>
+            {#if row.task.comment}
+              <p class="cancelled-comment">{row.task.comment}</p>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
 </section>
 
@@ -1875,5 +1949,102 @@
   }
   .add-input:hover,
   .add-input:focus { background: transparent; }
+
+  /* Cancel stays out of the way until the row is in play. */
+  .icon-btn.cancel-btn { opacity: 0; }
+  .task:hover .cancel-btn,
+  .task:focus-within .cancel-btn { opacity: 0.55; }
+  .task .cancel-btn:hover,
+  .task .cancel-btn:focus-visible { opacity: 1; }
+  @media (hover: none) {
+    .icon-btn.cancel-btn { opacity: 0.55; }
+  }
+  @media (pointer: coarse) {
+    .icon-btn.cancel-btn { width: 40px; height: 40px; }
+  }
+
+  /* Cancelled tasks: below the add row, separated and quiet, each with a
+     restore button on the right. */
+  .cancelled {
+    margin-top: 1.5rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+  }
+  .cancelled-heading {
+    margin: 0 0 0.35rem 0.4rem;
+    font-family: var(--font-ui);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.8;
+  }
+  .cancelled-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cancelled-task { border-radius: var(--r-md); }
+  .cancelled-task:hover { background: var(--glass-dark); }
+  .cancelled-task.sub { margin-left: 1.7rem; }
+  .cancelled-mark {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    opacity: 0.6;
+  }
+  .cancelled-mark svg { width: 0.95rem; height: 0.95rem; }
+  /* Line the cancelled rows up with the list above when handles are shown. */
+  .desktop-reorder .cancelled-task .row { padding-left: 0; }
+  .desktop-reorder .cancelled-mark { margin-left: -0.375rem; }
+  .desktop-reorder .cancelled-task .cancelled-comment { margin-left: 1.625rem; }
+  .cancelled-text {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2rem 0.4rem;
+    color: var(--muted);
+    opacity: 0.7;
+    font-size: 1rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  .cancelled-comment {
+    margin: -0.35rem 0 0.4rem 2.35rem;
+    padding: 0 0.4rem;
+    color: var(--muted);
+    opacity: 0.6;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .restore-btn {
+    flex-shrink: 0;
+    height: var(--h-sm);
+    padding: 0 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  .restore-btn:hover { color: var(--text); border-color: var(--accent); background: var(--glass-dark); }
+  .restore-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  @media (pointer: coarse) {
+    .restore-btn { height: 34px; padding: 0 0.8rem; }
+  }
 
 </style>

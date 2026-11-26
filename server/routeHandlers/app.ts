@@ -181,6 +181,7 @@ function sanitizeTask(t: Partial<Task>): Task | null {
     time,
     comment,
     parentId,
+    cancelled: t.cancelled ? true : undefined,
     order: typeof t.order === "number" ? t.order : Date.now(),
     updatedAt: Date.now(),
   };

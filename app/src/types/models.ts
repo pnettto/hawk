@@ -47,6 +47,8 @@ export interface Task {
   comment?: string;
   // Set on a subtask: the id of the task it belongs to.
   parentId?: string;
+  // Cancelled tasks stay on the day, greyed out below the list.
+  cancelled?: boolean;
   // Sort key among untimed tasks.
   order: number;
   updatedAt?: number;

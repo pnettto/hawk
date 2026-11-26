@@ -192,6 +192,18 @@ describe("matching tasks", () => {
     expect(plain.comment).toBeUndefined();
   });
 
+  it("skips cancelled tasks", async () => {
+    const withCancelled: DayDoc[] = [{
+      date: "2026-05-14",
+      tasks: [
+        { id: "keep", text: "Book the train", done: false, order: 0 },
+        { id: "gone", text: "Book the bus", done: false, order: 1, cancelled: true },
+      ],
+    }];
+    const r = await searchTasks(withCancelled, parseQuery("book")!, 30);
+    expect(r.results.map((t) => t.id)).toEqual(["keep"]);
+  });
+
   it("names the parent of a subtask", async () => {
     const [hit] = (await run("train")).results;
     expect(hit.parentText).toBe("Plan the trip");
