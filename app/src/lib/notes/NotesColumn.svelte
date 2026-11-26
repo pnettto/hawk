@@ -185,7 +185,7 @@
   // Set when a drag finishes, so the click that follows doesn't open the note.
   let pinSuppressClick = false
 
-  const PIN_HOLD_MS = 500
+  const PIN_HOLD_MS = 300
   const PIN_HOLD_SLOP = 8
   // Touch presses wait for a deliberate hold before dragging, so a swipe still
   // scrolls the cover and a tap still opens the note.

@@ -165,22 +165,23 @@
   let suppressClick = false
 
   // Same touch-and-hold rule as the pinned cards: a swipe scrolls the strip,
-  // while holding still for a moment starts a reorder.
-  const TAB_HOLD_MS = 500
+  // while holding still for a moment starts a reorder. Touch drags are driven
+  // by touch events: iOS doesn't reliably deliver pointermove once the browser
+  // considers a gesture a scroll.
+  const TAB_HOLD_MS = 300
   const TAB_HOLD_SLOP = 8
   let holdTimer = 0
   let holdId = $state<string | null>(null)
-  let holdPointer = -1
   let holdEl: HTMLElement | null = null
   let holdStartX = 0
   let holdStartY = 0
+  let touchId = -1
   let heldDrag = false
 
   function cancelHold() {
     if (holdTimer) window.clearTimeout(holdTimer)
     holdTimer = 0
     holdId = null
-    holdPointer = -1
     holdEl = null
   }
 
@@ -189,51 +190,62 @@
     cancelAnimationFrame(frame)
     drag = null
     heldDrag = false
+    touchId = -1
   }
   onDestroy(cancelDrag)
 
+  function cancelPointerDrag() {
+    // Touch drags are cancelled by touchcancel/touchend. A pointercancel from
+    // the browser's scroll heuristics shouldn't interrupt one already running.
+    if (touchId >= 0 && drag) return
+    cancelDrag()
+  }
+
   function startDrag(e: PointerEvent, id: string) {
-    if (e.button !== 0 || notes.length < 2) return
+    if (e.button !== 0 || notes.length < 2 || e.pointerType === 'touch') return
     suppressClick = false
-    if (e.pointerType === 'touch') {
-      cancelHold()
-      holdId = id
-      holdPointer = e.pointerId
-      holdEl = e.currentTarget as HTMLElement
-      holdStartX = clientX = e.clientX
-      holdStartY = e.clientY
-      holdTimer = window.setTimeout(activateHold, TAB_HOLD_MS)
-      return
-    }
     beginDrag(id, e.pointerId, e.clientX, e.currentTarget as HTMLElement, false)
+  }
+
+  function startTouchHold(e: TouchEvent) {
+    if (notes.length < 2 || e.touches.length !== 1) return
+    const target = (e.target as Element | null)?.closest<HTMLElement>('[data-tab]')
+    const touch = e.changedTouches[0]
+    if (!target || !touch) return
+    suppressClick = false
+    cancelHold()
+    holdId = target.dataset.tab ?? null
+    holdEl = target
+    holdStartX = clientX = touch.clientX
+    holdStartY = touch.clientY
+    touchId = touch.identifier
+    holdTimer = window.setTimeout(activateHold, TAB_HOLD_MS)
   }
 
   function activateHold() {
     holdTimer = 0
     const id = holdId
-    const pointer = holdPointer
     const el = holdEl
     holdId = null
-    holdPointer = -1
     holdEl = null
-    if (!id || pointer < 0 || !el) return
-    beginDrag(id, pointer, clientX, el, true)
+    if (!id || !el) return
+    beginDrag(id, null, clientX, el, true)
   }
 
-  function beginDrag(id: string, pointer: number, x: number, el: HTMLElement, fromHold: boolean) {
+  function beginDrag(id: string, pointer: number | null, x: number, el: HTMLElement, fromHold: boolean) {
     geometry = Array.from(tabsEl.querySelectorAll<HTMLElement>('[data-tab]')).map((el) => {
       const rect = el.getBoundingClientRect()
       return { id: el.dataset.tab!, left: rect.left, width: rect.width }
     })
     const from = geometry.findIndex((g) => g.id === id)
     if (from < 0) return
-    pointerId = pointer
+    pointerId = pointer ?? -1
     startX = clientX = x
     startScroll = tabsEl.scrollLeft
     dragDay = dateStr
     heldDrag = fromHold
     drag = { id, from, to: from, offset: 0, moved: false }
-    el.setPointerCapture(pointer)
+    if (pointer !== null) el.setPointerCapture(pointer)
     frame = requestAnimationFrame(autoScroll)
   }
 
@@ -254,31 +266,62 @@
   }
 
   function moveDrag(e: PointerEvent) {
-    if (holdPointer >= 0) {
-      if (e.pointerId !== holdPointer) return
-      clientX = e.clientX
-      // The finger moved before the hold completed: this is a scroll.
-      if (Math.hypot(e.clientX - holdStartX, e.clientY - holdStartY) > TAB_HOLD_SLOP) cancelHold()
-      return
-    }
     if (!drag || e.pointerId !== pointerId) return
     clientX = e.clientX
     updateDrag()
   }
 
   function onTabsTouchMove(e: TouchEvent) {
+    if (touchId < 0) return
+    const touch = Array.from(e.touches).find((t) => t.identifier === touchId)
+    if (!touch) return
+    clientX = touch.clientX
+    if (holdId) {
+      // The finger moved before the hold completed: this is a scroll.
+      if (Math.hypot(touch.clientX - holdStartX, touch.clientY - holdStartY) > TAB_HOLD_SLOP) cancelHold()
+      return
+    }
+    if (!drag) return
     // Once the hold has turned into a drag, the tab follows the finger
     // instead of the strip scrolling underneath it.
-    if (drag) e.preventDefault()
+    e.preventDefault()
+    updateDrag()
   }
 
-  // Svelte delegates touchmove as a passive listener, so attach a
-  // non-passive one to the strip to keep it from scrolling mid-drag.
+  function onTabsTouchEnd(e: TouchEvent) {
+    if (touchId < 0) return
+    const touch = Array.from(e.changedTouches).find((t) => t.identifier === touchId)
+    if (!touch) return
+    if (holdId) {
+      cancelHold()
+      touchId = -1
+      return
+    }
+    if (!drag) {
+      touchId = -1
+      return
+    }
+    clientX = touch.clientX
+    updateDrag()
+    settleDrag()
+  }
+
+  // Svelte delegates touch events as passive listeners, so attach the ones
+  // that drive the drag directly to the strip.
   onMount(() => {
     const el = tabsEl
     if (!el) return
-    el.addEventListener('touchmove', onTabsTouchMove, { passive: false })
-    return () => el.removeEventListener('touchmove', onTabsTouchMove)
+    const options = { passive: false }
+    el.addEventListener('touchstart', startTouchHold, options)
+    el.addEventListener('touchmove', onTabsTouchMove, options)
+    el.addEventListener('touchend', onTabsTouchEnd, options)
+    el.addEventListener('touchcancel', cancelDrag, options)
+    return () => {
+      el.removeEventListener('touchstart', startTouchHold)
+      el.removeEventListener('touchmove', onTabsTouchMove)
+      el.removeEventListener('touchend', onTabsTouchEnd)
+      el.removeEventListener('touchcancel', cancelDrag)
+    }
   })
 
   function autoScroll() {
@@ -309,15 +352,7 @@
     return 0
   }
 
-  function finishDrag(e: PointerEvent) {
-    if (holdPointer >= 0) {
-      if (e.pointerId !== holdPointer) return
-      cancelHold()
-      return
-    }
-    if (!drag || e.pointerId !== pointerId) return
-    clientX = e.clientX
-    updateDrag()
+  function settleDrag() {
     const settled = drag
     const held = heldDrag
     cancelDrag()
@@ -328,6 +363,13 @@
     ids.splice(settled.from, 1)
     ids.splice(settled.to, 0, settled.id)
     void notesStore.reorderDayNotes(dragDay, ids)
+  }
+
+  function finishDrag(e: PointerEvent) {
+    if (!drag || e.pointerId !== pointerId) return
+    clientX = e.clientX
+    updateDrag()
+    settleDrag()
   }
 
   function onDragKey(e: KeyboardEvent) {
@@ -391,8 +433,8 @@
             onpointerdown={(e) => startDrag(e, n.id)}
             onpointermove={moveDrag}
             onpointerup={finishDrag}
-            onpointercancel={cancelDrag}
-            onlostpointercapture={cancelDrag}
+            onpointercancel={cancelPointerDrag}
+            onlostpointercapture={cancelPointerDrag}
             onclick={() => { if (!suppressClick) select(n.id); suppressClick = false }}
             ondblclick={() => startRename(n.id)}
             onkeydown={(e) => onTabKeydown(e, i)}
@@ -503,10 +545,12 @@
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
+      border-color var(--dur-fast) var(--ease-out),
+      scale var(--dur-fast) var(--ease-out);
   }
   .tab[data-tab] {
     user-select: none;
+    -webkit-user-select: none;
     -webkit-touch-callout: none;
     /* Horizontal swipes still scroll the strip; holding starts a reorder. */
     touch-action: pan-x pan-y;
@@ -514,10 +558,24 @@
   .tab[data-tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .tabs.reordering { user-select: none; cursor: grabbing; }
   .tabs.reordering .tab:not(.dragging) { transition: transform var(--dur-fast) var(--ease-out); }
-  .tab.holding { background: var(--glass); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-  .tab.dragging { position: relative; z-index: 1; cursor: grabbing; background: var(--panel); transition: none; }
-  .tab:hover:not(.holding) { color: var(--text); background: var(--glass-dark); }
   .tab[aria-selected='true'] { color: var(--accent); background: var(--glass); }
+  .tab.holding {
+    position: relative;
+    z-index: 1;
+    scale: 0.985;
+    background: var(--glass);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .tab.dragging {
+    position: relative;
+    z-index: 2;
+    cursor: grabbing;
+    scale: 1.03;
+    box-shadow: var(--shadow-pop);
+    background: var(--panel);
+    transition: scale var(--dur-fast) var(--ease-out);
+  }
+  .tab:hover:not(.holding):not(.dragging) { color: var(--text); background: var(--glass-dark); }
   .tab-rename {
     cursor: text;
     color: var(--text);
