@@ -185,7 +185,7 @@
   // Set when a drag finishes, so the click that follows doesn't open the note.
   let pinSuppressClick = false
 
-  const PIN_HOLD_MS = 1000
+  const PIN_HOLD_MS = 500
   const PIN_HOLD_SLOP = 8
   // Touch presses wait for a deliberate hold before dragging, so a swipe still
   // scrolls the cover and a tap still opens the note.
@@ -574,7 +574,6 @@
         class="pin-grid"
         class:dragging={!!pinDragId}
         bind:this={pinGridEl}
-        style:--pin-hold-ms={`${PIN_HOLD_MS}ms`}
         ontouchmove={onPinTouchMove}
       >
         {#each visibleNotes as n (n.id)}
@@ -880,24 +879,12 @@
       box-shadow var(--dur-fast) var(--ease-out),
       scale var(--dur-fast) var(--ease-out);
   }
-  /* Holding a card on touch: it settles under the finger while a line fills
-     over the hold time, then lifts into the drag when the hold completes. */
+  /* Holding a card on touch: it settles under the finger, then lifts into
+     the drag when the hold completes. */
   .pin-card.pressing {
     scale: 0.985;
     border-color: color-mix(in srgb, var(--pin-accent) 42%, var(--line));
     background: color-mix(in srgb, var(--pin-accent) 26%, var(--panel));
-  }
-  .pin-card.pressing::after {
-    content: '';
-    position: absolute;
-    right: 0.75rem;
-    bottom: 0.3rem;
-    left: 0.75rem;
-    height: 2px;
-    border-radius: 1px;
-    background: color-mix(in srgb, var(--pin-accent) 70%, var(--text));
-    transform-origin: left;
-    animation: pin-hold var(--pin-hold-ms, 1000ms) linear forwards;
   }
   .pin-card:hover:not(.pressing) { background: color-mix(in srgb, var(--pin-accent) 26%, var(--panel)); }
   .pin-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -1175,11 +1162,6 @@
   }
   .empty-headline { font-size: 0.95rem; opacity: 0.7; }
   .empty-sub { font-size: 0.8rem; opacity: 0.5; margin-top: 0.4rem; }
-
-  @keyframes pin-hold {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
-  }
 
   @keyframes row-in {
     from { opacity: 0; transform: translateY(2px); }
