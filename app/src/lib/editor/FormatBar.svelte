@@ -3,18 +3,19 @@
 
   interface Props {
     anchor: AnchorRect
-    active: { bold: boolean; italic: boolean; link: boolean; h3: boolean }
+    active: { bold: boolean; italic: boolean; strike: boolean; link: boolean; h3: boolean }
     // Non-null while the link field is open; the current href, if any.
     linkHref: string | null
     onBold: () => void
     onItalic: () => void
+    onStrike: () => void
     onHeading: () => void
     onLink: () => void
     onLinkApply: (url: string) => void
     onLinkRemove: () => void
     onLinkCancel: () => void
   }
-  let { anchor, active, linkHref, onBold, onItalic, onHeading, onLink, onLinkApply, onLinkRemove, onLinkCancel }: Props =
+  let { anchor, active, linkHref, onBold, onItalic, onStrike, onHeading, onLink, onLinkApply, onLinkRemove, onLinkCancel }: Props =
     $props()
 
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
@@ -75,6 +76,7 @@
   {:else}
     <button type="button" class="b" class:on={active.bold} title="Bold (⌘B)" aria-label="Bold" aria-pressed={active.bold} onclick={onBold}>B</button>
     <button type="button" class="i" class:on={active.italic} title="Italic (⌘I)" aria-label="Italic" aria-pressed={active.italic} onclick={onItalic}>I</button>
+    <button type="button" class="s" class:on={active.strike} title="Strikethrough (⌘⇧S)" aria-label="Strikethrough" aria-pressed={active.strike} onclick={onStrike}>S</button>
     <button type="button" class:on={active.link} title="Link (⌘K)" aria-pressed={active.link} onclick={onLink}>Link</button>
     <span class="sep" aria-hidden="true"></span>
     <button type="button" class:on={active.h3} title="Subheading" aria-label="Subheading" aria-pressed={active.h3} onclick={onHeading}>H</button>
@@ -114,6 +116,7 @@
   button.on { background: var(--glass); color: var(--accent); }
   .b { font-weight: 800; }
   .i { font-style: italic; font-family: var(--font-content); }
+  .s { text-decoration: line-through; }
   .sep { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--line); }
   input {
     width: 220px;
