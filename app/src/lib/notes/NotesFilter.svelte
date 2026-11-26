@@ -141,6 +141,9 @@
     <div class="menu">
       <div class="items" role="listbox" aria-label="Show" tabindex="-1" bind:this={menuEl} onkeydown={onKeydown}>
         {#each items as item, i (item.key)}
+          {#if kindOf(item) === 'tag' && (i === 0 || kindOf(items[i - 1]) !== 'tag')}
+            <div class="divider" aria-hidden="true"></div>
+          {/if}
           {#if kindOf(item) === 'trash'}
             {#if counts.tags.length === 0}
               <div class="hint">Type <code>#word</code> in a note to tag it.</div>
