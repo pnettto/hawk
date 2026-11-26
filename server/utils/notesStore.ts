@@ -36,6 +36,11 @@ export interface NoteMetadata {
   // Where the note was created ("web", "pi", …). Set once on create; absent
   // on notes from before it was recorded.
   source?: string;
+  // Shown on the Notepad cover, ordered by pinOrder.
+  pinned?: boolean;
+  pinOrder?: number;
+  // Muted card colour on the cover ("sand", "sage", "clay", "slate", "mauve").
+  accent?: string;
 }
 
 export interface StoredNote extends Omit<NoteMetadata, "preview"> {
@@ -91,6 +96,11 @@ export function metaOf(note: StoredNote): NoteMetadata {
   if (note.day) meta.day = note.day;
   if (typeof note.dayOrder === "number") meta.dayOrder = note.dayOrder;
   if (note.source) meta.source = note.source;
+  if (note.pinned) {
+    meta.pinned = true;
+    if (typeof note.pinOrder === "number") meta.pinOrder = note.pinOrder;
+  }
+  if (note.accent) meta.accent = note.accent;
   return meta;
 }
 

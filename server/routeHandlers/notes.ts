@@ -117,6 +117,8 @@ const MAX_NOTE_BYTES = 63 * 1024;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_RE = /^[a-z0-9-]{1,32}$/;
+// Card accents offered on the Notepad cover (mirrored in app/src/lib/notes/pinAccents.ts).
+const ACCENTS = new Set(["sand", "sage", "clay", "slate", "mauve"]);
 
 async function emitNote(c: Context, type: SyncEventType, ref: string) {
   await emitSyncEvent({ type, ref, originClientId: getClientIdFromCtx(c) });
@@ -197,6 +199,16 @@ export async function saveNote(c: Context) {
   if (isPublic) note.isPublic = true;
   const hidden = typeof body.hidden === "boolean" ? body.hidden : existing?.hidden;
   if (hidden) note.hidden = true;
+  // Pinning only means something on the Notepad cover; unpinning drops the
+  // order with it so a later pin starts at the end.
+  const pinned = typeof body.pinned === "boolean" ? body.pinned : existing?.pinned;
+  if (pinned) {
+    note.pinned = true;
+    const pinOrder = typeof body.pinOrder === "number" ? body.pinOrder : existing?.pinOrder;
+    if (typeof pinOrder === "number") note.pinOrder = pinOrder;
+  }
+  const accent = typeof body.accent === "string" && ACCENTS.has(body.accent) ? body.accent : existing?.accent;
+  if (accent) note.accent = accent;
   if (existing?.deletedAt) note.deletedAt = existing.deletedAt;
   if (existing?.cid) note.cid = existing.cid;
   // A note's day is fixed when it's created.

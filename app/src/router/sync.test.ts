@@ -95,7 +95,7 @@ describe('router sync', () => {
     await notesStore.load()
     await flush()
     expect(get(notesStore).selectedNid).toBeNull()
-    expect(here()).toBe('/notes/notepad')
+    expect(here()).toBe('/notes/pinned')
   })
 
   it('sets a one-shot task highlight from ?task=', async () => {

@@ -5,12 +5,14 @@ import { showError, showToast } from './toast'
 import { savingStore } from './saving'
 import { DocSession, type DocFields } from '../sync/docSession'
 import { parseTags, TAG_LINE_RE } from '../lib/notes/tags'
-import type { Note, NoteMetadata } from '../types/models'
+import type { Note, NoteMetadata, NoteAccent } from '../types/models'
 import type { SyncEvent } from './sync'
 
-// What the Notepad list shows. "day" is the fixed Day Notes view and
-// "notepad" is everything else (all notes except day notes).
+// What the Notepad list shows. "pinned" is the cover page, "day" is the
+// fixed Day Notes view and "notepad" is everything else (all notes except
+// day notes).
 export type NotesFilter =
+  | { kind: 'pinned' }
   | { kind: 'all' }
   | { kind: 'notepad' }
   | { kind: 'day' }
@@ -33,6 +35,7 @@ export type NotesSort = 'changed' | 'added'
 
 const FILTER_KEY = 'hawk_notes_filter'
 const FILTER_DEFAULT_KEY = 'hawk_notes_notepad_default'
+const PINNED_DEFAULT_KEY = 'hawk_notes_pinned_default'
 
 function readFilter(): NotesFilter {
   try {
@@ -47,12 +50,23 @@ function readFilter(): NotesFilter {
         return filter
       }
     }
-    if (f && (f.kind === 'all' || f.kind === 'notepad' || f.kind === 'day' || f.kind === 'untagged' || f.kind === 'trash')) return { kind: f.kind }
+    // The pinned cover is the new default; move a remembered Notepad default
+    // onto it once, without disturbing any other chosen collection. A fresh
+    // install keeps nothing in storage and just falls back to it below.
+    if (localStorage.getItem(PINNED_DEFAULT_KEY) !== '1') {
+      localStorage.setItem(PINNED_DEFAULT_KEY, '1')
+      if (f?.kind === 'notepad') {
+        const filter: NotesFilter = { kind: 'pinned' }
+        localStorage.setItem(FILTER_KEY, JSON.stringify(filter))
+        return filter
+      }
+    }
+    if (f && (f.kind === 'pinned' || f.kind === 'all' || f.kind === 'notepad' || f.kind === 'day' || f.kind === 'untagged' || f.kind === 'trash')) return { kind: f.kind }
     if (f?.kind === 'tag' && typeof f.tag === 'string') return f
   } catch {
     // Storage unavailable — fall back to the default view.
   }
-  return { kind: 'notepad' }
+  return { kind: 'pinned' }
 }
 
 function writeFilter(f: NotesFilter) {
@@ -83,6 +97,13 @@ export const isDayDraft = (n: NoteMetadata) => !!(n.local && n.day)
 
 export function sortDayNotes<T extends NoteMetadata>(notes: T[]): T[] {
   return [...notes].sort((a, b) => (a.dayOrder ?? 0) - (b.dayOrder ?? 0) || a.createdAt - b.createdAt)
+}
+
+// Pinned notes in cover order, newest pin last when order is missing.
+export function sortPinnedNotes<T extends NoteMetadata>(notes: T[]): T[] {
+  return [...notes].sort(
+    (a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0) || (b.updatedAt || 0) - (a.updatedAt || 0),
+  )
 }
 
 // Tag -> number of live notes carrying it, most used first.
@@ -477,6 +498,38 @@ function createNotesStore() {
 
   // Serialize settled reorders so a quick second drag cannot be saved first.
   let reorderSave = Promise.resolve()
+  function reorderPinnedNotes(ids: string[]): Promise<void> {
+    const current = sortPinnedNotes(get({ subscribe }).allNotes.filter((n) => n.pinned && !n.deletedAt))
+    const requested = [...new Set(ids)].filter((id) => current.some((n) => n.id === id))
+    const order = [...requested, ...current.map((n) => n.id).filter((id) => !requested.includes(id))]
+    const changed = order.flatMap((id, pinOrder) => {
+      const note = current.find((n) => n.id === id)!
+      return note.pinOrder === pinOrder ? [] : [{ id, pinOrder, previous: note.pinOrder }]
+    })
+    if (!changed.length) return reorderSave
+    update((s) => ({ ...s, allNotes: s.allNotes.map((n) => {
+      const change = changed.find((c) => c.id === n.id)
+      return change ? { ...n, pinOrder: change.pinOrder } : n
+    }) }))
+    reorderSave = savingStore.track(reorderSave.then(async () => {
+      // Let any in-flight text save finish before writing metadata only.
+      await Promise.all(changed.map(({ id }) => sessions.get(id)?.flush()))
+      await Promise.all(changed.map(async ({ id, pinOrder }) => {
+        const note = find(id)
+        if (!note || note.deletedAt) return
+        const result = await notesApi.saveNote({ id, pinned: true, pinOrder, createdAt: note.createdAt })
+        patchNote(id, { rev: result.rev, local: undefined })
+      }))
+    })).catch((e) => {
+      console.error('Failed to reorder pinned notes', e)
+      for (const change of changed) {
+        if (find(change.id)?.pinOrder === change.pinOrder) patchNote(change.id, { pinOrder: change.previous })
+      }
+      showError('Couldn’t save pinned order.')
+    })
+    return reorderSave
+  }
+
   function reorderDayNotes(day: string, ids: string[]): Promise<void> {
     const current = sortDayNotes(get({ subscribe }).allNotes.filter((n) => n.day === day && !n.deletedAt))
     const requested = [...new Set(ids)].filter((id) => current.some((n) => n.id === id))
@@ -507,6 +560,52 @@ function createNotesStore() {
       showError('Couldn’t save note order.')
     })
     return reorderSave
+  }
+
+  // Pin toggle: metadata-only, like sharing. A new pin lands at the end of
+  // the cover; unpinning drops its order.
+  async function setPinned(nid: string, pinned: boolean) {
+    const note = find(nid)
+    // A draft that isn't on the server yet has nothing to pin there.
+    if (!note || note.local || !!note.pinned === pinned) return
+    const pinnedNotes = get({ subscribe }).allNotes.filter((n) => n.pinned && !n.deletedAt)
+    const pinOrder = pinned
+      ? Math.max(-1, ...pinnedNotes.map((n) => n.pinOrder ?? 0)) + 1
+      : undefined
+    const previous = { pinned: note.pinned, pinOrder: note.pinOrder }
+    patchNote(nid, pinned ? { pinned: true, pinOrder } : { pinned: false, pinOrder: undefined })
+    // Keep a list reload from showing the old state while this saves.
+    inFlightOps.add(nid)
+    try {
+      await sessions.get(nid)?.flush()
+      await savingStore.track(
+        notesApi.saveNote({ id: nid, pinned, pinOrder, createdAt: note.createdAt }),
+      )
+    } catch (e) {
+      console.error('Failed to update pin', e)
+      patchNote(nid, previous)
+      showError(pinned ? 'Couldn’t pin the note.' : 'Couldn’t unpin the note.')
+    } finally {
+      inFlightOps.delete(nid)
+    }
+  }
+
+  // Card colour on the cover: metadata-only.
+  async function setAccent(nid: string, accent: NoteAccent) {
+    const note = find(nid)
+    if (!note || note.accent === accent) return
+    const previous = note.accent
+    patchNote(nid, { accent })
+    inFlightOps.add(nid)
+    try {
+      await savingStore.track(notesApi.saveNote({ id: nid, accent, createdAt: note.createdAt }))
+    } catch (e) {
+      console.error('Failed to update accent', e)
+      patchNote(nid, { accent: previous })
+      showError('Couldn’t change the colour.')
+    } finally {
+      inFlightOps.delete(nid)
+    }
   }
 
   function hasUnsavedWork() {
@@ -708,7 +807,10 @@ function createNotesStore() {
     setTitle,
     setPublic,
     setHidden,
+    setPinned,
+    setAccent,
     reorderDayNotes,
+    reorderPinnedNotes,
     sessionFor,
     flushSaves,
     flushOnHide,

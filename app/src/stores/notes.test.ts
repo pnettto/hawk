@@ -11,7 +11,16 @@ async function store() {
 }
 
 describe('default Notepad collection', () => {
-  it('starts in Notepad notes without a saved collection', async () => {
+  it('starts on the Pinned cover without a saved collection', async () => {
+    expect(get(await store()).filter).toEqual({ kind: 'pinned' })
+  })
+
+  it('moves a remembered Notepad default onto the Pinned cover once', async () => {
+    localStorage.setItem('hawk_notes_filter', JSON.stringify({ kind: 'notepad' }))
+    const notes = await store()
+    expect(get(notes).filter).toEqual({ kind: 'pinned' })
+    notes.setFilter({ kind: 'notepad' })
+    vi.resetModules()
     expect(get(await store()).filter).toEqual({ kind: 'notepad' })
   })
 
@@ -24,14 +33,14 @@ describe('default Notepad collection', () => {
     expect(get(await store()).filter).toEqual({ kind: 'all' })
   })
 
-  it.each([{ kind: 'tag', tag: 'work' }, { kind: 'day' }, { kind: 'trash' }])('preserves a saved $kind collection', async filter => {
+  it.each([{ kind: 'tag', tag: 'work' }, { kind: 'day' }, { kind: 'trash' }, { kind: 'pinned' }])('preserves a saved $kind collection', async filter => {
     localStorage.setItem('hawk_notes_filter', JSON.stringify(filter))
     expect(get(await store()).filter).toEqual(filter)
   })
 
-  it('falls back to Notepad notes for invalid saved data', async () => {
+  it('falls back to the Pinned cover for invalid saved data', async () => {
     localStorage.setItem('hawk_notes_filter', 'not json')
-    expect(get(await store()).filter).toEqual({ kind: 'notepad' })
+    expect(get(await store()).filter).toEqual({ kind: 'pinned' })
   })
 })
 
@@ -119,5 +128,36 @@ describe('createNote', () => {
     expect(get(notes).selectedNid).not.toBe(nid)
     await notes.flushSaves()
     expect(save).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('pinned cover', () => {
+  async function setup() {
+    const api = await import('../api/notes')
+    const save = vi.spyOn(api, 'saveNote').mockResolvedValue({ success: true, rev: 1, updatedAt: 1 })
+    vi.spyOn(api, 'getNotesIndex').mockResolvedValue([
+      { id: 'a', title: 'A', tags: [], createdAt: 1, updatedAt: 1, pinned: true, pinOrder: 0 },
+      { id: 'b', title: 'B', tags: [], createdAt: 2, updatedAt: 2, pinned: true, pinOrder: 1 },
+      { id: 'c', title: 'C', tags: [], createdAt: 3, updatedAt: 3 },
+    ])
+    const notes = await store()
+    await notes.load()
+    return { notes, save }
+  }
+
+  it('pins at the end and saves metadata only', async () => {
+    const { notes, save } = await setup()
+    await notes.setPinned('c', true)
+    expect(get(notes).allNotes.find((n) => n.id === 'c')?.pinned).toBe(true)
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'c', pinned: true, pinOrder: 2 }))
+  })
+
+  it('reorders pinned notes and persists the order', async () => {
+    const { notes, save } = await setup()
+    await notes.reorderPinnedNotes(['b', 'a'])
+    expect(save.mock.calls.map(([note]) => [note.id, note.pinOrder])).toEqual([
+      ['b', 0],
+      ['a', 1],
+    ])
   })
 })

@@ -30,9 +30,12 @@
   onDestroy(() => {
     notesStore.flushSaves()
   })
+
+  // The pinned cover takes the whole workspace until a note is opened.
+  let cover = $derived($notesStore.filter.kind === 'pinned' && !$notesStore.selectedNid)
 </script>
 
-<div class="notes-layout" class:has-selected-note={$notesStore.selectedNid !== null}>
+<div class="notes-layout" class:has-selected-note={$notesStore.selectedNid !== null} class:cover>
   <NotesColumn />
   <div class="editor-main">
     {#if $notesStore.selectedNid}
@@ -76,12 +79,30 @@
     opacity: 0.6;
     padding: 4rem 2rem;
   }
+  /* Cover page: the pinned grid spans the workspace, with no empty editor
+     pane beside it, until a card opens a note. */
+  .notes-layout.cover :global(.notes-col) {
+    width: 100%;
+    border-right: none;
+  }
+  .notes-layout.cover .editor-main { display: none; }
+  .notes-layout.cover :global(.pin-grid) {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 0.75rem;
+  }
+  .notes-layout.cover :global(.pin-card) { min-height: 120px; }
   @media (max-width: 900px) {
     .notes-layout {
       flex-direction: column;
     }
     .editor-main {
       padding: 0;
+    }
+    .notes-layout.cover :global(.pin-grid) {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      padding: 0.5rem;
     }
     /* Master-detail navigation on mobile: when a note is selected, hide the
        notes column so the editor takes the full content area. */

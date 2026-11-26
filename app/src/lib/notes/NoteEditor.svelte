@@ -184,6 +184,8 @@
 
   let canShare = $derived(variant === 'page' && !$authStore.isGuest)
 
+  const PIN_ICON = ['M6 2.5h4v3l2 1.5v1H4v-1l2-1.5z', 'M8 8v5.5']
+
   let menuItems: ActionMenuItem[] = $derived([
     ...(canShare
       ? [{
@@ -195,6 +197,11 @@
     ...(concealed
       ? []
       : [
+          {
+            label: note?.pinned ? 'Unpin from cover' : 'Pin to cover',
+            icon: PIN_ICON,
+            onSelect: () => void notesStore.setPinned(nid, !note?.pinned),
+          },
           { label: 'Copy link', icon: LINK_ICON, onSelect: () => void copyLink() },
           { label: 'Copy note as markdown', icon: ['M5.5 2.5h7v10h-7z', 'M2.5 5.5v8h7'], onSelect: () => void copyNote() },
           { label: 'Version history', icon: ['M2 8a6 6 0 1 0 2-4.47L2 5.33', 'M2 2v3.33h3.33', 'M8 4.67V8l2 1.33'], onSelect: () => (showHistoryPopover = true) },

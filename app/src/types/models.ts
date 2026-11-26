@@ -1,5 +1,9 @@
 // Shared models — kept in sync with server/routeHandlers/notes.ts and app.ts.
 
+import type { NoteAccent } from '../lib/notes/pinAccents'
+
+export type { NoteAccent }
+
 export interface NoteMetadata {
   id: string;
   title: string;
@@ -18,6 +22,11 @@ export interface NoteMetadata {
   dayOrder?: number;
   // Where the note was created ("web", "pi", …). Set once on create.
   source?: string;
+  // Shown on the Notepad cover, ordered by pinOrder.
+  pinned?: boolean;
+  pinOrder?: number;
+  // Muted card accent on the cover.
+  accent?: NoteAccent;
   // Client-only: created here and not saved yet.
   local?: boolean;
 }

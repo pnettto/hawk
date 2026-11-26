@@ -213,6 +213,17 @@ function saveNote(data: GuestData, body: Record<string, unknown>) {
     if (body.hidden) note.hidden = true
     else delete note.hidden
   }
+  if (typeof body.pinned === 'boolean') {
+    if (body.pinned) {
+      note.pinned = true
+      const pinOrder = typeof body.pinOrder === 'number' ? body.pinOrder : prev?.pinOrder
+      if (typeof pinOrder === 'number') note.pinOrder = pinOrder
+    } else {
+      delete note.pinned
+      delete note.pinOrder
+    }
+  }
+  if (typeof body.accent === 'string') note.accent = body.accent as Note['accent']
   delete note.preview
   data.notes[id] = note
   persist()
