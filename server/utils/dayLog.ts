@@ -22,6 +22,8 @@ export interface Task {
   comment?: string;
   // Set on a subtask: the id of the task it belongs to.
   parentId?: string;
+  // Kept on the day but out of the list: shown greyed out at the bottom.
+  cancelled?: boolean;
   // Manual sort key among untimed tasks (defaults to creation time).
   order: number;
   updatedAt?: number;
@@ -146,7 +148,10 @@ export function isSubstantialTaskListChange(prev: Task[], next: Task[]): boolean
   for (const [id, t] of b) {
     const p = a.get(id);
     if (!p) return true;
-    if (p.text !== t.text || p.done !== t.done || p.time !== t.time || p.comment !== t.comment) {
+    if (
+      p.text !== t.text || p.done !== t.done || p.time !== t.time ||
+      p.comment !== t.comment || !!p.cancelled !== !!t.cancelled
+    ) {
       differing++;
     }
     if (differing > 3) return true;
@@ -154,9 +159,10 @@ export function isSubstantialTaskListChange(prev: Task[], next: Task[]): boolean
   return false;
 }
 
-// Same order the client lists tasks in: timed first by time, then untimed by
-// manual order.
+// Same order the client lists tasks in: cancelled ones last, then timed by
+// time, then untimed by manual order.
 export function compareTasks(a: Task, b: Task): number {
+  if (!!a.cancelled !== !!b.cancelled) return a.cancelled ? 1 : -1;
   if (a.time && b.time) return a.time.localeCompare(b.time) || a.order - b.order;
   if (a.time) return -1;
   if (b.time) return 1;

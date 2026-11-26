@@ -98,7 +98,7 @@ Newest `updatedAt` first.
     {
       "id": "…",
       "text": "Review the PR",
-      "status": "open" | "done",
+      "status": "open" | "done" | "cancelled",
       "time": "09:30" | null,
       "comment": "…" | null,
       "parentId": "…" | null,         // set on subtasks
@@ -109,7 +109,7 @@ Newest `updatedAt` first.
 }
 ```
 
-Tasks come in Journal order. A day with nothing on it returns `tasks: []`, not 404.
+Tasks come in Journal order (cancelled ones last). A cancelled task stays on the day but sits out of the list; `status` is `"cancelled"` and `done` is ignored for it. A day with nothing on it returns `tasks: []`, not 404.
 
 ## `GET /api/reports/:date?user=`
 

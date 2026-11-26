@@ -51,6 +51,7 @@ export interface TaskDoc {
   comment?: string;
   parentId?: string;
   order?: number;
+  cancelled?: boolean;
 }
 
 export interface DayDoc {
@@ -327,6 +328,8 @@ export async function searchTasks(
   scan: for await (const day of days) {
     const byId = new Map(day.tasks.map((t) => [t.id, t]));
     for (const task of day.tasks) {
+      // Cancelled tasks are out of the Journal list, so they stay out of here.
+      if (task.cancelled) continue;
       const m = matchTask(task, q);
       if (!m) continue;
       if (cands.length >= limit * 3) {
