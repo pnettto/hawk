@@ -175,6 +175,8 @@
   let holdEl: HTMLElement | null = null
   let holdStartX = 0
   let holdStartY = 0
+  let scrollStartLeft = 0
+  let scrolling = false
   let touchId = -1
   let heldDrag = false
 
@@ -190,6 +192,7 @@
     cancelAnimationFrame(frame)
     drag = null
     heldDrag = false
+    scrolling = false
     touchId = -1
   }
   onDestroy(cancelDrag)
@@ -208,17 +211,20 @@
   }
 
   function startTouchHold(e: TouchEvent) {
-    if (notes.length < 2 || e.touches.length !== 1) return
-    const target = (e.target as Element | null)?.closest<HTMLElement>('[data-tab]')
+    if (e.touches.length !== 1) return
     const touch = e.changedTouches[0]
-    if (!target || !touch) return
+    if (!touch) return
+    const target = (e.target as Element | null)?.closest<HTMLElement>('[data-tab]')
     suppressClick = false
     cancelHold()
-    holdId = target.dataset.tab ?? null
-    holdEl = target
+    touchId = touch.identifier
     holdStartX = clientX = touch.clientX
     holdStartY = touch.clientY
-    touchId = touch.identifier
+    scrollStartLeft = tabsEl.scrollLeft
+    scrolling = false
+    if (!target || notes.length < 2) return
+    holdId = target.dataset.tab ?? null
+    holdEl = target
     holdTimer = window.setTimeout(activateHold, TAB_HOLD_MS)
   }
 
@@ -276,16 +282,26 @@
     const touch = Array.from(e.touches).find((t) => t.identifier === touchId)
     if (!touch) return
     clientX = touch.clientX
+    const dx = touch.clientX - holdStartX
+    const dy = touch.clientY - holdStartY
     if (holdId) {
-      // The finger moved before the hold completed: this is a scroll.
-      if (Math.hypot(touch.clientX - holdStartX, touch.clientY - holdStartY) > TAB_HOLD_SLOP) cancelHold()
+      if (Math.hypot(dx, dy) <= TAB_HOLD_SLOP) return
+      // The finger moved before the hold completed: this is a scroll, not a
+      // reorder. Only take over horizontal movement; vertical stays native.
+      cancelHold()
+      scrolling = Math.abs(dx) > Math.abs(dy)
+    }
+    if (drag) {
+      // Once the hold has turned into a drag, the tab follows the finger
+      // instead of the strip scrolling underneath it.
+      e.preventDefault()
+      updateDrag()
       return
     }
-    if (!drag) return
-    // Once the hold has turned into a drag, the tab follows the finger
-    // instead of the strip scrolling underneath it.
+    if (!scrolling && Math.hypot(dx, dy) > TAB_HOLD_SLOP) scrolling = Math.abs(dx) > Math.abs(dy)
+    if (!scrolling) return
     e.preventDefault()
-    updateDrag()
+    tabsEl.scrollLeft = scrollStartLeft - dx
   }
 
   function onTabsTouchEnd(e: TouchEvent) {
@@ -295,10 +311,12 @@
     if (holdId) {
       cancelHold()
       touchId = -1
+      scrolling = false
       return
     }
     if (!drag) {
       touchId = -1
+      scrolling = false
       return
     }
     clientX = touch.clientX
@@ -521,6 +539,10 @@
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
+    /* Horizontal panning is handled in JS so a long press can start a drag
+       before the browser claims the gesture. Vertical page scrolling stays
+       native. */
+    touch-action: pan-y;
     /* Room for focus rings inside the scroller. */
     padding: 3px;
     margin: -3px;
@@ -552,8 +574,8 @@
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
-    /* Horizontal swipes still scroll the strip; holding starts a reorder. */
-    touch-action: pan-x pan-y;
+    /* Horizontal swipes scroll the strip in JS; vertical stays native. */
+    touch-action: pan-y;
   }
   .tab[data-tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .tabs.reordering { user-select: none; cursor: grabbing; }
@@ -562,7 +584,7 @@
   .tab.holding {
     position: relative;
     z-index: 1;
-    scale: 0.985;
+    scale: 1.03;
     background: var(--glass);
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   }
@@ -570,7 +592,7 @@
     position: relative;
     z-index: 2;
     cursor: grabbing;
-    scale: 1.03;
+    scale: 1.05;
     box-shadow: var(--shadow-pop);
     background: var(--panel);
     transition: scale var(--dur-fast) var(--ease-out);
