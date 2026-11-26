@@ -56,8 +56,6 @@
     flex-direction: column;
     gap: 0.6rem;
     padding: 0.5rem;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
     cursor: pointer;
     color: var(--text);
@@ -69,11 +67,9 @@
       box-shadow var(--dur-fast) var(--ease-out);
   }
   .card:hover {
-    border-color: var(--accent);
     transform: translateY(-1px);
   }
   .card.active {
-    border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
   .preview {

@@ -44,7 +44,7 @@ Reuse the shared controls in `lib/ui/` and the global CSS/tokens before adding o
 
 Keep shapes consistent: use `--r-sm` (6px) for buttons, tabs, inputs, and date/time shortcuts; `--r-md` (10px) for cards, popovers, and segmented-control containers; and `--r-xs` (4px) for small labels. Use pill/circular shapes only for switches and round indicators (checkboxes, status dots, timer rings), not ordinary action buttons. Use the tokens rather than hard-coded corner radii.
 
-Persistent surfaces should feel integrated, not float independently: use `--surface-subtle` and `--border-subtle`, shared top edges and aligned pane headers (`--workspace-header-height`), and no panel shadows. Keep app navigation separate from the workspace. Reserve stronger `--panel` backgrounds and `--shadow-pop` for transient overlays. Preserve the master-detail layout on mobile.
+Persistent surfaces should feel integrated, not float independently: panes share the workspace background with no borders or separators, use shared top edges and aligned pane headers (`--workspace-header-height`), and no panel shadows. Where a pane needs a single edge to read as separate (the Notepad list), use one `1px` `--line` divider. Keep app navigation separate from the workspace. Reserve stronger `--panel` backgrounds and `--shadow-pop` for transient overlays. Preserve the master-detail layout on mobile.
 
 ## Commands
 

@@ -217,9 +217,7 @@
     gap: 0.75rem;
   }
   .ext {
-    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
-    background: var(--surface-subtle);
   }
   .ext-head {
     display: flex;
@@ -286,7 +284,6 @@
     display: flex;
     flex-direction: column;
     margin: 0 1rem;
-    border-top: 1px solid var(--border-subtle);
   }
   .setting {
     display: flex;
@@ -295,7 +292,6 @@
     padding: 0.5rem 0;
     cursor: pointer;
   }
-  .setting + .setting { border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
   .setting-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
   .setting-label { font-size: 0.85rem; color: var(--text); }
   .setting-help { font-size: 0.78rem; color: var(--muted); opacity: 0.75; }

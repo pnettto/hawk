@@ -496,7 +496,6 @@
     padding: 0.75rem 1.5rem;
     gap: 0.75rem;
     margin-bottom: 1.25rem;
-    border-bottom: 1px solid var(--border-subtle);
     background: var(--bg);
   }
   .page:not(.reading) .note-title { font-size: 1.25rem; line-height: 1.4; }

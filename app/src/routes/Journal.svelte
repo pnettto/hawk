@@ -52,7 +52,6 @@
 <style>
   .journal-workspace {
     min-width: 0;
-    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
     background: var(--bg);
   }
@@ -63,9 +62,6 @@
     justify-content: space-between;
     gap: 0.75rem;
     min-height: var(--workspace-header-height);
-    border-radius: var(--r-md) var(--r-md) 0 0;
-    background: var(--surface-subtle);
-    border-bottom: 1px solid var(--border-subtle);
     padding: 0.75rem 1rem;
   }
   .journal-body {
