@@ -43,7 +43,6 @@ afterEach(() => {
 describe('Cancelled tasks', () => {
   it('keeps them out of the list, in their own section at the bottom', () => {
     render(DayTasks)
-    expect(screen.queryByRole('button', { name: 'Cancel “Buy milk”' })).not.toBeInTheDocument()
     const cancelled = screen.getByRole('region', { name: 'Cancelled tasks' })
     expect(within(cancelled).getByText('Buy milk')).toBeInTheDocument()
     expect(within(cancelled).getByText('Trip')).toBeInTheDocument()
@@ -52,9 +51,11 @@ describe('Cancelled tasks', () => {
     expect(within(cancelled).getByRole('button', { name: 'Restore “Pack”' }).closest('li')).toHaveClass('sub')
   })
 
-  it('cancels a task from its row', async () => {
+  it('cancels a task from its row menu', async () => {
     render(DayTasks)
-    await fireEvent.click(screen.getByRole('button', { name: 'Cancel “Write report”' }))
+    const row = screen.getByRole('textbox', { name: 'Task' }).closest('li') as HTMLElement
+    await fireEvent.click(within(row).getByRole('button', { name: 'More actions' }))
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Cancel task' }))
     expect(mocks.edit).toHaveBeenCalledWith('2026-06-10', 'a', { cancelled: true }, { immediate: true })
   })
 

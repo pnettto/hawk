@@ -1334,18 +1334,6 @@
                 onChange={(time) => logsStore.editTask(dateStr, task.id, { time }, { immediate: true })}
               />
             {/if}
-            <button
-              type="button"
-              class="icon-btn ghost cancel-btn"
-              title="Cancel task"
-              aria-label={task.text.trim() ? `Cancel “${task.text.trim()}”` : 'Cancel task'}
-              onclick={() => setCancelled(task, true)}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-                <circle cx="8" cy="8" r="5.5" />
-                <path d="M4.2 11.8 11.8 4.2" />
-              </svg>
-            </button>
             <MoreButton
               expanded={menuTaskId === task.id}
               onclick={(e) => toggleRowMenu(task.id, e.currentTarget as HTMLButtonElement)}
@@ -1949,19 +1937,6 @@
   }
   .add-input:hover,
   .add-input:focus { background: transparent; }
-
-  /* Cancel stays out of the way until the row is in play. */
-  .icon-btn.cancel-btn { opacity: 0; }
-  .task:hover .cancel-btn,
-  .task:focus-within .cancel-btn { opacity: 0.55; }
-  .task .cancel-btn:hover,
-  .task .cancel-btn:focus-visible { opacity: 1; }
-  @media (hover: none) {
-    .icon-btn.cancel-btn { opacity: 0.55; }
-  }
-  @media (pointer: coarse) {
-    .icon-btn.cancel-btn { width: 40px; height: 40px; }
-  }
 
   /* Cancelled tasks: below the add row, separated and quiet, each with a
      restore button on the right. */
