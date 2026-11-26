@@ -69,15 +69,13 @@
     min-height: 24rem;
     padding: 1.5rem;
   }
-  @media (max-width: 600px) {
+  @media (max-width: 900px) {
     .app-header {
-      flex-direction: column;
-      align-items: flex-start;
       gap: 0.5rem;
-      padding: 0.75rem;
+      padding: 0.5rem;
     }
     .journal-body {
-      padding: 1rem 0.75rem;
+      padding: 0.75rem 0.5rem;
     }
   }
   .header-left {
@@ -116,5 +114,30 @@
   .journal-tabs button.active {
     color: var(--accent);
     background: var(--glass);
+  }
+  @media (max-width: 600px) {
+    .app-header {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem 0.5rem;
+      min-height: 0;
+      padding: 0.25rem 0.25rem 0.5rem;
+    }
+    .header-left {
+      flex: 1 1 auto;
+      min-width: 0;
+      gap: 0.25rem;
+    }
+    .journal-tabs {
+      flex: 0 1 auto;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .journal-tabs::-webkit-scrollbar { display: none; }
+    .journal-tabs button { flex-shrink: 0; }
+    .journal-body {
+      padding: 0.5rem 0.25rem;
+    }
   }
 </style>

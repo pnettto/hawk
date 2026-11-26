@@ -252,6 +252,11 @@
     }
   }
   @media (max-width: 600px) {
+    .date-control { gap: 2px; }
+    .date-container { min-width: auto; }
+    .date-display { padding: 6px 8px; font-size: 0.9rem; }
+    .cal-arrow { width: 28px; height: 28px; }
+    .today-btn { height: 26px; padding: 0 0.45rem; font-size: 0.68rem; }
     .calendar-modal {
       position: fixed;
       top: 50%;
