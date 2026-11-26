@@ -185,6 +185,16 @@
   // Set when a drag finishes, so the click that follows doesn't open the note.
   let pinSuppressClick = false
 
+  const PIN_HOLD_MS = 1000
+  const PIN_HOLD_SLOP = 8
+  // Touch presses wait for a deliberate hold before dragging, so a swipe still
+  // scrolls the cover and a tap still opens the note.
+  let pinHoldTimer = 0
+  let pinHoldId: string | null = null
+  let pinHoldPointer: number | null = null
+  // True once a touch hold has turned into a drag.
+  let pinHeld = false
+
   function toggleAccent(nid: string, e: MouseEvent) {
     e.stopPropagation()
     accentMenu = accentMenu === nid ? null : nid
@@ -238,6 +248,49 @@
     // No preventDefault here: a plain tap must still produce a click that
     // opens the note. The card is unselectable, so dragging selects nothing.
     accentMenu = null
+    pinStartX = e.clientX
+    pinStartY = e.clientY
+    pinLastX = e.clientX
+    pinLastY = e.clientY
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+
+    if (e.pointerType === 'touch') {
+      cancelPinHold()
+      pinHoldId = nid
+      pinHoldPointer = e.pointerId
+      pinHoldTimer = window.setTimeout(activatePinHold, PIN_HOLD_MS)
+      return
+    }
+
+    pinPointer = e.pointerId
+    capturePinGeometry(nid)
+    startPinAutoScroll()
+  }
+
+  // A touch becomes a drag only after the finger has stayed put for a moment.
+  // Moving first is a scroll, and releasing first is a tap.
+  function activatePinHold() {
+    pinHoldTimer = 0
+    const nid = pinHoldId
+    const pointer = pinHoldPointer
+    pinHoldId = null
+    pinHoldPointer = null
+    if (!nid || pointer === null || !pinGridEl) return
+    pinHeld = true
+    pinPointer = pointer
+    capturePinGeometry(nid)
+    startPinAutoScroll()
+  }
+
+  function cancelPinHold() {
+    if (pinHoldTimer) window.clearTimeout(pinHoldTimer)
+    pinHoldTimer = 0
+    pinHoldId = null
+    pinHoldPointer = null
+  }
+
+  function capturePinGeometry(nid: string) {
+    if (!pinGridEl) return
     const gridRect = pinGridEl.getBoundingClientRect()
     pinSlots = [...pinGridEl.querySelectorAll<HTMLElement>('[data-pin-id]')].map((el) => {
       const rect = el.getBoundingClientRect()
@@ -251,24 +304,33 @@
     })
     pinIds = pinSlots.map((s) => s.id)
     pinDragId = nid
-    pinPointer = e.pointerId
-    pinStartX = e.clientX
-    pinStartY = e.clientY
+    pinStartX = pinLastX
+    pinStartY = pinLastY
     pinDx = 0
     pinDy = 0
     pinDrop = pinIds.indexOf(nid)
     pinMoved = false
-    pinLastX = e.clientX
-    pinLastY = e.clientY
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    startPinAutoScroll()
   }
 
   function onPinDragMove(e: PointerEvent) {
+    if (pinHoldPointer !== null) {
+      if (e.pointerId !== pinHoldPointer) return
+      pinLastX = e.clientX
+      pinLastY = e.clientY
+      // The finger moved before the hold completed: this is a scroll.
+      if (Math.hypot(e.clientX - pinStartX, e.clientY - pinStartY) > PIN_HOLD_SLOP) cancelPinHold()
+      return
+    }
     if (!pinDragId || e.pointerId !== pinPointer) return
     pinLastX = e.clientX
     pinLastY = e.clientY
     updatePinDrag()
+  }
+
+  function onPinTouchMove(e: TouchEvent) {
+    // Once the hold has turned into a drag, the card follows the finger
+    // instead of the cover scrolling underneath it.
+    if (pinDragId) e.preventDefault()
   }
 
   // The dragged card follows the pointer; the card it will displace is found
@@ -346,14 +408,22 @@
   }
 
   function endPinDrag(e?: PointerEvent) {
-    if (e && pinPointer !== null && e.pointerId !== pinPointer) return
+    if (e) {
+      if (pinHoldPointer !== null) {
+        if (e.pointerId !== pinHoldPointer) return
+        cancelPinHold()
+        return
+      }
+      if (pinPointer !== null && e.pointerId !== pinPointer) return
+    }
     const id = pinDragId
     const at = pinDrop
     const moved = pinMoved
+    const held = pinHeld
     const ids = pinIds
     // A real drag ends in a click on the card; swallow it. A cancelled touch
     // gesture produces none, so don't swallow the next tap instead.
-    if (moved && e?.type === 'pointerup') pinSuppressClick = true
+    if ((moved || held) && e?.type === 'pointerup') pinSuppressClick = true
     resetPinDrag()
     if (!id || at === null || !moved || !ids.includes(id)) return
     const order = ids.filter((x) => x !== id)
@@ -362,6 +432,7 @@
   }
 
   function resetPinDrag() {
+    cancelPinHold()
     if (pinAutoScroll) cancelAnimationFrame(pinAutoScroll)
     pinAutoScroll = 0
     pinDragId = null
@@ -372,6 +443,7 @@
     pinSlots = []
     pinIds = []
     pinMoved = false
+    pinHeld = false
   }
 
   // Keyboard reordering: the focused card moves one slot per arrow key.
@@ -391,10 +463,10 @@
   }
 
   function onPinWindowKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && pinDragId) {
+    if (e.key === 'Escape' && (pinDragId || pinHoldId)) {
       e.preventDefault()
       // The pointer is still down: the release will click the card.
-      if (pinMoved) pinSuppressClick = true
+      if (pinMoved || pinHeld) pinSuppressClick = true
       resetPinDrag()
     }
   }
@@ -498,7 +570,7 @@
         {/each}
       </div>
     {:else if $notesStore.filter.kind === 'pinned'}
-      <div class="pin-grid" class:dragging={!!pinDragId} bind:this={pinGridEl}>
+      <div class="pin-grid" class:dragging={!!pinDragId} bind:this={pinGridEl} ontouchmove={onPinTouchMove}>
         {#each visibleNotes as n (n.id)}
           {@const accent = accentColor(n.accent)}
           <div
@@ -520,6 +592,7 @@
             onpointerup={endPinDrag}
             onpointercancel={endPinDrag}
             onlostpointercapture={endPinDrag}
+            oncontextmenu={(e) => { if (pinDragId || pinHoldId) e.preventDefault() }}
           >
             <div class="pin-head">
               {#if selecting}
@@ -790,6 +863,7 @@
     background: color-mix(in srgb, var(--pin-accent) 18%, var(--panel));
     cursor: pointer;
     user-select: none;
+    -webkit-touch-callout: none;
     /* Drag the card itself; a vertical swipe still scrolls the cover. */
     touch-action: pan-y;
     animation: row-in var(--dur-base) var(--ease-out);
