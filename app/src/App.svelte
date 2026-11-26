@@ -302,10 +302,13 @@
     display: flex;
     flex-direction: column;
   }
-  @media (max-width: 600px) {
+  @media (max-width: 900px) {
     .container { padding: 1rem; }
-    .container.wide { padding: 1rem 0.5rem 0.5rem; }
-    nav { margin-bottom: 1rem; }
+    .container.wide { padding: 0.75rem 0.5rem 0.5rem; }
+  }
+  @media (max-width: 600px) {
+    .container { padding: 0.5rem; }
+    .container.wide { padding: 0.5rem 0.25rem 0.25rem; }
   }
   .page-content {
     animation: pageEnter var(--dur-base) var(--ease-out);
@@ -374,6 +377,9 @@
     background: var(--glass);
   }
   .nav-spacer { flex: 1; }
+  @media (max-width: 900px) {
+    nav { margin-bottom: 0.75rem; }
+  }
   @media (max-width: 600px) {
     /* Page tabs scroll on their own, so the action icons never slide out of
        reach behind them. */
@@ -386,6 +392,7 @@
     .nav-pages::-webkit-scrollbar { display: none; }
     .nav-pages button { flex-shrink: 0; }
     .nav-spacer { display: none; }
+    nav { margin-bottom: 0.5rem; }
   }
   .nav-icon {
     display: inline-flex;
@@ -406,6 +413,8 @@
   .logout-icon { display: none; width: 14px; height: 14px; }
   @media (max-width: 600px) {
     nav button { padding: 0.45rem 0.7rem; }
+    .nav-logo-btn { margin-right: 0.35rem; transform: translateY(-0.2rem); }
+    .nav-logo { width: 2.4rem; height: 2.4rem; }
     .logout-label { display: none; }
     .logout-icon { display: block; }
     .nav-logout { padding: 0.45rem; }
