@@ -272,6 +272,15 @@
     if (drag) e.preventDefault()
   }
 
+  // Svelte delegates touchmove as a passive listener, so attach a
+  // non-passive one to the strip to keep it from scrolling mid-drag.
+  onMount(() => {
+    const el = tabsEl
+    if (!el) return
+    el.addEventListener('touchmove', onTabsTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTabsTouchMove)
+  })
+
   function autoScroll() {
     if (!drag) return
     if (drag.moved) {
@@ -351,7 +360,7 @@
 
 <section class="day-notes" aria-label="Day notes">
   <div class="bar">
-    <div class="tabs" class:reordering={drag?.moved} bind:this={tabsEl} role="tablist" aria-label="Notes" ontouchmove={onTabsTouchMove}>
+    <div class="tabs" class:reordering={drag?.moved} bind:this={tabsEl} role="tablist" aria-label="Notes">
       {#each notes as n, i (n.id)}
         {#if renaming === n.id}
           <input

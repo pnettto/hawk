@@ -333,6 +333,15 @@
     if (pinDragId) e.preventDefault()
   }
 
+  // Svelte delegates touchmove as a passive listener, so attach a
+  // non-passive one to the grid to keep the page from scrolling mid-drag.
+  $effect(() => {
+    const el = pinGridEl
+    if (!el) return
+    el.addEventListener('touchmove', onPinTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onPinTouchMove)
+  })
+
   // The dragged card follows the pointer; the card it will displace is found
   // in reading order, using geometry captured when the gesture started.
   function updatePinDrag() {
@@ -574,7 +583,6 @@
         class="pin-grid"
         class:dragging={!!pinDragId}
         bind:this={pinGridEl}
-        ontouchmove={onPinTouchMove}
       >
         {#each visibleNotes as n (n.id)}
           {@const accent = accentColor(n.accent)}
