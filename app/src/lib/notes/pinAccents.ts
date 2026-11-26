@@ -1,12 +1,13 @@
-// Card accents for pinned notes on the Notepad cover. Muted on purpose: they
-// tint the card edge and background, never shout. Mirrored by ACCENTS in
-// server/routeHandlers/notes.ts.
+// Card accents for pinned notes on the Notepad cover. Confident but still
+// grounded: a colour for the card edge, a light tint behind it. The hues lean
+// on the theme accents already used across Hawk (amber, blue, green, rose,
+// violet). Mirrored by ACCENTS in server/routeHandlers/notes.ts.
 export const NOTE_ACCENTS = [
-  { id: 'sand', label: 'Sand', color: '#c3a97b' },
-  { id: 'sage', label: 'Sage', color: '#93a98f' },
-  { id: 'clay', label: 'Clay', color: '#c08e7d' },
-  { id: 'slate', label: 'Slate', color: '#8a9bb0' },
-  { id: 'mauve', label: 'Mauve', color: '#a896ae' },
+  { id: 'sand', label: 'Sand', color: '#e0a83f' },
+  { id: 'sage', label: 'Sage', color: '#7cb37b' },
+  { id: 'clay', label: 'Clay', color: '#d97a63' },
+  { id: 'slate', label: 'Slate', color: '#639bd6' },
+  { id: 'mauve', label: 'Mauve', color: '#a885d6' },
 ] as const
 
 export type NoteAccent = (typeof NOTE_ACCENTS)[number]['id']

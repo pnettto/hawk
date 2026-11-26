@@ -182,6 +182,8 @@
   let pinLastX = 0
   let pinLastY = 0
   let pinAutoScroll = 0
+  // Set when a drag finishes, so the click that follows doesn't open the note.
+  let pinSuppressClick = false
 
   function toggleAccent(nid: string, e: MouseEvent) {
     e.stopPropagation()
@@ -194,10 +196,20 @@
     void notesStore.setAccent(nid, accent)
   }
 
-  // A chip click (or its keyboard equivalent) opens the note; the card tools
-  // handle their own events.
+  // A chip click (or its keyboard equivalent) opens the note; a click on the
+  // open card again closes it and returns to the cards-only cover. The card
+  // tools handle their own events.
   function onPinCardClick(e: MouseEvent, nid: string) {
+    // A drag finishes with a click on the card; that shouldn't open the note.
+    if (pinSuppressClick) {
+      pinSuppressClick = false
+      return
+    }
     if (accentMenu) accentMenu = null
+    if (!selecting && $notesStore.selectedNid === nid) {
+      notesStore.clearSelectedNote()
+      return
+    }
     onRowClick(e, nid)
   }
 
@@ -206,17 +218,25 @@
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (selecting) togglePick(nid, e.shiftKey)
+      else if ($notesStore.selectedNid === nid) notesStore.clearSelectedNote()
       else notesStore.selectNote(nid)
     } else if (e.key === 'Escape' && selecting) {
       stopSelecting()
+    } else if (!selecting) {
+      reorderPinnedByKey(e, nid)
     }
   }
 
   // Card geometry is captured once when the gesture starts and used for the
   // whole drag, so the insertion point never wobbles as rows slide around.
   function startPinDrag(e: PointerEvent, nid: string) {
+    // Recover from a drag whose click never arrived (released off-window).
+    pinSuppressClick = false
     if (selecting || e.button !== 0 || !pinGridEl) return
-    e.preventDefault()
+    // The card's own controls (palette, unpin, tags) keep their clicks.
+    if (e.target instanceof Element && e.target.closest('button')) return
+    // No preventDefault here: a plain tap must still produce a click that
+    // opens the note. The card is unselectable, so dragging selects nothing.
     accentMenu = null
     const gridRect = pinGridEl.getBoundingClientRect()
     pinSlots = [...pinGridEl.querySelectorAll<HTMLElement>('[data-pin-id]')].map((el) => {
@@ -246,7 +266,6 @@
 
   function onPinDragMove(e: PointerEvent) {
     if (!pinDragId || e.pointerId !== pinPointer) return
-    pinMoved = true
     pinLastX = e.clientX
     pinLastY = e.clientY
     updatePinDrag()
@@ -256,8 +275,13 @@
   // in reading order, using geometry captured when the gesture started.
   function updatePinDrag() {
     if (!pinDragId || !pinGridEl) return
-    pinDx = pinLastX - pinStartX
-    pinDy = pinLastY - pinStartY
+    const dx = pinLastX - pinStartX
+    const dy = pinLastY - pinStartY
+    // A click with a pixel of tremor shouldn't turn into a drag.
+    if (!pinMoved && Math.hypot(dx, dy) < 4) return
+    pinMoved = true
+    pinDx = dx
+    pinDy = dy
     const rect = pinGridEl.getBoundingClientRect()
     const x = pinLastX - rect.left
     const y = pinLastY - rect.top
@@ -327,6 +351,9 @@
     const at = pinDrop
     const moved = pinMoved
     const ids = pinIds
+    // A real drag ends in a click on the card; swallow it. A cancelled touch
+    // gesture produces none, so don't swallow the next tap instead.
+    if (moved && e?.type === 'pointerup') pinSuppressClick = true
     resetPinDrag()
     if (!id || at === null || !moved || !ids.includes(id)) return
     const order = ids.filter((x) => x !== id)
@@ -347,7 +374,8 @@
     pinMoved = false
   }
 
-  function onPinHandleKeydown(e: KeyboardEvent, nid: string) {
+  // Keyboard reordering: the focused card moves one slot per arrow key.
+  function reorderPinnedByKey(e: KeyboardEvent, nid: string) {
     const step =
       e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
       : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
@@ -365,6 +393,8 @@
   function onPinWindowKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && pinDragId) {
       e.preventDefault()
+      // The pointer is still down: the release will click the card.
+      if (pinMoved) pinSuppressClick = true
       resetPinDrag()
     }
   }
@@ -485,6 +515,11 @@
             animate:safeFlip={{ duration: 180 }}
             onclick={(e) => onPinCardClick(e, n.id)}
             onkeydown={(e) => onPinCardKeydown(e, n.id)}
+            onpointerdown={(e) => startPinDrag(e, n.id)}
+            onpointermove={onPinDragMove}
+            onpointerup={endPinDrag}
+            onpointercancel={endPinDrag}
+            onlostpointercapture={endPinDrag}
           >
             <div class="pin-head">
               {#if selecting}
@@ -518,21 +553,6 @@
               </div>
               {#if !selecting}
                 <div class="pin-tools">
-                  <button
-                    type="button"
-                    class="pin-tool pin-grip"
-                    title="Drag to reorder"
-                    aria-label="Drag to reorder"
-                    onpointerdown={(e) => startPinDrag(e, n.id)}
-                    onpointermove={onPinDragMove}
-                    onpointerup={endPinDrag}
-                    onpointercancel={endPinDrag}
-                    onlostpointercapture={endPinDrag}
-                    onkeydown={(e) => onPinHandleKeydown(e, n.id)}
-                    onclick={(e) => e.stopPropagation()}
-                  >
-                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                  </button>
                   <div class="pin-palette-wrap">
                     <button
                       type="button"
@@ -763,28 +783,31 @@
     min-width: 0;
     min-height: 98px;
     padding: 0.65rem 0.6rem 0.5rem 0.75rem;
-    border: 1px solid color-mix(in srgb, var(--pin-accent) 30%, var(--border-subtle));
-    border-left: 3px solid var(--pin-accent);
+    border: 1px solid color-mix(in srgb, var(--pin-accent) 38%, var(--border-subtle));
+    border-left: 4px solid var(--pin-accent);
     border-radius: var(--r-md);
-    background: color-mix(in srgb, var(--pin-accent) 8%, var(--bg));
+    background: color-mix(in srgb, var(--pin-accent) 12%, var(--bg));
     cursor: pointer;
+    user-select: none;
+    /* Drag the card itself; a vertical swipe still scrolls the cover. */
+    touch-action: pan-y;
     animation: row-in var(--dur-base) var(--ease-out);
     transition:
       background-color var(--dur-fast) var(--ease-out),
       border-color var(--dur-fast) var(--ease-out);
   }
-  .pin-card:hover { background: color-mix(in srgb, var(--pin-accent) 13%, var(--bg)); }
+  .pin-card:hover { background: color-mix(in srgb, var(--pin-accent) 18%, var(--bg)); }
   .pin-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .pin-card.active,
   .pin-card.picked {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--pin-accent));
-    background: color-mix(in srgb, var(--pin-accent) 16%, var(--bg));
+    background: color-mix(in srgb, var(--pin-accent) 22%, var(--bg));
   }
   .pin-card.dragging {
     z-index: 2;
     cursor: grabbing;
     box-shadow: var(--shadow-pop);
-    background: color-mix(in srgb, var(--pin-accent) 16%, var(--panel));
+    background: color-mix(in srgb, var(--pin-accent) 26%, var(--panel));
   }
   .selecting .pin-card { user-select: none; }
 
@@ -876,8 +899,6 @@
   .pin-tool:hover { color: var(--text); background: var(--glass-dark); }
   .pin-tool.active { color: var(--accent); background: var(--glass-dark); }
   .pin-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .pin-grip { cursor: grab; }
-  .pin-grip:active { cursor: grabbing; }
 
   .pin-palette-wrap { position: relative; }
   .pin-palette {
