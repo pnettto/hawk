@@ -184,7 +184,7 @@
 
   let canShare = $derived(variant === 'page' && !$authStore.isGuest)
 
-  const PIN_ICON = ['M9.5 2.5 13.5 6.5', 'M10.8 3.8 7.2 6.1 4.3 5.2 2.5 7l6.5 6.5 1.8-1.8-.9-2.9 2.3-3.6']
+  const PIN_ICON = ['M6 2.5h4v3l2 1.5v1H4v-1l2-1.5z', 'M8 8v5.5']
 
   let menuItems: ActionMenuItem[] = $derived([
     ...(canShare

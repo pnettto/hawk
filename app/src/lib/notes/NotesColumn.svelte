@@ -570,7 +570,7 @@
                     aria-label="Unpin from cover"
                     onclick={(e) => { e.stopPropagation(); void notesStore.setPinned(n.id, false) }}
                   >
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5 13.5 6.5M10.8 3.8 7.2 6.1 4.3 5.2 2.5 7l6.5 6.5 1.8-1.8-.9-2.9 2.3-3.6M3 13l2.1-2.1" /></svg>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h4v3l2 1.5v1H4v-1l2-1.5z" /><path d="M8 8v5.5" /></svg>
                   </button>
                 </div>
               {/if}
@@ -625,7 +625,7 @@
                 {/if}
                 <div class="row-meta">
                   {#if n.hidden}<svg class="lock-icon" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Hidden" role="img"><path d="M4.5 7.5h7a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" /><path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2" /></svg>{/if}
-                  {#if n.pinned}<svg class="lock-icon" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-label="Pinned" role="img"><path d="M9.5 2.5 13.5 6.5M10.8 3.8 7.2 6.1 4.3 5.2 2.5 7l6.5 6.5 1.8-1.8-.9-2.9 2.3-3.6" /></svg>{/if}
+                  {#if n.pinned}<svg class="lock-icon" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-label="Pinned" role="img"><path d="M6 2.5h4v3l2 1.5v1H4v-1l2-1.5z" /><path d="M8 8v5.5" /></svg>{/if}
                   {#if n.day && n.title.trim() && $notesStore.filter.kind !== 'day'}
                     <span class="row-tag day">{dayLabel(n.day)}</span>
                   {:else}
