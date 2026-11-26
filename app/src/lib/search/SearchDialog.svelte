@@ -468,7 +468,6 @@
   .segmented button[aria-checked='true'] { color: var(--accent); background: var(--glass); }
   .body {
     overflow-y: auto;
-    border-top: 1px solid var(--border-subtle);
     padding: 0.3rem 0.4rem 0.5rem;
     min-height: 4rem;
   }
@@ -536,14 +535,6 @@
   .create.first-create {
     margin-top: 0.35rem;
     position: relative;
-  }
-  .create.first-create::before {
-    content: '';
-    position: absolute;
-    left: 0.5rem;
-    right: 0.5rem;
-    top: -0.2rem;
-    border-top: 1px solid var(--border-subtle);
   }
   .plus {
     width: 12px;

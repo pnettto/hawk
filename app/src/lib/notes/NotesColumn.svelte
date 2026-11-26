@@ -675,8 +675,9 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-subtle);
-    background: var(--surface-subtle);
+    /* The single divider between the list and the note, standing in for the
+       borders the rest of the workspace no longer draws. */
+    border-right: 1px solid var(--line);
     min-height: 0;
     font-family: var(--font-ui, inherit);
   }
@@ -686,7 +687,6 @@
     justify-content: space-between;
     min-height: var(--workspace-header-height);
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border-subtle);
     gap: 0.75rem;
   }
   .col-actions { display: flex; gap: 0.4rem; align-items: center; min-height: 32px; }
@@ -783,7 +783,7 @@
     min-width: 0;
     min-height: 98px;
     padding: 0.65rem 0.75rem 0.55rem;
-    border: 1px solid color-mix(in srgb, var(--pin-accent) 20%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--pin-accent) 20%, var(--line));
     border-radius: var(--r-md);
     /* Solid panel, lightly warmed by the chosen accent: the card reads as a
        surface of the app rather than a tinted tile floating over it. */
@@ -801,7 +801,7 @@
   .pin-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .pin-card.active,
   .pin-card.picked {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
     background: color-mix(in srgb, var(--pin-accent) 30%, var(--panel));
   }
   .pin-card.dragging {
@@ -1017,11 +1017,11 @@
     white-space: nowrap;
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
   }
   .tag-link:hover {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 50%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
   }
   .tag-link:active { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 

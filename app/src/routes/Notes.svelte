@@ -55,7 +55,6 @@
     flex: 1;
     min-height: 0;
     height: 100%;
-    border: 1px solid var(--border-subtle);
     border-radius: var(--r-md);
     background: var(--bg);
     overflow: hidden;
@@ -95,6 +94,10 @@
   @media (max-width: 900px) {
     .notes-layout {
       flex-direction: column;
+    }
+    /* One pane at a time: no divider to draw. */
+    .notes-layout :global(.notes-col) {
+      border-right: none;
     }
     .editor-main {
       padding: 0;

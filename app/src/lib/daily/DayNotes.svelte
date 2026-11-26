@@ -428,7 +428,7 @@
   .tab[data-tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .tabs.reordering { user-select: none; cursor: grabbing; }
   .tabs.reordering .tab:not(.dragging) { transition: transform var(--dur-fast) var(--ease-out); }
-  .tab.dragging { position: relative; z-index: 1; cursor: grabbing; background: var(--surface-subtle); transition: none; }
+  .tab.dragging { position: relative; z-index: 1; cursor: grabbing; background: var(--panel); transition: none; }
   .tab:hover { color: var(--text); background: var(--glass-dark); }
   .tab[aria-selected='true'] { color: var(--accent); background: var(--glass); }
   .tab-rename {
