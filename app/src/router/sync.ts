@@ -90,8 +90,8 @@ function applyRoute(route: Route, { boot }: { boot: boolean }) {
     case 'journal': {
       const date = route.date ?? today()
       if (formatDate(app.selectedDate) !== date) appStore.setSelectedDate(route.date ? toDate(date) : new Date())
-      // `/` keeps the remembered tab on boot; anywhere else it means Tasks.
-      const tab = route.tab ?? (boot ? undefined : 'tasks')
+      // A bare `/` always opens Tasks; explicit journal links name their tab.
+      const tab = route.tab ?? 'tasks'
       if (tab && app.journalTab !== tab) appStore.setJournalTab(tab, { remember })
       if (app.highlightTaskId !== (route.task ?? null)) appStore.setHighlightTask(route.task ?? null)
       break

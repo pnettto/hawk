@@ -43,6 +43,13 @@ describe('router sync', () => {
     expect(here()).toBe('/journal/2026-05-14/notes')
   })
 
+  it('opens Tasks on the home page even when another tab was last used', async () => {
+    localStorage.setItem('hawk_journal_tab', 'notes')
+    const { appStore, here } = await boot('/')
+    expect(get(appStore).journalTab).toBe('tasks')
+    expect(here()).toBe('/')
+  })
+
   it('round-trips store state through the URL', async () => {
     const { appStore, notesStore, here } = await boot('/')
     expect(here()).toBe('/')
